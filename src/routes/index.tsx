@@ -1,24 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+const Battle = lazy(() => import("@/components/naval/Battle"));
+
 export const Route = createFileRoute("/")({
+  ssr: false,
+  head: () => ({
+    meta: [
+      { title: "No Man's Sea — Live Binance Futures naval battle" },
+      {
+        name: "description",
+        content: "A real-time 3D naval battle driven by live Binance USD-M Futures order books, trades and liquidations.",
+      },
+      { property: "og:title", content: "No Man's Sea — Live order-flow naval battle" },
+      {
+        property: "og:description",
+        content: "Bulls vs Bears fleets built from live Binance Futures order flow. Every shot is a real trade.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <Suspense fallback={<div className="fixed inset-0 bg-background" />}>
+      <Battle />
+    </Suspense>
   );
 }
