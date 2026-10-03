@@ -1,7 +1,7 @@
 import { useGLTF } from "@react-three/drei";
 import { useMemo } from "react";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { MeshoptSimplifier } from "meshoptimizer";
 
 let simplifierReady = false;
@@ -17,9 +17,14 @@ function ensureSimplifier() {
 /** Fleet ships are small on screen: decimate ~30k-triangle hulls to a mobile budget. */
 const TARGET_TRIS: Record<string, number> = { patrol: 4000, frigate: 5000, cruiser: 6000, battleship: 8000, tanker: 6000, transport: 4000, bomber: 5000 };
 
-function simplify(geo: THREE.BufferGeometry, targetTris: number) {
+function simplify(src: THREE.BufferGeometry, targetTris: number) {
+  // weld UV/normal seams so the simplifier can collapse edges
+  const bare = new THREE.BufferGeometry();
+  bare.setAttribute("position", src.getAttribute("position"));
+  if (src.getIndex()) bare.setIndex(src.getIndex());
+  const geo = mergeVertices(bare, 1e-4);
   const index = geo.getIndex();
-  if (!index || index.count / 3 <= targetTris) return geo;
+  if (!index) return src;
   const pos = geo.getAttribute("position");
   const positions = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
@@ -27,9 +32,15 @@ function simplify(geo: THREE.BufferGeometry, targetTris: number) {
     positions[i * 3 + 1] = pos.getY(i);
     positions[i * 3 + 2] = pos.getZ(i);
   }
-  const [out] = MeshoptSimplifier.simplify(new Uint32Array(index.array), positions, 3, targetTris * 3, 0.02);
+  const [out] = MeshoptSimplifier.simplify(new Uint32Array(index.array), positions, 3, targetTris * 3, 0.05);
   geo.setIndex(new THREE.BufferAttribute(out, 1));
-  return geo;
+  // faceted normals keep hard hull/superstructure edges readable after decimation
+  const flat = geo.toNonIndexed();
+  flat.computeVertexNormals();
+  flat.computeBoundingBox();
+  flat.computeBoundingSphere();
+  src.dispose();
+  return flat;
 }
 
 export const MODELS = {
