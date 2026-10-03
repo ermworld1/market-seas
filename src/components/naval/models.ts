@@ -39,6 +39,7 @@ function simplify(src: THREE.BufferGeometry, targetTris: number) {
   flat.computeVertexNormals();
   flat.computeBoundingBox();
   flat.computeBoundingSphere();
+  if (import.meta.env.DEV) console.info("[nms] simplified", index.count / 3, "->", out.length / 3);
   src.dispose();
   return flat;
 }
