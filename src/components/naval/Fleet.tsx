@@ -322,7 +322,7 @@ export function Fleet() {
                 repairEls.current[i] = el;
               }}
               className="ship-tag text-ok"
-              style={{ display: "none" }}
+              style={{ display: "none", marginTop: 30 }}
             >
               repair (inferred)
             </div>

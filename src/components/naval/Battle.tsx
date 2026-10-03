@@ -24,7 +24,7 @@ function CameraRig() {
     view.cap = view.mobile ? 12 : 20;
     const cam = camera as THREE.PerspectiveCamera;
     // ~35° look-down over the strait; back off on portrait so both fleets fit
-    const dist = aspect < 1 ? 25 + (1 - aspect) * 6 : 24;
+    const dist = aspect < 1 ? 27 + (1 - aspect) * 6 : 24;
     const fov = aspect < 1 ? 62 : 48;
     const hHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(fov / 2)) * aspect);
     view.halfW = THREE.MathUtils.clamp(0.62 * dist * Math.tan(hHalf), 3.6, 12);
