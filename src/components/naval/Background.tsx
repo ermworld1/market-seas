@@ -41,11 +41,14 @@ export function Background() {
   const slickSize = useRef({ bid: 0, ask: 0 });
   const buoyZ = useRef(0);
   const conv = useRef({ side: 1, p: 0 });
+  const root = useRef<THREE.Group>(null);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
     const e = engineRef.current;
     const t = view.time;
+    // nothing here is shown until real market data has arrived
+    if (root.current) root.current.visible = !!e && e.bids.length > 0 && e.mark > 0;
 
     // buoys at mark price
     const mark = e?.mark || view.mid;
@@ -118,7 +121,7 @@ export function Background() {
   });
 
   return (
-    <group>
+    <group ref={root} visible={false}>
       <instancedMesh ref={buoys} args={[buoyGeo, mats.buoy, BUOYS]} frustumCulled={false} />
       <instancedMesh ref={convoy} args={[transportGeo, mats.transport, CONVOY]} frustumCulled={false} />
       <mesh ref={(m) => (tankers.current.bid = m)} geometry={tankerGeo} material={mats.bulls} scale={2.1} />

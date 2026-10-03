@@ -314,7 +314,7 @@ export function Fleet() {
           </Html>
         </group>
       ))}
-      {[0, 1, 2, 3].map((i) => (
+      {[0, 1].map((i) => (
         <group key={i} ref={(g) => (repairGroups.current[i] = g)}>
           <Html center zIndexRange={[20, 10]} style={{ pointerEvents: "none" }}>
             <div
