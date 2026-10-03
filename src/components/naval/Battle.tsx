@@ -22,11 +22,12 @@ function CameraRig() {
     const aspect = size.width / size.height;
     view.mobile = size.width < 768;
     view.cap = view.mobile ? 12 : 20;
-    view.halfW = THREE.MathUtils.clamp(aspect * 7.5, 3.4, 12);
     const cam = camera as THREE.PerspectiveCamera;
     // ~35° look-down over the strait; back off on portrait so both fleets fit
-    const dist = aspect < 1 ? 30 + (1 - aspect) * 12 : 24;
-    const fov = aspect < 1 ? 58 : 48;
+    const dist = aspect < 1 ? 25 + (1 - aspect) * 6 : 24;
+    const fov = aspect < 1 ? 62 : 48;
+    const hHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(fov / 2)) * aspect);
+    view.halfW = THREE.MathUtils.clamp(0.62 * dist * Math.tan(hHalf), 3.6, 12);
     if (cam.fov !== fov) {
       cam.fov = fov;
       cam.updateProjectionMatrix();
@@ -40,7 +41,7 @@ function CameraRig() {
       Math.sin(elev) * dist + (Math.random() - 0.5) * sh,
       Math.cos(elev) * dist + 2.5,
     );
-    lookAt.set(0, 0, aspect < 1 ? 0.5 : 2.5);
+    lookAt.set(0, 0, aspect < 1 ? 1.5 : 2.5);
     cam.lookAt(lookAt);
     if (import.meta.env.DEV) (window as unknown as { __nmsInfo: unknown }).__nmsInfo = state.gl.info.render;
   });
