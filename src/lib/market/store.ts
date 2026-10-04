@@ -96,6 +96,7 @@ interface BattleStore {
   volume: number;
   clip: ClipReady | null;
   tourOpen: boolean;
+  helpOpen: boolean;
   presentation: "cinema" | "map";
   panelTab: "read" | "book" | "trades" | "tape" | "guide" | "rankings";
   bookGroup: number;
@@ -156,6 +157,7 @@ export const useBattle = create<BattleStore>(() => ({
   volume: 0.7,
   clip: null,
   tourOpen: false,
+  helpOpen: false,
   presentation: "cinema",
   panelTab: "read",
   bookGroup: 0.1,

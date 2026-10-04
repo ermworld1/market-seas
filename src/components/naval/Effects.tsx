@@ -7,6 +7,7 @@ import { tracersFor } from "@/lib/market/rules";
 import { audio, panX } from "@/lib/audio/engine";
 import { useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
+import { SIDE_HEX } from "@/lib/battle/units";
 import { fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
 import { makeFighterGeometry } from "./fighter";
 
@@ -19,6 +20,7 @@ interface Proj {
   color: THREE.Color;
   weapon: Weapon | "bomb" | "cannon";
   target: Display | null;
+  side?: BookSide;
 }
 interface Plane {
   on: boolean;
@@ -52,6 +54,12 @@ const COLORS = {
   bomb: new THREE.Color(0.08, 0.08, 0.08),
   cannon: new THREE.Color(1.8, 1.4, 0.6),
 };
+/** tracers glow in the firing side's colour (torpedoes / bombs stay dark) */
+const TINT: Record<BookSide, Record<string, THREE.Color>> = { bid: {}, ask: {} };
+for (const side of ["bid", "ask"] as const) {
+  const sc = new THREE.Color(SIDE_HEX[side]).multiplyScalar(2.2);
+  for (const [w, c] of Object.entries(COLORS)) TINT[side][w] = w === "torpedo" || w === "bomb" ? c : c.clone().lerp(sc, 0.6);
+}
 const POWER: Record<Proj["weapon"], number> = { mg: 0.15, cannon: 0.25, gun: 0.55, torpedo: 1.1, broadside: 1.4, bomb: 1.6 };
 
 /** Find the target ship for a bucket; if it is gone, continue into the next ship deeper in the book. */
@@ -90,8 +98,13 @@ export function Effects() {
 
   const bomberGeo = useModelGeometry("bomber");
   const fighterGeo = useMemo(() => makeFighterGeometry(), []);
-  const planeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#3d4236", metalness: 0.5, roughness: 0.55 }), []);
-  const fighterMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7d8790", metalness: 0.6, roughness: 0.4, flatShading: true }), []);
+  // aircraft wear the colour of the side that sends them (the opposite of the side they attack)
+  const airMats = useMemo(() => {
+    const m = (hex: string) => new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).convertSRGBToLinear().multiplyScalar(0.8), emissive: new THREE.Color(hex).convertSRGBToLinear(), emissiveIntensity: 0.3, metalness: 0.4, roughness: 0.5, flatShading: true });
+    return { bid: m(SIDE_HEX.bid), ask: m(SIDE_HEX.ask) };
+  }, []);
+  const planeMat = airMats.ask;
+  const fighterMat = airMats.bid;
   const projMesh = useRef<THREE.InstancedMesh>(null);
   // camera-facing streak: a unit quad in the XZ plane (length along Z), tapered by a soft alpha texture
   const projGeo = useMemo(() => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), []);
@@ -133,11 +146,11 @@ export function Effects() {
     return () => {
       projGeo.dispose();
       projMat.dispose();
-      planeMat.dispose();
-      fighterMat.dispose();
+      airMats.bid.dispose();
+      airMats.ask.dispose();
       fighterGeo.dispose();
     };
-  }, [projGeo, projMat, planeMat, fighterMat, fighterGeo]);
+  }, [projGeo, projMat, airMats, fighterGeo]);
 
   /** Never drops a shot: when the pool is full the oldest projectile is recycled. */
   const spawn = (p: Partial<Proj> & Pick<Proj, "fx" | "fy" | "fz" | "tx" | "ty" | "tz" | "dur" | "weapon">) => {
@@ -155,7 +168,7 @@ export function Effects() {
       cursor.current = (cursor.current + 1) % MAX_PROJ;
     }
     Object.assign(free, { arc: 0, size: 0.05, len: 0.3, target: null, ...p, on: true, t: 0 });
-    free.color = COLORS[p.weapon];
+    free.color = p.side ? TINT[p.side][p.weapon]! : COLORS[p.weapon];
   };
 
   const splash = (x: number, z: number, power: number) => {
@@ -206,7 +219,7 @@ export function Effects() {
     const tx = target ? target.x : xForPrice(ev.target, ev.price);
     const ty = target ? 0.18 * target.s : 0;
     const tz = target ? target.z : zForBucket(ev.b);
-    const base = { target };
+    const base = { target, side: sSide };
     if (ev.notional >= 250_000 || ev.weapon === "broadside") view.track = { side: sSide, fx: mx, fz: mz, tx, tz, t0: view.time, dur: ev.weapon === "torpedo" ? 0.45 : 0.35 };
     if (ev.weapon === "broadside") { fx.slowmo = Math.max(fx.slowmo, 0.5); fx.slowScale = 0.4; }
     const pan = { x: panX(mx - view.frontX, REAR), dist: Math.min(1, Math.abs(mx - view.cameraX) / (REAR * 1.2)) };
@@ -257,6 +270,8 @@ export function Effects() {
     const p = planes.find((q) => !q.on && q.kind === kind);
     if (!p) return;
     Object.assign(p, init, { on: true, t: 0, next: 0 });
+    const mesh = planeRefs.current[planes.indexOf(p)];
+    if (mesh) mesh.material = airMats[p.side === "bid" ? "ask" : "bid"];
     lastPlane.current = p;
   };
 

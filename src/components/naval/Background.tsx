@@ -18,7 +18,7 @@ export function Background() {
       buyers: makeFleetMaterial("buyers"),
       sellers: makeFleetMaterial("sellers"),
       transport: new THREE.MeshStandardMaterial({ color: "#5d6669", metalness: 0.4, roughness: 0.6 }),
-      buoy: new THREE.MeshStandardMaterial({ color: "#ffefc2", emissive: "#ffcf5a", emissiveIntensity: 2.2, toneMapped: false }),
+      buoy: new THREE.MeshStandardMaterial({ color: "#ffffff", emissive: "#fff4d6", emissiveIntensity: 2.2, toneMapped: false }),
       slick: new THREE.MeshBasicMaterial({ color: "#07090a", transparent: true, opacity: 0, depthWrite: false }),
     }),
     [],
