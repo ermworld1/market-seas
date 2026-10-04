@@ -39,7 +39,7 @@ export function Background() {
   const tankers = useRef<Record<"bid" | "ask", THREE.Mesh | null>>({ bid: null, ask: null });
   const slicks = useRef<Record<"bid" | "ask", THREE.Mesh | null>>({ bid: null, ask: null });
   const slickSize = useRef({ bid: 0, ask: 0 });
-  const buoyZ = useRef(0);
+  const buoyX = useRef(0);
   const conv = useRef({ side: 1, p: 0 });
   const root = useRef<THREE.Group>(null);
 
@@ -52,15 +52,15 @@ export function Background() {
 
     // buoys at mark price
     const mark = e?.mark || view.mid;
-    const tz = view.mid && mark ? THREE.MathUtils.clamp((-(mark - view.mid) / (view.mid * 0.01)) * DEPTH, -0.85, 0.85) : 0;
-    buoyZ.current += (tz - buoyZ.current) * (1 - Math.exp(-3 * dt));
+    const tx = view.frontX;
+    buoyX.current += (tx - buoyX.current) * (1 - Math.exp(-3 * dt));
     view.sinkPulse = Math.max(0, view.sinkPulse - dt * 1.5);
     const b = buoys.current;
     if (b) {
       const span = view.halfW + 4;
       for (let i = 0; i < BUOYS; i++) {
-        const x = view.offsetX - span + (i / (BUOYS - 1)) * span * 2;
-        dummy.position.set(x, 0.05 + Math.sin(t * 2 + i) * 0.03 * (1 + view.storm * 3), buoyZ.current);
+        const z = -span + (i / (BUOYS - 1)) * span * 2;
+        dummy.position.set(buoyX.current, 0.05 + Math.sin(t * 2 + i) * 0.03 * (1 + view.storm * 3), z);
         dummy.scale.setScalar(1 + view.sinkPulse * 1.2 + Math.sin(t * 3 + i * 0.7) * 0.12);
         dummy.updateMatrix();
         b.setMatrixAt(i, dummy.matrix);
@@ -72,13 +72,13 @@ export function Background() {
     const funding = e?.funding ?? 0;
     const leaking = { bid: funding > 0, ask: funding < 0 };
     for (const side of ["bid", "ask"] as const) {
-      const sign = side === "ask" ? -1 : 1;
+      const sign = side === "ask" ? 1 : -1;
       const tk = tankers.current[side];
-      const x = view.offsetX + view.halfW * (side === "bid" ? 0.62 : -0.62);
-      const z = sign * REAR;
+      const x = view.frontX + sign * REAR;
+      const z = (side === "bid" ? -1 : 1) * view.halfW * 0.62;
       if (tk) {
         tk.position.set(x, Math.sin(t * 1.1 + sign) * 0.03, z);
-        tk.rotation.set(0, side === "bid" ? 0 : Math.PI, leaking[side] ? 0.08 : Math.sin(t) * 0.02);
+        tk.rotation.set(0, side === "bid" ? Math.PI : 0, leaking[side] ? 0.08 : Math.sin(t) * 0.02);
       }
       const target = leaking[side] ? Math.min(5, 1.5 + Math.abs(funding) * 40000) : 0;
       slickSize.current[side] += (target - slickSize.current[side]) * (1 - Math.exp(-0.15 * dt));
@@ -86,12 +86,12 @@ export function Background() {
       if (sl) {
         const r = slickSize.current[side];
         sl.visible = r > 0.05;
-        sl.position.set(x + 0.6, 0.03, z + sign * 0.8);
+        sl.position.set(x + sign * 0.8, 0.03, z + 0.6);
         sl.scale.set(r * 1.3, 1, r * (0.8 + Math.sin(t * 0.3) * 0.05));
         (sl.material as THREE.MeshBasicMaterial).opacity = Math.min(0.62, r * 0.2);
       }
       if (leaking[side] && view.fx.smoke && Math.random() < dt * 4)
-        view.fx.smoke.emit({ x: x + 0.2, y: 0.02, z: z + sign * 0.3, vx: 0.15, life: 3, size: 0.45, grow: 1.5, color: "#0b0c0c", alpha: 0.6 });
+        view.fx.smoke.emit({ x: x + sign * 0.3, y: 0.02, z: z + 0.2, vz: 0.15, life: 3, size: 0.45, grow: 1.5, color: "#0b0c0c", alpha: 0.6 });
     }
 
     // OI convoy
@@ -109,9 +109,9 @@ export function Background() {
     if (cv) {
       const eased = c.p * c.p * (3 - 2 * c.p);
       for (let i = 0; i < CONVOY; i++) {
-        const z = c.side * (REAR + 5 + (i % 2) * 2.2 + (1 - eased) * 70);
-        dummy.position.set((i - 2) * Math.max(2.2, view.halfW * 0.4), Math.sin(t + i) * 0.03, z);
-        dummy.rotation.set(0, c.side > 0 ? 0 : Math.PI, 0);
+        const x = view.frontX - c.side * (REAR + 5 + (i % 2) * 2.2 + (1 - eased) * 70);
+        dummy.position.set(x, Math.sin(t + i) * 0.03, (i - 2) * Math.max(2.2, view.halfW * 0.4));
+        dummy.rotation.set(0, c.side > 0 ? Math.PI : 0, 0);
         dummy.scale.setScalar(c.p > 0.002 ? 1.6 : 0.0001);
         dummy.updateMatrix();
         cv.setMatrixAt(i, dummy.matrix);

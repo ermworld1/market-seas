@@ -7,6 +7,6 @@
 - [x] v2 Phase D: Web Audio engine + procedural sfx/music/radio with slots, auto-clips.
 - [x] v2 verification at 1440 and 390 with live BTCUSDT.
 - [x] v3: bullet sounds, ambient action, radio voices.
-- [ ] v4: left/right battlefield, moving vertical price front, mobile pan/zoom/recenter, orientation copy and clip updates.
+- [x] v4: left/right battlefield, moving vertical price front, mobile pan/zoom/recenter, orientation copy and clip updates.
 - [ ] v4 verification at 1440 and 390 with live BTCUSDT, screenshots and render/data metrics.
 - [ ] Real-device frame-rate check (needs a real phone/laptop GPU).

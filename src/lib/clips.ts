@@ -53,7 +53,7 @@ export async function recordClip(opts: {
           const { ctx, w, h } = o;
           ctx.fillStyle = "#061014";
           ctx.fillRect(0, 0, w, h);
-          // cover-crop the centre of the battle canvas
+          // cover-crop around the horizontal battle front; 9:16 stays centred on the crossing fire
           const sr = src.width / src.height;
           const dr = w / h;
           let sw = src.width;

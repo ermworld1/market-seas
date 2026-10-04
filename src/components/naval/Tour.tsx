@@ -17,8 +17,8 @@ const el = (sel: string) => () => {
 const STEPS: Step[] = [
   {
     title: "The strait = live price",
-    text: "The glowing buoy line is the live BTC price on Binance Futures. Sell orders wait north, buy orders wait south.",
-    rect: () => (screen.strait ? { x: 0, y: screen.strait.y - 26, w: window.innerWidth, h: 52 } : null),
+    text: "The vertical glowing line in the middle is the live BTC price on Binance Futures. Buy orders wait left; sell orders wait right.",
+    rect: () => (screen.strait ? { x: screen.strait.x - 26, y: 0, w: 52, h: window.innerHeight } : null),
   },
   {
     title: "A real order",
