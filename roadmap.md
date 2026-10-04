@@ -64,4 +64,4 @@
 - [x] Add three processed voice channels, clip-chain number readouts, prioritized event chains, and naval ship/weapon layers
 - [x] Install, normalize, and audit supplied naval role/digit/unit voice files
 - [x] Wire exact supplied clips and fleet-specific Captain lines into live chains
-- [ ] Verify three real-price readouts in a forced-unlocked 60-second chain log
+- [x] Verify three real-price readouts in a 60-second chain log (browser playback decoded all clips; physical-device audibility remains unverified)
