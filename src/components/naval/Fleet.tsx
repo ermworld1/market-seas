@@ -65,7 +65,7 @@ export function WaterLabels() {
     for (const side of SIDES) {
       const m = refs.current[side];
       if (!m) continue;
-      m.position.set(view.frontX + sideSign(side) * (REAR - 1.2), 0.06, view.halfW * 0.92);
+      m.position.set(view.frontX + sideSign(side) * (view.mobile ? 2.4 : 3.4), 0.06, view.halfW * 1.02);
       m.scale.setScalar(view.mobile ? 0.8 : 1);
     }
   });
