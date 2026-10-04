@@ -56,6 +56,7 @@ const flagState: Record<BookSide, { b: number; since: number; gone: null | { sta
   ask: { b: NaN, since: 0, gone: null },
 };
 const flagEvents: { type: string; b: number; side: string }[] = [];
+const damageCalled = new Set<string>();
 
 function pushTape(kind: string, text: string, tone: TapeLine["tone"], notional = 0, ids?: { first: number; last: number }) {
   const line: TapeLine = { id: nextId(), t: Date.now(), kind, text, tone, notional, ...(ids ? { firstAggId: ids.first, lastAggId: ids.last } : {}) };
@@ -148,7 +149,8 @@ function onEvent(ev: BattleEvent) {
       if (!side) break;
       const f = engineRef.current?.flagship(side);
       const d = view.displays.get(side + ev.b);
-      if (d && ev.hp <= 0.5 && d.damage < 0.5) radio("spot_fire", `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`);
+      const damageKey = `${side}:${ev.b}`;
+      if (d && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); radio("spot_fire", `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`); }
       if (!f || f.b !== ev.b) break;
       const h = flagHits[side]?.b === ev.b ? flagHits[side]! : (flagHits[side] = { b: ev.b, dmg: 0, told: 0 });
       h.dmg += ev.filled;
@@ -157,6 +159,7 @@ function onEvent(ev: BattleEvent) {
       break;
     }
     case "pulled":
+      if (side) damageCalled.delete(`${side}:${ev.b}`);
       flagEvents.push(ev);
       break;
     case "relocate":
@@ -182,8 +185,8 @@ function onEvent(ev: BattleEvent) {
     case "phase":
       audio.setPhase(ev.phase);
       if (ev.phase === "P6") {
-        const buyersPushing = engineRef.current?.priceChange5m && engineRef.current.priceChange5m > 0;
-        radio(buyersPushing ? (Math.random() < 0.5 ? "cap_commence" : "cap_holdline") : (ev.detail === "fall back" ? "adm_withdraw" : Math.random() < 0.5 ? "adm_openfire" : "adm_break"));
+        const buyersPushing = (engineRef.current?.priceChange5m ?? 0) > 0;
+        radio(buyersPushing ? (ev.detail === "fall back" ? "adm_withdraw" : Math.random() < 0.5 ? "cap_commence" : "cap_holdline") : (ev.detail === "fall back" ? "cap_holdline" : Math.random() < 0.5 ? "adm_openfire" : "adm_break"));
       }
       else radio(ev.phase);
       if (ev.phase === "P5") triggerClip("Liquidation cascade");

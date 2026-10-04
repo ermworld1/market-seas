@@ -19,7 +19,6 @@ const FOG = new THREE.Color(0.55, 0.6, 0.64);
 const SIDE_COL = { bid: new THREE.Color("#0ecb81"), ask: new THREE.Color("#f6465d") };
 const stripeGeo = new THREE.BoxGeometry(0.92, 0.055, 0.15).translate(0, 0.015, 0);
 const deckGeo = new THREE.BoxGeometry(0.38, 0.025, 0.12).translate(-0.08, 0.18, 0);
-const foamGeo = new THREE.RingGeometry(0.34, 0.48, 20).rotateX(-Math.PI / 2);
 const flagGeo = new THREE.PlaneGeometry(0.16, 0.1).translate(0.08, 0, 0);
 const poleGeo = new THREE.BoxGeometry(0.012, 0.22, 0.012).translate(0, -0.06, 0);
 const MARK_CAP = CAP * 5;
@@ -99,10 +98,9 @@ export function Fleet() {
       paint: { bid: paint("bid"), ask: paint("ask") },
       flag: { bid: flag("bid"), ask: flag("ask") },
       pole: new THREE.MeshStandardMaterial({ color: "#20252b", metalness: 0.75, roughness: 0.4 }),
-      foam: new THREE.MeshStandardMaterial({ color: "#d8e5e8", transparent: true, opacity: 0.5, roughness: 0.9, depthWrite: false }),
     };
   }, []);
-  useEffect(() => () => { [marks.paint.bid, marks.paint.ask, marks.flag.bid, marks.flag.ask, marks.pole, marks.foam].forEach((m) => m.dispose()); }, [marks]);
+  useEffect(() => () => { [marks.paint.bid, marks.paint.ask, marks.flag.bid, marks.flag.ask, marks.pole].forEach((m) => m.dispose()); }, [marks]);
   const markings = useRef<Record<string, THREE.InstancedMesh | null>>({});
   const meshes = useRef<Record<string, THREE.InstancedMesh | null>>({});
 
@@ -332,8 +330,7 @@ export function Fleet() {
         const dm = markings.current["d" + hk];
         const fm = markings.current["f" + hk];
         const pm = markings.current["p" + hk];
-        const wm = markings.current["w" + hk];
-        if (sm && dm && fm && pm && wm && hn < MARK_CAP) {
+        if (sm && dm && fm && pm && hn < MARK_CAP) {
           const sz = Math.max(0.001, d.s) * (1 - d.fade * 0.6);
           dummy.rotation.copy(euler);
           dummy.position.set(d.x, d.y, d.z);
@@ -341,11 +338,6 @@ export function Fleet() {
           dummy.updateMatrix();
           sm.setMatrixAt(hn, dummy.matrix);
           dm.setMatrixAt(hn, dummy.matrix);
-          dummy.position.set(d.x, 0.018, d.z);
-          dummy.rotation.set(0, 0, 0);
-          dummy.scale.setScalar(sz * (0.9 + d.damage * 0.15));
-          dummy.updateMatrix();
-          wm.setMatrixAt(hn, dummy.matrix);
           const fs = (0.22 + d.s * 0.48) * (1 - d.fade);
           dummy.position.set(d.x, d.y + 0.34 * d.s + 0.16, d.z);
           dummy.rotation.set(0, d.side === "bid" ? 0 : Math.PI, Math.sin(view.time * 5 + d.b) * 0.16);
@@ -377,7 +369,7 @@ export function Fleet() {
         if (m.instanceColor) m.instanceColor.needsUpdate = true;
       }
     for (const side of SIDES)
-      for (const p of ["s", "d", "f", "p", "w"]) {
+      for (const p of ["s", "d", "f", "p"]) {
         const m = markings.current[p + side];
         if (!m) continue;
         m.count = counts["h" + side] ?? 0;
@@ -403,7 +395,6 @@ export function Fleet() {
         <group key={"mk" + side}>
           <instancedMesh ref={(m) => { markings.current["s" + side] = m; }} args={[stripeGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
           <instancedMesh ref={(m) => { markings.current["d" + side] = m; }} args={[deckGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
-          <instancedMesh ref={(m) => { markings.current["w" + side] = m; }} args={[foamGeo, marks.foam, MARK_CAP]} frustumCulled={false} renderOrder={1} />
           <instancedMesh ref={(m) => { markings.current["f" + side] = m; }} args={[flagGeo, marks.flag[side], MARK_CAP]} frustumCulled={false} />
           <instancedMesh ref={(m) => { markings.current["p" + side] = m; }} args={[poleGeo, marks.pole, MARK_CAP]} frustumCulled={false} />
         </group>
