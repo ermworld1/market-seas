@@ -33,8 +33,6 @@ interface Plane {
 }
 
 const dummy = new THREE.Object3D();
-const beamGeo = new THREE.CylinderGeometry(0.04, 0.8, 22, 12, 1, true).translate(0, 11, 0);
-const beamMat = new THREE.MeshBasicMaterial({ color: "#fff3cf", transparent: true, opacity: 0.03, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const axis = new THREE.Vector3();
@@ -58,8 +56,8 @@ const POWER: Record<Proj["weapon"], number> = { mg: 0.15, cannon: 0.25, gun: 0.5
 function targetFor(side: BookSide, b: number): Display | null {
   const list = view.visible[side];
   if (!list.length) return null;
-  const exact = view.displays.get(side + b);
-  if (exact && !exact.departing) return exact;
+  const exact = view.bucketVisual.get(side + b) ?? view.displays.get(side + b);
+  if (exact && !exact.departing && view.visible[side].includes(exact)) return exact;
   // asks: next higher bucket; bids: next lower bucket
   let best: Display | null = null;
   for (const d of list) {
@@ -128,7 +126,6 @@ export function Effects() {
   const flakT = useRef(0);
   const planeDirV = useMemo(() => ({ x: 1, z: 0 }), []);
   const planeAnchor = useRef({ x: 0, y: 0, z: 0 });
-  const lightRefs = useRef<(THREE.Mesh | null)[]>([]);
   const shot = useRef(0);
   const cursor = useRef(0);
 
@@ -401,13 +398,6 @@ export function Effects() {
     }
     pools.glow.update(dt);
     pools.smoke.update(dt);
-    // searchlights sweeping the night sky from the rear of each fleet
-    lightRefs.current.forEach((l, i) => {
-      if (!l) return;
-      const side = i < 2 ? -1 : 1;
-      l.position.set(view.frontX + side * (GAP + DEPTH + 1), 0, (i % 2 ? 1 : -1) * view.halfW * 0.55);
-      l.rotation.set(Math.sin(view.time * 0.23 + i * 1.7) * 0.25, 0, side * 0.5 + Math.sin(view.time * 0.31 + i * 2.3) * 0.6);
-    });
   });
 
   return (
@@ -415,9 +405,6 @@ export function Effects() {
       <pointLight ref={boomLight} color="#ff9a4a" distance={14} decay={1.6} intensity={0} />
       <primitive object={pools.smoke.points} />
       <primitive object={pools.glow.points} />
-      {[0, 1, 2, 3].map((i) => (
-        <mesh key={"sl" + i} ref={(r) => { lightRefs.current[i] = r; }} geometry={beamGeo} material={beamMat} frustumCulled={false} />
-      ))}
       <instancedMesh ref={projMesh} args={[projGeo, projMat, MAX_PROJ]} frustumCulled={false} />
       {planes.map((p, i) => (
         <mesh

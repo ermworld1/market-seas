@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { DepthOfField, EffectComposer, Noise, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { DepthOfField, EffectComposer, N8AO, Noise, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { BlendFunction, ToneMappingMode } from "postprocessing";
 import type { DepthOfFieldEffect } from "postprocessing";
 import { view } from "./layout";
@@ -44,6 +44,7 @@ export function CinemaPost() {
     );
   return (
     <EffectComposer multisampling={0}>
+      <N8AO halfRes quality="medium" aoRadius={1.2} distanceFalloff={1} intensity={1.35} />
       <DepthOfField ref={dof} worldFocusDistance={10} worldFocusRange={6} bokehScale={0} />
       <Noise opacity={0.06} blendFunction={BlendFunction.OVERLAY} />
       <Vignette darkness={0.6} offset={0.28} />

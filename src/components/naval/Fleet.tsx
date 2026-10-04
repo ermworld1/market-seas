@@ -8,7 +8,7 @@ import type { Tracked } from "@/lib/battle/orderRules";
 import { audio, panX } from "@/lib/audio/engine";
 import { UNIT_PAINT_HEX } from "@/lib/battle/units";
 import { makeFleetMaterial, useModelGeometry } from "./models";
-import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
+import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, hash01, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
 
 const CAP = 130;
 const SIDES: BookSide[] = ["bid", "ask"];
@@ -18,8 +18,8 @@ const col = new THREE.Color();
 const WHITE = new THREE.Color(1, 1, 1);
 const FOG = new THREE.Color(0.55, 0.6, 0.64);
 const SIDE_COL = { bid: new THREE.Color(UNIT_PAINT_HEX.bid), ask: new THREE.Color(UNIT_PAINT_HEX.ask) };
-const stripeGeo = new THREE.BoxGeometry(0.92, 0.055, 0.15).translate(0, 0.015, 0);
-const deckGeo = new THREE.BoxGeometry(0.38, 0.025, 0.12).translate(-0.08, 0.18, 0);
+const stripeGeo = new THREE.BoxGeometry(0.82, 0.012, 0.035).translate(0, 0.045, 0);
+const deckGeo = new THREE.BoxGeometry(0.22, 0.009, 0.055).translate(-0.08, 0.155, 0);
 const flagGeo = new THREE.PlaneGeometry(0.16, 0.1).translate(0.08, 0, 0);
 const poleGeo = new THREE.BoxGeometry(0.012, 0.22, 0.012).translate(0, -0.06, 0);
 const MARK_CAP = CAP * 5;
@@ -69,13 +69,17 @@ function passes(s: Tracked, mid: number) {
 
 const QK = { low: 0.35, medium: 0.7, high: 1 } as const;
 export function Fleet() {
-  const frigate = useModelGeometry("frigate");
-  const geos: Record<Tier, THREE.BufferGeometry> = {
-    patrol: useModelGeometry("patrol"),
-    destroyer: frigate,
-    frigate,
-    cruiser: useModelGeometry("cruiser"),
-    battleship: useModelGeometry("battleship"),
+  const frigateLow = useModelGeometry("frigate", "low");
+  const frigateHigh = useModelGeometry("frigate", "high");
+  const geos: Record<"high" | "low", Record<Tier, THREE.BufferGeometry>> = {
+    low: {
+      patrol: useModelGeometry("patrol", "low"), destroyer: frigateLow, frigate: frigateLow,
+      cruiser: useModelGeometry("cruiser", "low"), battleship: useModelGeometry("battleship", "low"),
+    },
+    high: {
+      patrol: useModelGeometry("patrol", "high"), destroyer: frigateHigh, frigate: frigateHigh,
+      cruiser: useModelGeometry("cruiser", "high"), battleship: useModelGeometry("battleship", "high"),
+    },
   };
   const mats = useMemo(
     () => ({
@@ -208,6 +212,7 @@ export function Fleet() {
       // visible ships: nearest buckets first, up to the cap
       const seen = new Set<string>();
       updateFront(e.mark || mid);
+      view.bucketVisual.clear();
       for (const side of SIDES) {
         const qualityCap = view.quality === "low" ? (view.mobile ? 34 : 72) : view.quality === "medium" ? (view.mobile ? 44 : 96) : view.cap;
         const ships = [...e.trackers[side].ships.values()]
@@ -215,14 +220,20 @@ export function Fleet() {
           .sort((a, b) => (side === "bid" ? b.price - a.price : a.price - b.price))
           .slice(0, qualityCap);
         const vis: Display[] = [];
-        for (const s of ships) {
+        const cinemaCap = view.mobile ? 18 : 30;
+        const visualCap = view.presentation === "cinema" ? cinemaCap : qualityCap;
+        const groupSize = Math.max(1, Math.ceil(ships.length / visualCap));
+        for (let gi = 0; gi < ships.length; gi += groupSize) {
+          const group = ships.slice(gi, gi + groupSize);
+          const s = group.reduce((best, item) => item.notional > best.notional ? item : best, group[0]!);
+          const mergedNotional = group.reduce((sum, item) => sum + item.notional, 0);
           const key = side + s.b;
           let d = view.displays.get(key);
           if (!d) {
             const x = xForPrice(side, s.price);
             d = {
               key, side, b: s.b, price: s.price, x: x + sideSign(side) * 1.5, z: zForBucket(s.b), y: 0, s: 0.05, tier: s.tier, ship: s,
-              departing: null, surfacing: 0, smoke: 0, hitFlash: 0, damage: 0, roll: 0, pitch: 0, fade: 0,
+              departing: null, surfacing: 0, smoke: 0, hitFlash: 0, damage: 0, roll: 0, pitch: 0, fade: 0, visualWeight: 1, lod: "low",
             };
             view.displays.set(key, d);
           }
@@ -230,6 +241,9 @@ export function Fleet() {
           d.ship = s;
           d.tier = s.tier;
           d.price = s.price;
+          d.visualWeight = Math.min(1.55, Math.pow(mergedNotional / Math.max(s.notional, 1), 0.18));
+          d.lod = gi < (view.mobile ? 4 : 8) || s.tier === "battleship" ? "high" : "low";
+          for (const member of group) view.bucketVisual.set(side + member.b, d);
           seen.add(key);
           if (!d.departing) vis.push(d);
         }
@@ -250,8 +264,9 @@ export function Fleet() {
         let hidden = subsOnly;
         if (!d.departing && d.ship) {
           const s = d.ship;
-          const tx = xForPrice(d.side, d.price);
-          const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * mobileK;
+          const formationJitter = (hash01(d.b * 2.17) - 0.5) * (view.presentation === "cinema" ? 0.55 : 0.28);
+          const tx = xForPrice(d.side, d.price) + formationJitter;
+          const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * d.visualWeight * mobileK;
           const dx = (tx - d.x) * kMove;
           d.x += dx;
           // wake behind moving ships (and a faint bow wash on big ones)
@@ -318,11 +333,12 @@ export function Fleet() {
         d.hitFlash *= Math.exp(-6 * dt);
         if (hidden) continue;
 
-        const mkey = d.side + d.tier;
+        const mkey = d.side + d.tier + d.lod;
         const m = meshes.current[mkey];
         const n = counts[mkey] ?? 0;
         if (!m || n >= CAP) continue;
-        euler.set(d.pitch, d.side === "bid" ? Math.PI : 0, d.roll);
+        const heading = (hash01(d.b * 3.71) - 0.5) * THREE.MathUtils.degToRad(16);
+        euler.set(d.pitch, (d.side === "bid" ? Math.PI : 0) + heading, d.roll);
         dummy.position.set(d.x, d.y, d.z);
         dummy.quaternion.setFromEuler(euler);
         dummy.scale.setScalar(Math.max(0.001, d.s));
@@ -369,13 +385,14 @@ export function Fleet() {
     }
 
     for (const side of SIDES)
-      for (const t of TIERS) {
-        const m = meshes.current[side + t];
-        if (!m) continue;
-        m.count = counts[side + t] ?? 0;
-        m.instanceMatrix.needsUpdate = true;
-        if (m.instanceColor) m.instanceColor.needsUpdate = true;
-      }
+      for (const t of TIERS)
+        for (const lod of ["high", "low"] as const) {
+          const m = meshes.current[side + t + lod];
+          if (!m) continue;
+          m.count = counts[side + t + lod] ?? 0;
+          m.instanceMatrix.needsUpdate = true;
+          if (m.instanceColor) m.instanceColor.needsUpdate = true;
+        }
     for (const side of SIDES)
       for (const p of ["s", "d", "f", "p"]) {
         const m = markings.current[p + side];
@@ -388,16 +405,18 @@ export function Fleet() {
   return (
     <group>
       {SIDES.map((side) =>
-        TIERS.map((t) => (
+        TIERS.flatMap((t) => (["high", "low"] as const).map((lod) => (
           <instancedMesh
-            key={side + t}
+            key={side + t + lod}
             ref={(m) => {
-              meshes.current[side + t] = m;
+              meshes.current[side + t + lod] = m;
             }}
-            args={[geos[t], t === "destroyer" ? (side === "bid" ? mats.bidTrim : mats.askTrim) : mats[side], CAP]}
+            args={[geos[lod][t], t === "destroyer" ? (side === "bid" ? mats.bidTrim : mats.askTrim) : mats[side], CAP]}
+            castShadow
+            receiveShadow
             frustumCulled={false}
           />
-        )),
+        ))),
       )}
       {SIDES.map((side) => (
         <group key={"mk" + side}>

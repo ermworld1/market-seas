@@ -193,7 +193,7 @@ export function Ocean() {
     if (war && Math.random() < dt * 0.4) flashT.current = 1;
     if (sunLight.current) sunLight.current.intensity = 2.6 * (1 - s * 0.6) + flashT.current * 3;
     if (hemi.current) hemi.current.intensity = 0.9 * (1 - s * 0.35) + flashT.current * 1.5;
-    gl.toneMappingExposure = 0.55 - s * 0.12 + flashT.current * 0.4;
+    gl.toneMappingExposure = 0.46 - s * 0.1 + flashT.current * 0.32;
 
     // rain
     const count = Math.floor(RAIN_MAX * Math.max(0, (s - 0.25) / 0.75) * (view.mobile ? 0.5 : 1));
@@ -223,7 +223,20 @@ export function Ocean() {
       <primitive object={clouds} />
       <primitive object={rain} />
       <hemisphereLight ref={hemi} args={["#cfe3f0", "#1d3a44", 0.9]} />
-      <directionalLight ref={sunLight} position={[sun.x * 100, sun.y * 100 + 30, sun.z * 100]} intensity={2.6} color="#fff0d8" />
+      <directionalLight
+        ref={sunLight}
+        position={[sun.x * 100, sun.y * 100 + 30, sun.z * 100]}
+        intensity={2.6}
+        color="#fff0d8"
+        castShadow
+        shadow-mapSize-width={view.mobile ? 1024 : 2048}
+        shadow-mapSize-height={view.mobile ? 1024 : 2048}
+        shadow-camera-left={-24}
+        shadow-camera-right={24}
+        shadow-camera-top={20}
+        shadow-camera-bottom={-20}
+        shadow-bias={-0.0004}
+      />
       <ambientLight intensity={0.25} />
       <Environment frames={1} resolution={128}>
         <Lightformer intensity={2.5} position={[0, 6, -10]} scale={[20, 4, 1]} color="#ffe6c4" />
