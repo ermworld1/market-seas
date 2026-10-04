@@ -58,7 +58,7 @@ const cache = new Map<string, THREE.BufferGeometry>();
 
 /**
  * Merge every mesh in a GLB into one geometry, centre it, scale its longest
- * axis to 1 and rotate it so the bow (model -X) points world -Z (north).
+ * axis to 1 while preserving the delivered bow direction (-X).
  * Ships sit with their keel slightly below y=0 (the water plane).
  */
 export function normalizeGeometry(scene: THREE.Object3D, kind: "ship" | "air"): THREE.BufferGeometry {
@@ -93,8 +93,7 @@ export function normalizeGeometry(scene: THREE.Object3D, kind: "ship" | "air"): 
   if (kind === "ship") {
     // keel 4% of length under water
     geo.translate(0, -geo.boundingBox!.min.y - 0.04, 0);
-    // bow (-X) → -Z
-    geo.rotateY(-Math.PI / 2);
+    // bow stays on -X; fleet instances rotate Sellers by PI to face left
   } else {
     // bomber: nose (-X) stays -X, fly along -X
   }
