@@ -9,7 +9,9 @@ import { cn } from "@/lib/utils";
 const tone: Record<TapeLine["tone"], string> = { buy: "text-bull", sell: "text-bear", sub: "text-sub", liq: "text-danger", info: "text-ok" };
 
 export function OrderBookPanel() {
-  const { ladder, selectedBucket, hud } = useBattle();
+  const ladder = useBattle((s) => s.ladder);
+  const selectedBucket = useBattle((s) => s.selectedBucket);
+  const mark = useBattle((s) => s.hud.mark);
   const rows = useMemo(() => [...ladder.asks].reverse().concat(ladder.bids), [ladder]);
   return <div className="min-h-0 overflow-auto font-mono text-[10px]">
     <div className="sticky top-0 z-10 grid grid-cols-[1fr_.8fr_1fr_1fr] bg-background/95 px-2 py-1 text-muted-foreground"><span>Price</span><span>BTC</span><span>Notional</span><span>Cumulative</span></div>
@@ -21,7 +23,7 @@ export function OrderBookPanel() {
       </button>;
     })}
     {!rows.length && <div className="p-3 text-muted-foreground">Waiting for live book…</div>}
-    <div className="sticky bottom-0 border-t border-border bg-background/95 px-2 py-1 text-center text-primary">MARK {hud.mark ? fmtPrice(hud.mark) : "—"}</div>
+    <div className="sticky bottom-0 border-t border-border bg-background/95 px-2 py-1 text-center text-primary">MARK {mark ? fmtPrice(mark) : "—"}</div>
   </div>;
 }
 

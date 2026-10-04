@@ -43,9 +43,10 @@ export function xpFor(streak: number) {
   return 10 + Math.min(streak, 10) * 2;
 }
 
+// cached formatters — toLocaleString builds a new Intl.NumberFormat per call
+const PRICE_FMT = [1, 2, 3].map((d) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: d }));
 export function fmtPrice(p: number) {
-  const d = p >= 1000 ? 1 : p >= 100 ? 2 : 3;
-  return p.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: d });
+  return PRICE_FMT[p >= 1000 ? 0 : p >= 100 ? 1 : 2].format(p);
 }
 export function usd(n: number) {
   const a = Math.abs(n);
