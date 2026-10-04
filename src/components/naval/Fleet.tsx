@@ -7,8 +7,9 @@ import type { BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import { audio, panX } from "@/lib/audio/engine";
 import { UNIT_PAINT_HEX } from "@/lib/battle/units";
+import { introProgress, separateStationDepth } from "@/lib/market/positioning";
 import { makeFleetMaterial, useModelGeometry } from "./models";
-import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, hash01, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
+import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForStation } from "./layout";
 
 const CAP = 130;
 const SIDES: BookSide[] = ["bid", "ask"];
@@ -176,11 +177,20 @@ export function Fleet() {
             break;
           case "relocate": {
             const from = view.displays.get(ev.side + ev.from);
-            const to = view.displays.get(key);
+            let to = view.displays.get(key);
+            if (from && !to) {
+              view.displays.delete(from.key);
+              from.key = key;
+              from.b = ev.b;
+              from.price = ev.price;
+              from.departing = null;
+              view.displays.set(key, from);
+              to = from;
+            }
             if (to) to.surfacing = 1;
             if (smoke && to) {
               const fx0 = from?.x ?? xForPrice(ev.side, ev.fromPrice);
-              const fz0 = from?.z ?? zForBucket(ev.from);
+              const fz0 = from?.z ?? zForStation(Date.now());
               for (let i = 0; i <= 14; i++) {
                 const u = i / 14;
                 smoke.emit({ x: fx0 + (to.x - fx0) * u, y: 0.02, z: fz0 + (to.z - fz0) * u, life: 2.5, size: 0.35, grow: 1.6, color: "#e6f2f6", alpha: 0.6 });
@@ -220,20 +230,24 @@ export function Fleet() {
           .sort((a, b) => (side === "bid" ? b.price - a.price : a.price - b.price))
           .slice(0, qualityCap);
         const vis: Display[] = [];
-        const cinemaCap = view.mobile ? 18 : 30;
-        const visualCap = view.presentation === "cinema" ? cinemaCap : qualityCap;
-        const groupSize = Math.max(1, Math.ceil(ships.length / visualCap));
-        for (let gi = 0; gi < ships.length; gi += groupSize) {
-          const group = ships.slice(gi, gi + groupSize);
-          const s = group.reduce((best, item) => item.notional > best.notional ? item : best, group[0]!);
-          const mergedNotional = group.reduce((sum, item) => sum + item.notional, 0);
+        const visualCap = view.presentation === "cinema" ? (view.mobile ? 18 : 30) : qualityCap;
+        const shown = ships.slice(0, visualCap);
+        const stationTargets = separateStationDepth(shown.map((s) => ({
+          key: side + s.b,
+          x: xForPrice(side, s.price),
+          z: zForStation(s.bornAt),
+          radius: TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac),
+        })), view.halfW * 0.9);
+        for (let gi = 0; gi < shown.length; gi++) {
+          const s = shown[gi]!;
           const key = side + s.b;
           let d = view.displays.get(key);
           if (!d) {
             const x = xForPrice(side, s.price);
             d = {
-              key, side, b: s.b, price: s.price, x: x + sideSign(side) * 1.5, z: zForBucket(s.b), y: 0, s: 0.05, tier: s.tier, ship: s,
+              key, side, b: s.b, price: s.price, x, z: -view.halfW, y: 0, s: 0.05, tier: s.tier, ship: s,
               departing: null, surfacing: 0, smoke: 0, hitFlash: 0, damage: 0, roll: 0, pitch: 0, fade: 0, visualWeight: 1, lod: "low",
+              introBorn: view.introSerial, stationZ: zForStation(s.bornAt),
             };
             view.displays.set(key, d);
           }
@@ -241,9 +255,11 @@ export function Fleet() {
           d.ship = s;
           d.tier = s.tier;
           d.price = s.price;
-          d.visualWeight = Math.min(1.55, Math.pow(mergedNotional / Math.max(s.notional, 1), 0.18));
+          d.visualWeight = 1;
           d.lod = gi < (view.mobile ? 4 : 8) || s.tier === "battleship" ? "high" : "low";
-          for (const member of group) view.bucketVisual.set(side + member.b, d);
+          view.bucketVisual.set(key, d);
+          const station = stationTargets.get(key);
+          if (station) d.stationZ = station.z;
           seen.add(key);
           if (!d.departing) vis.push(d);
         }
@@ -264,11 +280,15 @@ export function Fleet() {
         let hidden = subsOnly;
         if (!d.departing && d.ship) {
           const s = d.ship;
-          const formationJitter = (hash01(d.b * 2.17) - 0.5) * (view.presentation === "cinema" ? 0.55 : 0.28);
-          const tx = xForPrice(d.side, d.price) + formationJitter;
+          const exactX = xForPrice(d.side, d.price);
+          const introElapsed = performance.now() - view.introStartedAt;
+          const intro = introProgress(s.tier, introElapsed);
+          const tx = exactX + sign * REAR * (1 - intro);
+          const targetZ = d.stationZ;
           const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * d.visualWeight * mobileK;
           const dx = (tx - d.x) * kMove;
           d.x += dx;
+          d.z += (targetZ - d.z) * kMove;
           // wake behind moving ships (and a faint bow wash on big ones)
           const speed = Math.abs(dx) / Math.max(dt, 1e-3);
           if (smoke && (speed > 0.15 ? Math.random() < dt * 40 : Math.random() < dt * 2.2 * d.s))
@@ -337,8 +357,7 @@ export function Fleet() {
         const m = meshes.current[mkey];
         const n = counts[mkey] ?? 0;
         if (!m || n >= CAP) continue;
-        const heading = (hash01(d.b * 3.71) - 0.5) * THREE.MathUtils.degToRad(16);
-        euler.set(d.pitch, (d.side === "bid" ? Math.PI : 0) + heading, d.roll);
+        euler.set(d.pitch, d.side === "bid" ? Math.PI : 0, d.roll);
         dummy.position.set(d.x, d.y, d.z);
         dummy.quaternion.setFromEuler(euler);
         dummy.scale.setScalar(Math.max(0.001, d.s));

@@ -19,8 +19,9 @@
 - `src/lib/battle/walls.ts` and `tape.ts` are verbatim copies (prettier-ignored); adapt their inputs, never their bodies.
 - The phase machine, battle clock and rules are time-injected — so they stay unit-testable.
 - Labels are fixed DOM nodes positioned via rAF from projected anchors (`screen.ts`), never drei Html — avoids mount/unmount during render.
-- The battlefield price axis is X: Buyers left, Sellers right, moving vertical mark front; the orthographic 65° camera keeps both fleets at equal scale.
+- The battlefield price axis is exact price-derived X; depth is logarithmic order age from `bornAt`, with overlap resolved only in depth — no decorative formations.
 - Audio categories each have a sample slot (/sfx, /music, /vo) with procedural fallback — samples drop in without code changes.
+- Naval voice uses priority-serialized clip chains over phone, TBS radio, and 1MC processing; missing supplied phrase clips stay silent rather than using invented speech.
 - Each subsystem renders inside `Guard` — one failure never blanks the page.
 - Analytics stay in localStorage (device-local /stats) — no backend.
 - The 3D scene reads `engineRef` and the mutable `view` object inside `useFrame`; React state (zustand) is only for the HUD, throttled to 250 ms — avoids 60 Hz re-renders.

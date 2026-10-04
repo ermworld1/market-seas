@@ -2,6 +2,7 @@ import type { BattleEvent, BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import type { ParticlePool } from "./particles";
 import type { QualityTier, ShotRequest } from "@/lib/market/presentation";
+import { stationDepth } from "@/lib/market/positioning";
 
 /** World layout: Buyers/bids are -X (left), Sellers/asks are +X (right). */
 export const GAP = 0.9; // half-width of the no-man's sea
@@ -36,6 +37,8 @@ export interface Display {
   fade: number;
   visualWeight: number;
   lod: "high" | "low";
+  introBorn: number;
+  stationZ: number;
 }
 
 export interface Anchor {
@@ -80,6 +83,8 @@ export const view = {
   storm: 0,
   war: false,
   time: 0,
+  introStartedAt: 0,
+  introSerial: 0,
   viewMode: "all" as "all" | "capital",
   filter: "all" as "all" | "1m" | "near" | "subs",
   visible: { bid: [] as Display[], ask: [] as Display[] },
@@ -105,17 +110,28 @@ export function xForPrice(side: BookSide, price: number) {
   return view.frontX + sideSign(side) * (GAP + 0.35 + Math.min(1.08, d) * DEPTH);
 }
 
+/** Order age is the sole source of fore/aft placement. */
+export function zForStation(bornAt: number, now = Date.now()) {
+  return stationDepth(bornAt, now, view.halfW * 0.86);
+}
+
+export function startFleetIntro(now = performance.now()) {
+  view.introStartedAt = now;
+  view.introSerial++;
+  for (const display of view.displays.values()) {
+    display.x = xForPrice(display.side, display.price) + sideSign(display.side) * REAR;
+    display.introBorn = view.introSerial;
+  }
+}
+
 export function hash01(v: number) {
   const s = Math.sin(v * 12.9898 + 78.233) * 43758.5453;
   return s - Math.floor(s);
 }
 
-/** Stable staggered naval columns with natural spacing, still keyed to real price buckets. */
+/** Event fallback only; visible ships use zForStation from their real resting age. */
 export function zForBucket(b: number) {
-  const lanes = view.mobile ? 6 : 9;
-  const lane = ((Math.abs(b) % lanes) / Math.max(1, lanes - 1)) * 2 - 1;
-  const stagger = (hash01(b * 1.73) - 0.5) * 0.16;
-  return (lane * 0.8 + stagger) * view.halfW;
+  return (hash01(b * 1.73) - 0.5) * view.halfW * 0.08;
 }
 
 export function updateFront(mark: number) {

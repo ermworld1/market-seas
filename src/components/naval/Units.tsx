@@ -111,6 +111,7 @@ export function HowItWorks() {
           <ul className="list-disc space-y-1 pl-4">
             <li><span className="font-semibold text-bull">Buyers</span> (green, left) are buy orders waiting below the price. <span className="font-semibold text-bear">Sellers</span> (red, right) are sell orders waiting above it.</li>
             <li>The vertical line of buoys is the live mark price. When price rises the line pushes right into the Sellers; when it falls it pushes left.</li>
+            <li>Left/right = price. Front/back = how long the order has been waiting: new orders arrive from the back and move forward as they stay.</li>
             <li>Each battle lasts {RULES_FACTS.battleMinutes} minutes. The side that moved the price its way wins. Sinking the enemy flagship is the big prize.</li>
           </ul>
           <H>Ships, shots, submarines, aircraft</H>

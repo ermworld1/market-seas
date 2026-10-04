@@ -9,6 +9,7 @@ import { useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
 import { fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
 import { makeFighterGeometry } from "./fighter";
+import { introArrived, INTRO_MS } from "@/lib/market/positioning";
 
 const MAX_PROJ = 2400;
 interface Proj {
@@ -130,6 +131,7 @@ export function Effects() {
   const planeAnchor = useRef({ x: 0, y: 0, z: 0 });
   const shot = useRef(0);
   const cursor = useRef(0);
+  const pendingFire = useRef<Extract<BattleEvent, { type: "fire" }>[]>([]);
 
   useEffect(() => {
     const m = projMesh.current;
@@ -276,7 +278,19 @@ export function Effects() {
     else camPos.copy(cam.position).sub(state.camera.getWorldDirection(axis).multiplyScalar(1000)); // ortho: view from infinity
     mgThisFrame = 0;
     const e = engineRef.current;
-    for (const ev of view.frameEvents) {
+    const introElapsed = performance.now() - view.introStartedAt;
+    const incoming = view.frameEvents.filter((event): event is Extract<BattleEvent, { type: "fire" }> => event.type === "fire");
+    pendingFire.current.push(...incoming);
+    const readyFire: Extract<BattleEvent, { type: "fire" }>[] = [];
+    pendingFire.current = pendingFire.current.filter((ev) => {
+      const target = targetFor(ev.target, ev.b);
+      const shooterSide: BookSide = ev.taker === "buy" ? "bid" : "ask";
+      const shooter = view.visible[shooterSide][0];
+      const ready = introElapsed >= INTRO_MS || (!!target && !!shooter && introArrived(target.tier, introElapsed) && introArrived(shooter.tier, introElapsed));
+      if (ready) readyFire.push(ev);
+      return !ready;
+    });
+    for (const ev of [...view.frameEvents.filter((event) => event.type !== "fire"), ...readyFire]) {
       if (ev.type === "fire") {
         fire(ev);
         if (e) e.tradesVisualized++;
