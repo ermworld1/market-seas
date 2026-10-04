@@ -225,12 +225,13 @@ export default function Battle() {
       <Guard name="scene" fallback={<div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">3D view unavailable on this device. Live data still runs below.</div>}>
         <div id="battle-canvas" className="absolute inset-0">
           <Canvas
+            shadows
             orthographic
             dpr={[1, 1.75]}
             camera={{ position: [0, 90, 42], zoom: 30, near: 0.1, far: 1000 }}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.55, powerPreference: "high-performance", preserveDrawingBuffer: true }}
           >
-            <PerspectiveCamera makeDefault={presentation === "cinema"} fov={42} near={0.1} far={2000} position={[0, 6, 30]} />
+            <PerspectiveCamera makeDefault={presentation === "cinema"} fov={36} near={0.1} far={2000} position={[0, 12, 16]} />
             <CameraRig />
             <Projector />
             <Suspense fallback={null}>

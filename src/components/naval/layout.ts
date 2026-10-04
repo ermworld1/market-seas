@@ -10,7 +10,7 @@ export const REAR = GAP + DEPTH + 2.2;
 export const ELEVATION = 65; // degrees from horizontal
 
 export const TIERS: Tier[] = ["patrol", "destroyer", "frigate", "cruiser", "battleship"];
-export const TIER_SCALE: Record<Tier, number> = { patrol: 0.75, destroyer: 0.95, frigate: 1.15, cruiser: 1.65, battleship: 2.5 };
+export const TIER_SCALE: Record<Tier, number> = { patrol: 0.95, destroyer: 1.25, frigate: 1.6, cruiser: 2.2, battleship: 3.15 };
 export const CAPITAL: Tier[] = ["cruiser", "battleship"];
 
 export type DepartKind = "sink" | "dive" | "fled" | "pulled" | "drop";
@@ -34,6 +34,7 @@ export interface Display {
   roll: number;
   pitch: number;
   fade: number;
+  visualWeight: number;
 }
 
 export interface Anchor {
@@ -106,11 +107,12 @@ export function hash01(v: number) {
   return s - Math.floor(s);
 }
 
-/** Stable line-astern naval columns parallel to the moving price front. */
+/** Stable staggered naval columns with natural spacing, still keyed to real price buckets. */
 export function zForBucket(b: number) {
-  const lanes = view.mobile ? 7 : 11;
+  const lanes = view.mobile ? 6 : 9;
   const lane = ((Math.abs(b) % lanes) / Math.max(1, lanes - 1)) * 2 - 1;
-  return (lane * 0.82 + (hash01(b) - 0.5) * 0.035) * view.halfW;
+  const stagger = (hash01(b * 1.73) - 0.5) * 0.16;
+  return (lane * 0.8 + stagger) * view.halfW;
 }
 
 export function updateFront(mark: number) {

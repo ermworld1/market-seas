@@ -14,12 +14,12 @@ let lastKind = "";
 let cutAt = 0;
 
 function wide(t: number) {
-  // low (≈10°) behind one fleet's rear quarter looking across the strait, slow dolly; switch side every 24s
-  const side = Math.floor(t / 24) % 2 ? 1 : -1;
-  const dolly = Math.sin(t * 0.05) * 3;
-  const dist = view.mobile ? 30 : 26;
-  pos.set(view.frontX + side * (REAR * 0.75 + dolly), dist * Math.tan(THREE.MathUtils.degToRad(10)), view.halfW + dist * 0.55);
-  look.set(view.frontX - side * GAP * 2, 0.6, 0);
+  // Readable 40° oblique establishing view: hull sides, decks and superstructure stay visible.
+  const side = Math.floor(t / 28) % 2 ? 1 : -1;
+  const dist = view.mobile ? 21 : 18;
+  const elevation = THREE.MathUtils.degToRad(40);
+  pos.set(view.frontX + side * 3.8, dist * Math.sin(elevation), view.halfW + dist * Math.cos(elevation));
+  look.set(view.frontX - side * 1.3, 0.35, 0);
 }
 
 export function cinemaPose(cam: THREE.PerspectiveCamera, dt: number) {
@@ -35,7 +35,7 @@ export function cinemaPose(cam: THREE.PerspectiveCamera, dt: number) {
   let snap = false;
   if (kind !== lastKind) { snap = kind !== "wide"; lastKind = kind; cutAt = t; if (kind !== "wide") view.cuts[kind] = (view.cuts[kind] ?? 0) + 1; }
   const age = t - cutAt;
-  let fov = 42;
+  let fov = view.mobile ? 39 : 36;
   let dof = 0; // focus distance for depth of field (0 = off)
   switch (kind) {
     case "trade":

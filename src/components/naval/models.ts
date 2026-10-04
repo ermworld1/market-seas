@@ -102,18 +102,19 @@ export function normalizeGeometry(scene: THREE.Object3D, kind: "ship" | "air"): 
   return geo;
 }
 
-export function useModelGeometry(name: ModelName): THREE.BufferGeometry {
+export function useModelGeometry(name: ModelName, detail: "high" | "low" = "low"): THREE.BufferGeometry {
   const { scene } = useGLTF(MODELS[name]);
-  ensureSimplifier();
+  if (detail === "low") ensureSimplifier();
   return useMemo(() => {
-    const key = name;
+    const key = `${name}-${detail}`;
     let g = cache.get(key);
     if (!g) {
-      g = simplify(normalizeGeometry(scene, name === "bomber" ? "air" : "ship"), TARGET_TRIS[name] ?? 5000);
+      const normalized = normalizeGeometry(scene, name === "bomber" ? "air" : "ship");
+      g = detail === "high" ? normalized : simplify(normalized, TARGET_TRIS[name] ?? 5000);
       cache.set(key, g);
     }
     return g;
-  }, [scene, name]);
+  }, [scene, name, detail]);
 }
 
 export function preloadModels() {
@@ -122,20 +123,22 @@ export function preloadModels() {
 
 /** Shared realistic naval paint; side identity comes from physical stripes, deck marks and flags. */
 export function makeFleetMaterial(side: "buyers" | "sellers", trim = false) {
-  const color = new THREE.Color(trim ? "#657076" : side === "buyers" ? "#37454a" : "#414348").convertSRGBToLinear();
-  const material = new THREE.MeshStandardMaterial({
+  const color = new THREE.Color(trim ? "#717b80" : "#465158").convertSRGBToLinear();
+  const material = new THREE.MeshPhysicalMaterial({
     color,
     emissive: 0x000000,
     emissiveIntensity: 0,
-    metalness: trim ? 0.48 : 0.62,
-    roughness: trim ? 0.58 : 0.72,
+    metalness: trim ? 0.42 : 0.5,
+    roughness: trim ? 0.62 : 0.74,
+    clearcoat: 0.08,
+    clearcoatRoughness: 0.78,
     flatShading: false,
   });
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvHullPos = position;");
     shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace(
       "#include <color_fragment>",
-      `#include <color_fragment>\nfloat below = smoothstep(0.03, -0.08, vHullPos.y);\ndiffuseColor.rgb *= mix(1.0, 0.42, below);\nfloat weather = sin(vHullPos.x * 73.0 + sin(vHullPos.z * 51.0)) * sin(vHullPos.y * 117.0);\nfloat rust = smoothstep(0.84, 1.0, weather) * smoothstep(0.18, -0.02, vHullPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.18, 0.075, 0.035), rust * 0.32);`,
+      `#include <color_fragment>\nfloat below = smoothstep(0.035, -0.055, vHullPos.y);\nfloat upper = smoothstep(0.10, 0.24, vHullPos.y);\nfloat deck = smoothstep(0.055, 0.085, vHullPos.y) * (1.0 - smoothstep(0.18, 0.30, vHullPos.y));\ndiffuseColor.rgb *= mix(1.0, 0.30, below);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.34, 0.38, 0.39), upper * 0.72);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.25, 0.22, 0.17), deck * 0.20);\nfloat panel = sin(vHullPos.x * 94.0) * sin(vHullPos.z * 71.0);\ndiffuseColor.rgb *= 0.97 + panel * 0.025;\nfloat weather = sin(vHullPos.x * 73.0 + sin(vHullPos.z * 51.0)) * sin(vHullPos.y * 117.0);\nfloat rust = smoothstep(0.86, 1.0, weather) * smoothstep(0.18, -0.02, vHullPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.18, 0.075, 0.035), rust * 0.24);`,
     );
   };
   material.customProgramCacheKey = () => `naval-weather-${side}-${trim}`;

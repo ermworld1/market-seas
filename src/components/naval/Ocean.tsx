@@ -223,7 +223,20 @@ export function Ocean() {
       <primitive object={clouds} />
       <primitive object={rain} />
       <hemisphereLight ref={hemi} args={["#cfe3f0", "#1d3a44", 0.9]} />
-      <directionalLight ref={sunLight} position={[sun.x * 100, sun.y * 100 + 30, sun.z * 100]} intensity={2.6} color="#fff0d8" />
+      <directionalLight
+        ref={sunLight}
+        position={[sun.x * 100, sun.y * 100 + 30, sun.z * 100]}
+        intensity={2.6}
+        color="#fff0d8"
+        castShadow
+        shadow-mapSize-width={view.mobile ? 1024 : 2048}
+        shadow-mapSize-height={view.mobile ? 1024 : 2048}
+        shadow-camera-left={-24}
+        shadow-camera-right={24}
+        shadow-camera-top={20}
+        shadow-camera-bottom={-20}
+        shadow-bias={-0.0004}
+      />
       <ambientLight intensity={0.25} />
       <Environment frames={1} resolution={128}>
         <Lightformer intensity={2.5} position={[0, 6, -10]} scale={[20, 4, 1]} color="#ffe6c4" />
