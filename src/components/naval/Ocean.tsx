@@ -70,8 +70,8 @@ export function Ocean() {
   const water = useMemo(() => {
     normals.wrapS = normals.wrapT = THREE.RepeatWrapping;
     const w = new Water(new THREE.PlaneGeometry(3000, 3000), {
-      textureWidth: view.mobile ? 256 : 512,
-      textureHeight: view.mobile ? 256 : 512,
+      textureWidth: view.mobile ? 192 : 384,
+      textureHeight: view.mobile ? 192 : 384,
       waterNormals: normals,
       sunDirection: sun.clone(),
       sunColor: 0xfff1d6,
@@ -81,6 +81,13 @@ export function Ocean() {
       alpha: 1,
     });
     w.rotation.x = -Math.PI / 2;
+    // reflection pass is the most expensive render: refresh every frame on high, every 2nd/3rd on medium/low
+    const reflect = w.onBeforeRender.bind(w);
+    let frame = 0;
+    w.onBeforeRender = (...args: Parameters<typeof reflect>) => {
+      const every = view.quality === "high" ? 1 : view.quality === "medium" ? 2 : 3;
+      if (frame++ % every === 0) reflect(...args);
+    };
     wu(w).size.value = 2.2;
     return w;
   }, [normals, sun]);

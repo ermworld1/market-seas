@@ -24,6 +24,7 @@ export function DebugPanel() {
       <div className="font-bold">DEBUG</div>
       <div>phase {e?.phase.current} · frame {view.frameMs.toFixed(1)}ms</div>
       <div>view {view.presentation} · shot {view.shot?.kind ?? "wide"} · quality {view.quality}</div>
+      <div id="debug-cuts">cuts {JSON.stringify(view.cuts)} · tape {view.tapeTotal}</div>
       <div>tris {info?.triangles ?? "?"} · calls {info?.calls ?? "?"}</div>
       <div>trades rx {e?.tradesReceived ?? 0} · viz {e?.tradesVisualized ?? 0} · tracers {e?.tracersSpawned ?? 0}</div>
       <div>book {e?.book.bids.size ?? 0}/{e?.book.asks.size ?? 0} lvls · {e?.partial ? "partial" : "full"} · u={e?.book.lastU}</div>
@@ -40,6 +41,17 @@ export function DebugPanel() {
       <div className="mt-1 flex flex-wrap gap-1">
         {SFX.map((c) => (
           <button key={c} className="rounded bg-secondary px-1" onClick={() => audio.play(c)}>{c}</button>
+        ))}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1" id="debug-shots">
+        {(["wide", "trade", "broadside", "fighter", "bomber", "cascade", "flagship"] as const).map((k) => (
+          <button key={k} className="rounded bg-secondary px-1" onClick={() => {
+            // camera preview only (debug): points the cinema camera at current real scene state, creates no market event
+            const f = e?.flagship(k === "flagship" ? "ask" : "bid");
+            const now = performance.now();
+            view.shot = k === "wide" ? null : { kind: k, at: now, until: now + 5000, side: k === "flagship" ? "ask" : "bid", ...(f ? { bucket: f.b } : {}) };
+            if (k === "flagship" && f) { const d = view.displays.get("ask" + f.b); if (d && !d.departing) d.departing = { kind: "sink", t0: view.time }; }
+          }}>cam:{k}</button>
         ))}
       </div>
       <button className="mt-1 rounded bg-primary px-1 text-primary-foreground" onClick={() => triggerClip("Test clip")}>test clip</button>

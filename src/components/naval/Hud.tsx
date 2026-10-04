@@ -660,7 +660,7 @@ export function Hud() {
         <p className="truncate px-1 text-[9px] leading-tight text-foreground/70 md:text-[10px]">Live Binance Futures public market data · Not financial advice · Not affiliated with Binance</p>
       </div>
       <Ticker />
-      {lesson && <div key={lesson.id} className="lesson-spotlight pointer-events-auto absolute left-1/2 top-1/2 z-30 w-[min(90vw,520px)] -translate-x-1/2 rounded border border-primary bg-background/90 p-3 text-center text-sm"><button className="absolute right-1 top-1 p-1 text-muted-foreground" aria-label="Skip lesson" onClick={() => useBattle.setState({ lesson: null })}><X className="h-4 w-4" /></button>{lesson.text}</div>}
+      {lesson && <div key={lesson.id} className="lesson-spotlight pointer-events-auto absolute bottom-28 left-1/2 z-30 w-[min(90vw,520px)] -translate-x-1/2 rounded border border-primary bg-background/90 p-3 text-center text-sm"><button className="absolute right-1 top-1 p-1 text-muted-foreground" aria-label="Skip lesson" onClick={() => useBattle.setState({ lesson: null })}><X className="h-4 w-4" /></button>{lesson.text}</div>}
 
       <ResultCard />
       <ClipToast />

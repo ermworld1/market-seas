@@ -96,6 +96,12 @@ export function Effects() {
     [],
   );
   const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const lastPlane = useRef<Plane | null>(null);
+  const boom = useRef({ x: 0, z: 0, k: 0 });
+  const boomLight = useRef<THREE.PointLight>(null);
+  const flakT = useRef(0);
+  const planeDirV = useMemo(() => ({ x: 1, z: 0 }), []);
+  const planeAnchor = useRef({ x: 0, y: 0, z: 0 });
   const lightRefs = useRef<(THREE.Mesh | null)[]>([]);
   const shot = useRef(0);
   const cursor = useRef(0);
@@ -152,7 +158,14 @@ export function Effects() {
       if (power > 0.3)
         for (let i = 0; i < 3 * power; i++)
           pools.smoke.emit({ x: p.tx, y: p.ty + 0.2, z: p.tz, vx: 0.2, vy: 0.8, life: 2, size: 0.35 * power + 0.2, grow: 2.5, color: "#2b2826", alpha: 0.7, drag: 0.5 });
-      if (power >= 1) splash(p.tx, p.tz, power * 0.8);
+      if (power >= 1) {
+        splash(p.tx, p.tz, power * 0.8);
+        // fireball + debris + tall water column + light flash on the water
+        pools.glow.emit({ x: p.tx, y: p.ty + 0.4, z: p.tz, vy: 0.8, life: 0.7, size: 1.6 * power, grow: 1.2, color: "#ff9a3a", alpha: 1 });
+        for (let i = 0; i < 8 * power; i++) pools.glow.emit({ x: p.tx, y: p.ty + 0.3, z: p.tz, vx: (Math.random() - 0.5) * 6, vy: 3 + Math.random() * 4, vz: (Math.random() - 0.5) * 6, life: 1.1, size: 0.09, color: "#3a2a20", alpha: 1, gravity: 9 });
+        for (let i = 0; i < 10; i++) pools.smoke.emit({ x: p.tx + (Math.random() - 0.5) * 0.3, y: 0.1, z: p.tz + (Math.random() - 0.5) * 0.3, vy: 5 + Math.random() * 4, life: 1.4, size: 0.4, grow: 1.6, color: "#f2f8fb", alpha: 0.85, gravity: 6 });
+        boom.current = { x: p.tx, z: p.tz, k: 1 };
+      }
     } else if (power > 0.2 || Math.random() < 0.35) splash(p.tx, p.tz, power * 0.7);
   };
 
@@ -171,6 +184,8 @@ export function Effects() {
     const ty = target ? 0.18 * target.s : 0;
     const tz = target ? target.z : zForBucket(ev.b);
     const base = { target };
+    if (ev.notional >= 250_000 || ev.weapon === "broadside") view.track = { side: sSide, fx: mx, fz: mz, tx, tz, t0: view.time, dur: ev.weapon === "torpedo" ? 0.45 : 0.35 };
+    if (ev.weapon === "broadside") { fx.slowmo = Math.max(fx.slowmo, 0.5); fx.slowScale = 0.4; }
     const pan = { x: panX(mx - view.frontX, REAR) };
     // one tracer per underlying fill (capped at 24)
     const n = tracersFor(ev.fills);
@@ -211,10 +226,15 @@ export function Effects() {
     const p = planes.find((q) => !q.on && q.kind === kind);
     if (!p) return;
     Object.assign(p, init, { on: true, t: 0, next: 0 });
+    lastPlane.current = p;
   };
 
-  useFrame((_, raw) => {
-    const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? 0.35 : 1);
+  useFrame((state, raw) => {
+    const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? fx.slowScale : 1);
+    // point-sprite scale: perspective cameras need focal-length based sizing
+    const cam = state.camera as THREE.PerspectiveCamera;
+    const scale = cam.isPerspectiveCamera ? (0.2 * state.size.height) / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))) : 600;
+    for (const pool of [pools.glow, pools.smoke]) (pool.points.material as THREE.ShaderMaterial).uniforms["uScale"]!.value = scale;
     const e = engineRef.current;
     for (const ev of view.frameEvents) {
       if (ev.type === "fire") {
@@ -237,7 +257,8 @@ export function Effects() {
         const span = view.halfW + 14;
         launch("bomber", { dur: 3.8, ax: x, az: -span, bx: x, bz: span, alt: 6, side });
         if (engineRef.current?.phase.current === "P5") {
-          const wave = view.quality === "low" ? 5 : view.quality === "medium" ? 8 : 11;
+          const cap = view.quality === "low" ? 5 : view.quality === "medium" ? 8 : 12;
+          const wave = Math.max(2, Math.min(cap, Math.round(ev.notional / 75_000) + 1)); // scaled by the real liquidation size
           for (let i = 1; i < wave; i++) launch(i % 3 ? "bomber" : "fighter", { dur: 3.2 + i * 0.12, ax: x + (Math.random() - 0.5) * 7, az: -span - i, bx: view.frontX, bz: span + i, alt: 4 + Math.random() * 5, side });
         }
         audio.play("liquidation");
@@ -261,6 +282,7 @@ export function Effects() {
       const z = p.az + (p.bz - p.az) * u;
       m.visible = true;
       m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1, z);
+      if (p === lastPlane.current) { const a = planeAnchor.current; a.x = x; a.y = m.position.y; a.z = z; view.plane = a; const L = Math.hypot(p.bx - p.ax, p.bz - p.az) || 1; planeDirV.x = (p.bx - p.ax) / L; planeDirV.z = (p.bz - p.az) / L; view.planeDir = planeDirV; }
       m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.3 : 0);
       if (p.kind === "bomber") {
         if (Math.abs(z) < view.halfW + 1 && p.t >= p.next) {
@@ -311,6 +333,21 @@ export function Effects() {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
+    // impact light flash on the water
+    const bl = boomLight.current;
+    if (bl) { boom.current.k = Math.max(0, boom.current.k - dt * 3); bl.intensity = boom.current.k * 40; bl.position.set(boom.current.x, 1.2, boom.current.z); bl.visible = boom.current.k > 0.01; }
+    // flak: black puffs with flashes whenever real aircraft are in the sky
+    let active = 0;
+    for (const q of planes) if (q.on) active++;
+    if (active) {
+      flakT.current -= dt;
+      if (flakT.current <= 0) {
+        flakT.current = (view.quality === "low" ? 0.35 : view.quality === "medium" ? 0.18 : 0.09) / Math.min(4, active);
+        const fx0 = view.frontX + (Math.random() - 0.5) * REAR * 1.6, fy0 = 3 + Math.random() * 6, fz0 = (Math.random() - 0.5) * view.halfW * 2;
+        pools.glow.emit({ x: fx0, y: fy0, z: fz0, life: 0.12, size: 0.9, grow: 0.4, color: "#ffd890", alpha: 1 });
+        pools.smoke.emit({ x: fx0, y: fy0, z: fz0, vy: 0.1, life: 2.6, size: 0.7, grow: 1.8, color: "#141414", alpha: 0.8, drag: 0.8 });
+      }
+    }
     pools.glow.update(dt);
     pools.smoke.update(dt);
     // searchlights sweeping the night sky from the rear of each fleet
@@ -324,6 +361,7 @@ export function Effects() {
 
   return (
     <group>
+      <pointLight ref={boomLight} color="#ff9a4a" distance={14} decay={1.6} intensity={0} />
       <primitive object={pools.smoke.points} />
       <primitive object={pools.glow.points} />
       {[0, 1, 2, 3].map((i) => (

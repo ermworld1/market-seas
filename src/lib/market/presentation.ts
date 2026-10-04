@@ -55,3 +55,28 @@ export function nextQuality(current: QualityTier, frameMs: number, slowSamples: 
   if (fastSamples >= 180 && frameMs < (current === "low" ? 21 : 16)) return current === "low" ? "medium" : "high";
   return current;
 }
+const money = (n: number) => (n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : `$${Math.round(n / 1e3)}K`);
+const px = (n: number) => Math.round(n).toLocaleString("en-US");
+const fleetOf = (s: "bid" | "ask") => (s === "bid" ? "Buyers'" : "Sellers'");
+
+/** One plain-English sentence per lesson, built only from the real event's numbers. */
+export function lessonText(ev: BattleEvent): string | null {
+  switch (ev.type) {
+    case "fire":
+      return `A real ${money(ev.notional)} ${ev.taker} order just traded against the ${fleetOf(ev.target)} ship at ${px(ev.price)} — every trade is a shot.`;
+    case "sink":
+      return `The ${fleetOf(ev.side)} ${money(ev.notional)} order at ${px(ev.price)} was fully traded, so that ship sank and the price line moved.`;
+    case "dive":
+      return `The ${fleetOf(ev.side)} ${money(ev.notional)} order at ${px(ev.price)} was cancelled before trades reached it — the ship dove like a submarine.`;
+    case "fled":
+      return `The ${fleetOf(ev.side)} ${money(ev.notional)} order at ${px(ev.price)} was pulled just as price came close — that ship fled.`;
+    case "fighter":
+      return `One taker ${ev.taker === "buy" ? "bought" : "sold"} ${money(ev.notional)} in a single order across ${ev.buckets.length} price level${ev.buckets.length === 1 ? "" : "s"} — that is a fighter strafing run.`;
+    case "liquidation":
+      return `Binance force-closed ${money(ev.notional)} of ${ev.liquidated} at ${px(ev.price)} — liquidations arrive as bombers.`;
+    case "reinforce":
+      return `Someone added ${money(ev.notional)} of ${ev.side === "bid" ? "buy" : "sell"} orders at ${px(ev.price)} — the ${fleetOf(ev.side)} ship there was reinforced.`;
+    default:
+      return null;
+  }
+}

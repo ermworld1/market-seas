@@ -264,3 +264,31 @@ describe("battle", () => {
     expect(regimeOf(-0.2, -0.5)).toBe("LONGS RETREATING");
   });
 });
+
+import { currentStreak, flagshipOutcome as flagshipSettle, winnerOutcome, xpFor } from "@/lib/market/settlement";
+describe("settlement", () => {
+  it("winner outcome from marks", () => { expect(winnerOutcome(100, 101)).toBe("buyers"); expect(winnerOutcome(100, 99)).toBe("sellers"); expect(winnerOutcome(100, 100)).toBe("draw"); });
+  it("flagship sunk vs dive vs hold", () => {
+    expect(flagshipSettle(10, 0.5, 99, 101, 100, 100.01)).toBe("sunk");
+    expect(flagshipSettle(10, 0.5, 101, 102, 100, 100.01)).toBe("dive");
+    expect(flagshipSettle(10, 5, 99, 101, 100, 100.01)).toBe("hold");
+  });
+  it("streak ignores void, breaks on miss", () => { expect(currentStreak([true, false, true, null, true])).toBe(2); expect(currentStreak([])).toBe(0); });
+  it("xp base + streak bonus capped", () => {
+    expect(xpFor("winner", true, 0)).toBe(10); expect(xpFor("flagship", true, 0)).toBe(15);
+    expect(xpFor("winner", true, 2)).toBe(20); expect(xpFor("winner", true, 9)).toBe(35);
+    expect(xpFor("flagship", false, 4)).toBe(0); expect(xpFor("winner", null, 4)).toBe(0);
+  });
+});
+
+import { lessonText } from "@/lib/market/presentation";
+describe("lesson sentences", () => {
+  it("uses the real numbers for every lesson kind", () => {
+    const base = { t: 0, side: "ask" as const, b: 1, price: 85320, tier: "cruiser" as const };
+    expect(lessonText({ ...base, type: "sink", notional: 1_800_000 } as never)).toBe("The Sellers' $1.8M order at 85,320 was fully traded, so that ship sank and the price line moved.");
+    expect(lessonText({ ...base, type: "dive", notional: 900_000, lived: 1, neverHit: true } as never)).toContain("$900K order at 85,320 was cancelled");
+    expect(lessonText({ type: "fighter", t: 0, taker: "sell", target: "bid", notional: 640_000, buckets: [1, 2, 3] })).toContain("sold $640K in a single order across 3 price levels");
+    expect(lessonText({ type: "liquidation", t: 0, liquidated: "longs", price: 85000, qty: 1, notional: 120_000 })).toContain("force-closed $120K of longs at 85,000");
+    expect(lessonText({ ...base, side: "bid", type: "reinforce", qty: 10, notional: 2_100_000, fresh: true } as never)).toContain("added $2.1M of buy orders at 85,320");
+  });
+});

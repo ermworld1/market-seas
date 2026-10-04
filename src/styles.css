@@ -236,3 +236,4 @@
 .lesson-spotlight { animation: lesson-pulse 1s ease-out; }
 @keyframes lesson-pulse { 0%,100% { box-shadow: 0 0 0 1px var(--primary); } 50% { box-shadow: 0 0 36px 10px var(--primary); } }
 @media (prefers-reduced-motion: reduce) { .cinema-grade::after, .lesson-spotlight { animation: none; } }
+.lesson-ring { box-shadow: 0 0 0 9999px color-mix(in oklab, var(--background) 45%, transparent), 0 0 24px var(--primary); animation: lesson-pulse 1s ease-out infinite; }

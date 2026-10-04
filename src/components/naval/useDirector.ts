@@ -8,9 +8,9 @@ import { audio } from "@/lib/audio/engine";
 import { track } from "@/lib/analytics";
 import { recordClip } from "@/lib/clips";
 import { view } from "./layout";
-import { canNarrateRelocate, lessonForEvent, selectShot, tapeEligible } from "@/lib/market/presentation";
+import { canNarrateRelocate, lessonForEvent, lessonText, selectShot, tapeEligible } from "@/lib/market/presentation";
 import { makeLadder } from "./LivePanels";
-import { submitPrediction } from "@/lib/market/community.functions";
+import { settleMine, submitPrediction } from "@/lib/market/community.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 export const RADIO: Record<string, string[]> = {
@@ -41,6 +41,7 @@ const flagEvents: { type: string; b: number; side: string }[] = [];
 
 function pushTape(kind: string, text: string, tone: TapeLine["tone"], notional = 0, ids?: { first: number; last: number }) {
   const line: TapeLine = { id: nextId(), t: Date.now(), kind, text, tone, notional, ...(ids ? { firstAggId: ids.first, lastAggId: ids.last } : {}) };
+  view.tapeTotal++;
   useBattle.setState((s) => ({ tape: [line, ...s.tape].slice(0, 120) }));
 }
 function callout(text: string, tone: "buy" | "sell" | "liq" | "info", slow = false) {
@@ -93,7 +94,7 @@ function onEvent(ev: BattleEvent) {
       }
       flagEvents.push(ev);
       if (ev.tier === "battleship") {
-        fx.slowmo = 1.2;
+        fx.slowmo = 2; fx.slowScale = 0.3;
         callout(`${fleet.toUpperCase()}' FLAGSHIP SUNK`, side === "bid" ? "sell" : "buy", true);
         radio("flagsunk");
         triggerClip(`${fleet}' flagship sunk`);
@@ -187,15 +188,18 @@ export function useDirector() {
         off = e.onEvent((ev) => {
           try {
             const shot = selectShot(ev, performance.now(), lastCut);
-            if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; }
+            if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; view.cuts[shot.kind] = (view.cuts[shot.kind] ?? 0) + 1; }
             const bookEvent = ["reinforce", "dive", "fled", "relocate", "hidden", "repair"].includes(ev.type);
             if (!bookEvent || tapeEligible(ev, e.mark, e.bucketSampler.quantile(0.9))) onEvent(ev);
             const kind = lessonForEvent(ev);
             if (kind && Date.now() - pageStart <= 180_000 && localStorage.getItem(`nms-lesson-${kind}`) !== "1") {
-              localStorage.setItem(`nms-lesson-${kind}`, "1"); fx.slowmo = 1;
-              const number = "notional" in ev ? `${usd(ev.notional)} ` : "real ";
-              const text = kind === "shot" && "price" in ev ? `A real ${number}${"taker" in ev ? ev.taker : ""} order just struck the ${"target" in ev && ev.target === "bid" ? "Buyers" : "Sellers"} line at ${fmtPrice(ev.price)}.` : `${kind[0]?.toUpperCase()}${kind.slice(1)}: this happened because of real Binance market data (${number.trim()}).`;
-              useBattle.setState({ lesson: { id: nextId(), kind, text } }); setTimeout(() => useBattle.getState().lesson?.kind === kind && useBattle.setState({ lesson: null }), 5000);
+              const text = lessonText(ev);
+              if (text) {
+                localStorage.setItem(`nms-lesson-${kind}`, "1"); fx.slowmo = 1; fx.slowScale = 0.3;
+                view.lessonTarget = ev.type === "fighter" || ev.type === "liquidation" ? { kind: "plane" } : "b" in ev && "side" in ev ? { kind: "ship", side: ev.side, b: ev.b } : ev.type === "fire" ? { kind: "ship", side: ev.target, b: ev.b } : null;
+                useBattle.setState({ lesson: { id: nextId(), kind, text } });
+                setTimeout(() => { if (useBattle.getState().lesson?.kind === kind) { useBattle.setState({ lesson: null }); view.lessonTarget = null; } }, 5000);
+              }
             }
           } catch (err) {
             console.error("[director]", err);
@@ -326,6 +330,9 @@ export async function choose(kind: "round" | "flagRound", c: Choice) {
   if (!data.user) return;
   try {
     await submitPrediction({ data: { roundKey: `${r.kind}:${r.battleId ?? r.startedAt}:${r.side ?? "battle"}:${r.b ?? 0}`, roundKind: r.kind, battleId: r.battleId ?? battleWindow(r.startedAt).id, choice: c, ...(r.side ? { side: r.side } : {}), ...(r.b !== undefined ? { bucket: r.b } : {}), ...(r.price ? { price: r.price } : {}), startsAt: r.startedAt, endsAt: r.endsAt } });
+    // The observing client asks the server to settle shortly after the round ends; the server recomputes from Binance.
+    const delay = Math.max(0, r.endsAt - Date.now()) + 65_000;
+    setTimeout(() => void settleMine().catch(() => {}), delay);
   } catch (err) {
     toast(err instanceof Error ? err.message : "Could not lock prediction", "loss");
   }

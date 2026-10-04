@@ -167,7 +167,8 @@ export const useBattle = create<BattleStore>(() => ({
 export const engineRef: { current: MarketEngine | null } = { current: null };
 
 /** Transient camera shake / slow-mo impulses written by effects. */
-export const fx = { shake: 0, slowmo: 0 };
+/** slowmo = seconds remaining; slowScale = effect/camera time scale while active (market data is never slowed). */
+export const fx = { shake: 0, slowmo: 0, slowScale: 0.35 };
 
 let ids = 0;
 export const nextId = () => ++ids;

@@ -107,8 +107,9 @@ export class ParticlePool {
 
   emit(o: EmitOpts) {
     // find a free slot, starting at the cursor; overwrite oldest if full
+    // short bounded probe (no O(capacity) scan per emit); overwrite the cursor slot if all busy
     let i = this.cursor;
-    for (let n = 0; n < this.capacity; n++) {
+    for (let n = 0; n < 8; n++) {
       const j = (this.cursor + n) % this.capacity;
       if (this.life[j]! <= 0) {
         i = j;

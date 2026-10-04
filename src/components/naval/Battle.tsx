@@ -15,9 +15,26 @@ import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";
 import { Guard } from "./Guard";
 import { screen } from "./screen";
+import { PerspectiveCamera } from "@react-three/drei";
+import { cinemaPose } from "./cinema";
+import { CinemaPost } from "./CinemaPost";
 
 const lookAt = new THREE.Vector3();
 const tmp = new THREE.Vector3();
+
+/** Adaptive quality: steps down after 30 slow frames, back up after 180 fast frames. */
+function sampleQuality(raw: number, f: { slow: number; fast: number }) {
+  const ms = raw * 1000;
+  f.slow = ms > 24 ? f.slow + 1 : 0;
+  f.fast = ms < 17 ? f.fast + 1 : 0;
+  if (f.slow >= 30 && view.quality !== "low") {
+    view.quality = view.quality === "high" ? "medium" : "low";
+    f.slow = 0;
+  } else if (f.fast >= 180 && view.quality !== "high") {
+    view.quality = view.quality === "low" ? "medium" : "high";
+    f.fast = 0;
+  }
+}
 
 /**
  * Orthographic camera ~65° above the horizon, centred on the strait: both
@@ -72,11 +89,28 @@ function CameraRig() {
   }, [gl]);
   useFrame((state, raw) => {
     const dt = Math.min(raw, 0.05);
-    const cam = camera as THREE.OrthographicCamera;
     view.mobile = size.width < 768;
     view.cap = view.mobile ? 50 : 120;
     view.presentation = useBattle.getState().presentation;
     const cinema = view.presentation === "cinema";
+    sampleQuality(raw, frameSamples.current);
+    // count every pass of the frame (scene + reflection + post) for the debug panel
+    if (gl.info.autoReset) gl.info.autoReset = false;
+    if (import.meta.env.DEV) (window as unknown as { __nmsInfo: unknown }).__nmsInfo = { triangles: gl.info.render.triangles, calls: gl.info.render.calls };
+    gl.info.reset();
+    // pixel ratio follows the quality tier (fill-rate is the main cost of the perspective cinema shots)
+    const dpr = Math.min(window.devicePixelRatio || 1, view.quality === "high" ? 1.5 : view.quality === "medium" ? 1 : 0.75);
+    if (Math.abs(gl.getPixelRatio() - dpr) > 0.01) gl.setPixelRatio(dpr);
+    if (view.shot && performance.now() >= view.shot.until) view.shot = null;
+    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+      // Cinema: perspective camera driven by the shot director
+      view.halfW = view.mobile ? 6 : 8;
+      if (!view.mobile) view.cameraX += (view.frontX - view.cameraX) * (1 - Math.exp(-1.2 * dt));
+      fx.shake = Math.max(0, fx.shake - dt * 2.2);
+      cinemaPose(camera as THREE.PerspectiveCamera, dt * (fx.slowmo > 0 ? Math.max(0.5, fx.slowScale) : 1));
+      return;
+    }
+    const cam = camera as THREE.OrthographicCamera;
     const activeShot = view.shot && performance.now() < view.shot.until ? view.shot : null;
     if (view.shot && !activeShot) view.shot = null;
     const elevDeg = cinema ? (activeShot ? 24 : 34) : ELEVATION;
@@ -112,17 +146,6 @@ function CameraRig() {
     lookAt.set(view.cameraX + shiftX + (Math.random() - 0.5) * sh, 0, -shiftY + (Math.random() - 0.5) * sh);
     cam.position.set(lookAt.x, Math.sin(elev) * 100, lookAt.z + Math.cos(elev) * 100);
     cam.lookAt(lookAt);
-    const ms = raw * 1000;
-    frameSamples.current.slow = ms > 24 ? frameSamples.current.slow + 1 : 0;
-    frameSamples.current.fast = ms < 17 ? frameSamples.current.fast + 1 : 0;
-    if (frameSamples.current.slow >= 30 && view.quality !== "low") {
-      view.quality = view.quality === "high" ? "medium" : "low";
-      frameSamples.current.slow = 0;
-    } else if (frameSamples.current.fast >= 180 && view.quality !== "high") {
-      view.quality = view.quality === "low" ? "medium" : "high";
-      frameSamples.current.fast = 0;
-    }
-    if (import.meta.env.DEV) (window as unknown as { __nmsInfo: unknown }).__nmsInfo = state.gl.info.render;
   });
   return null;
 }
@@ -149,6 +172,9 @@ function Projector() {
     screen.strait = p({ x: view.frontX, y: 0, z: 0 });
     const selected = view.selectedBucket ? view.displays.get(view.selectedBucket.side + view.selectedBucket.b) : null;
     screen.selected = selected ? p({ x: selected.x, y: selected.y + selected.s * 0.4, z: selected.z }) : null;
+    const lt = view.lessonTarget;
+    const ld = lt?.kind === "ship" ? view.displays.get(lt.side + lt.b) : null;
+    screen.lesson = lt?.kind === "plane" ? p(view.plane) : ld ? p({ x: ld.x, y: ld.y + ld.s * 0.3, z: ld.z }) : null;
   });
   return null;
 }
@@ -204,6 +230,7 @@ export default function Battle() {
             camera={{ position: [0, 90, 42], zoom: 30, near: 0.1, far: 1000 }}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.55, powerPreference: "high-performance", preserveDrawingBuffer: true }}
           >
+            <PerspectiveCamera makeDefault={presentation === "cinema"} fov={42} near={0.1} far={2000} position={[0, 6, 30]} />
             <CameraRig />
             <Projector />
             <Suspense fallback={null}>
@@ -214,6 +241,7 @@ export default function Battle() {
               <Effects />
               <Background />
             </Suspense>
+            {presentation === "cinema" && <CinemaPost />}
           </Canvas>
         </div>
       </Guard>

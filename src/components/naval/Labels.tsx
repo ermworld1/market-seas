@@ -14,6 +14,7 @@ export function Labels() {
   const reps = useRef<(HTMLDivElement | null)[]>([]);
   const fl = useRef<(HTMLDivElement | null)[]>([]);
   const line = useRef<HTMLDivElement | null>(null);
+  const ring = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let raf = 0;
@@ -50,6 +51,8 @@ export function Labels() {
         if (el.textContent !== f.text) el.textContent = f.text;
         el.dataset["tone"] = f.tone;
       });
+      const rg = ring.current;
+      if (rg) { const lp = useBattle.getState().lesson ? screen.lesson : null; if (lp) { rg.style.display = ""; rg.style.transform = `translate(${lp.x}px, ${lp.y}px) translate(-50%, -50%)`; } else rg.style.display = "none"; }
       const l = line.current;
       const selected = screen.selected;
       if (l && selected) {
@@ -69,6 +72,7 @@ export function Labels() {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden>
+      <div ref={ring} data-testid="lesson-ring" className="lesson-ring absolute left-0 top-0 h-24 w-24 rounded-full border-2 border-primary" style={{ display: "none" }} />
       <div ref={line} className="absolute left-0 top-0 h-px origin-left bg-primary/70" style={{ display: "none" }} />
       {(["bid", "ask"] as const).map((side) => (
         <div
