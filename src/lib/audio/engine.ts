@@ -6,18 +6,18 @@ import { BANK, CAT_FOLDER, bankUrls, type BankFolder } from "./bank";
  * screen x, max 8 simultaneous one-shots with priority. Recorded CC0 files
  * live in /sfx/<folder>/<n>.mp3 (see bank.ts); missing files fall back to procedural synths.
  */
-export type SfxCat = "mg" | "gun" | "torpedo" | "broadside" | "fighter" | "dive" | "fled" | "surface" | "sink" | "reinforce" | "liquidation" | "cascade" | "hit";
-export const SFX: SfxCat[] = ["mg", "gun", "torpedo", "broadside", "fighter", "dive", "fled", "surface", "sink", "reinforce", "liquidation", "cascade", "hit"];
-const PRIORITY: Record<SfxCat, number> = { mg: 1, reinforce: 2, hit: 1, gun: 3, surface: 4, torpedo: 5, dive: 6, fighter: 6, fled: 7, sink: 7, liquidation: 8, broadside: 8, cascade: 9 };
+export type SfxCat = "mg" | "gun" | "gun5" | "miss" | "torpedo" | "broadside" | "fighter" | "dive" | "fled" | "surface" | "sink" | "reinforce" | "liquidation" | "cascade" | "hit" | "klaxon" | "bosun";
+export const SFX: SfxCat[] = ["mg", "gun", "gun5", "miss", "torpedo", "broadside", "fighter", "dive", "fled", "surface", "sink", "reinforce", "liquidation", "cascade", "hit", "klaxon", "bosun"];
+const PRIORITY: Record<SfxCat, number> = { mg: 1, reinforce: 2, hit: 2, miss: 2, gun: 3, gun5: 5, surface: 4, torpedo: 6, dive: 6, fighter: 6, fled: 7, sink: 7, liquidation: 8, broadside: 8, cascade: 9, klaxon: 9, bosun: 5 };
 const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
-  mg: "weapons", hit: "weapons", gun: "weapons", torpedo: "weapons", broadside: "weapons",
+  mg: "weapons", hit: "weapons", miss: "weapons", gun: "weapons", gun5: "weapons", torpedo: "weapons", broadside: "weapons",
   fighter: "air", liquidation: "air",
-  dive: "alarms", fled: "alarms", cascade: "alarms",
+  dive: "alarms", fled: "alarms", cascade: "alarms", klaxon: "alarms", bosun: "alarms",
   surface: "ships", sink: "ships", reinforce: "ships",
 };
 const MAX_VOICES = 12;
 /** Voice lines: file in /public/vo or speechSynthesis fallback. */
-export const VO_FILES: Record<string, string> = { P2: "p2_contact", P3: "p3_fire", P4: "capital", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo", dive: "dive", surface: "surface", flagsunk: "flagsunk", liq: "bombers", radiocheck: "p2_contact", flaghit: "p3_fire", fighter: "p3_fire", start: "p2_contact", warn: "p6_push", end: "p7_ceasefire", capital: "capital" };
+export const VO_FILES: Record<string, string> = { P2: "p2_contact", P3: "p3_fire", P4: "capital", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo", dive: "dive", surface: "surface", flagsunk: "flagsunk", liq: "bombers", radiocheck: "p2_contact", flaghit: "p3_fire", fighter: "p3_fire", start: "cap_stations", warn: "cap_holdline", end: "p7_ceasefire", capital: "capital", cap_commence: "cap_commence", cap_holdline: "cap_holdline", cap_stations: "cap_stations", adm_openfire: "adm_openfire", adm_break: "adm_break", adm_withdraw: "adm_withdraw", spot_hit: "spot_hit", spot_splash: "spot_splash", spot_aircraft: "spot_aircraft", spot_sonar: "spot_sonar", spot_fire: "spot_fire", spot_breaking: "spot_breaking" };
 const VO_COOLDOWN = 6;
 const VARIANTS = 6;
 const LAYERS = ["sea", "drone", "drums", "brass", "choir"] as const;
@@ -85,7 +85,7 @@ class AudioEngine {
       this.comp.connect(this.recordDest);
       for (const b of ["weapons", "ships", "air", "alarms", "vo"]) {
         const g = ctx.createGain();
-        g.gain.value = b === "weapons" ? 0.9 : b === "vo" ? 1.2 : 0.8;
+        g.gain.value = b === "weapons" ? 0.9 : b === "vo" ? 1.58 : 0.8;
         g.connect(this.master);
         this.buses[b] = g;
       }
@@ -293,7 +293,7 @@ class AudioEngine {
     void this.voice("radiocheck", "Contact! Enemy ships on the move.");
   }
 
-  /** Play a radio line: file through a radio filter, else speechSynthesis. One at a time, 8 s cooldown. */
+  /** Play a radio line through mic clicks, static, a band-limited handset, and a squelch tail. */
   async voice(key: string, text: string): Promise<boolean> {
     const ctx = this.ctx;
     if (!ctx || !this.enabled || ctx.state !== "running") return false;
@@ -362,7 +362,8 @@ class AudioEngine {
   private radioBuffer(buf: AudioBuffer) {
     const ctx = this.ctx!;
     const t = ctx.currentTime + 0.2;
-    this.static(ctx.currentTime, 0.2);
+    this.micClick(ctx.currentTime);
+    this.static(ctx.currentTime + 0.03, 0.2);
     const s = ctx.createBufferSource();
     s.buffer = buf;
     const shaper = ctx.createWaveShaper();
@@ -378,19 +379,26 @@ class AudioEngine {
     s.start(t);
     this.voBusyUntil = t + buf.duration;
     this.duck(t, buf.duration);
-    this.static(t + buf.duration, 0.15);
+    this.static(t + buf.duration, 0.2);
+    this.micClick(t + buf.duration + 0.12);
+  }
+  private micClick(t: number) {
+    const n: AudioScheduledSourceNode[] = [];
+    this.chain(this.noiseSrc(t, 0.025, n), this.buses["vo"]!, this.filt("highpass", 1800, 1.2), this.env(t, 0.001, 0.35, 0.025));
   }
   private static(t: number, dur: number) {
     const n: AudioScheduledSourceNode[] = [];
     this.chain(this.noiseSrc(t, dur, n), this.buses["vo"]!, this.filt("bandpass", 2500, 0.5), this.env(t, 0.005, 0.18, dur));
   }
-  /** Duck music by 6 dB while a voice speaks. */
+  /** Duck effects and music by 6 dB while a voice speaks. */
   private duck(t: number, dur: number) {
-    const m = this.music;
-    if (!m) return;
-    m.gain.cancelScheduledValues(t);
-    m.gain.setTargetAtTime(0.45 * 0.5, t, 0.05);
-    m.gain.setTargetAtTime(0.45, t + dur + 0.2, 0.3);
+    const targets: Array<[GainNode | null | undefined, number]> = [[this.music, 0.45], [this.buses["weapons"], 0.9], [this.buses["ships"], 0.8], [this.buses["air"], 0.8]];
+    for (const [g, base] of targets) {
+      if (!g) continue;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setTargetAtTime(base * 0.5, t, 0.05);
+      g.gain.setTargetAtTime(base, t + dur + 0.2, 0.3);
+    }
   }
 
   // ───────── procedural synth kit ─────────
@@ -488,14 +496,29 @@ class AudioEngine {
         this.chain(this.noiseSrc(t, 0.04, n), out, this.filt("highpass", 2500), this.env(t, 0.001, 0.3, 0.04));
         return 0.4;
       }
+      case "miss": {
+        this.chain(this.osc("sine", 1600 * P, 320 * P, t, 0.38, n), out, this.env(t, 0.01, 0.18, 0.38));
+        this.chain(this.noiseSrc(t + 0.3, 0.55, n), out, this.filt("highpass", 900), this.env(t + 0.3, 0.01, 0.32, 0.55));
+        return 0.9;
+      }
       case "gun": {
-        // big naval gun: sharp crack + sub-bass boom + long rolling echo
+        // 40 mm Bofors / pom-pom: paired mechanical thumps.
+        for (let i = 0; i < 2; i++) {
+          const ti = t + i * 0.12;
+          this.chain(this.noiseSrc(ti, 0.055, n), out, this.filt("bandpass", (900 + v * 120) * P, 0.8), this.env(ti, 0.001, 0.85, 0.055));
+          this.boom(ti, out, n, 125 * P, 0.18, 750, 0.45);
+        }
+        return 0.48;
+      }
+      case "gun5": {
+        // 5-inch dual-purpose gun: sharp crack, short body and shell whistle.
         const V = [[2200, 110, 1600], [2800, 90, 1300], [1700, 130, 1900], [3200, 75, 1100], [2000, 100, 1500], [2500, 120, 2200]][v]!;
         this.chain(this.noiseSrc(t, 0.06, n), out, this.filt("highpass", V[0]! * P), this.env(t, 0.0005, 1, 0.06));
         this.chain(this.noiseSrc(t, 0.1, n), out, this.filt("bandpass", V[0]! * 0.7 * P, 0.9), this.env(t, 0.001, 0.8, 0.1));
         this.boom(t, out, n, V[1]! * P, 0.7, V[2]!, 0.9);
         this.chain(this.osc("sine", 48 * P, 30, t, 0.9, n), out, this.env(t, 0.01, 0.7, 0.9));
         this.echo(t, out, n, 0.35);
+        this.chain(this.osc("sine", 1800 * P, 420, t + 0.08, 0.32, n), out, this.env(t + 0.08, 0.01, 0.13, 0.32));
         return 2.4;
       }
       case "torpedo": {
@@ -580,6 +603,15 @@ class AudioEngine {
         o.frequency.linearRampToValueAtTime(300, t + 3.1);
         this.chain(o, out, this.env(t, 0.3, 0.3, 3.2));
         return 3.3;
+      }
+      case "klaxon": {
+        for (let i = 0; i < 4; i++) this.chain(this.osc("sawtooth", i % 2 ? 520 : 390, i % 2 ? 520 : 390, t + i * 0.42, 0.36, n), out, this.filt("lowpass", 1600), this.env(t + i * 0.42, 0.02, 0.25, 0.36));
+        return 1.9;
+      }
+      case "bosun": {
+        this.chain(this.osc("sine", 2100, 3300, t, 0.55, n), out, this.env(t, 0.02, 0.17, 0.55));
+        this.chain(this.osc("sine", 3200, 1700, t + 0.56, 0.48, n), out, this.env(t + 0.56, 0.02, 0.15, 0.48));
+        return 1.1;
       }
     }
   }
