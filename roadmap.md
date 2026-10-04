@@ -31,4 +31,4 @@
 - [x] C Binance-style order book widget
 - [x] D green/red sides everywhere
 - [x] E unit legend/guide/tour from one shared config + real renders
-- [ ] F full QA checklist
+- [x] F full QA checklist (remaining: battle result card not caught by automation; real device)
