@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { engineRef } from "@/lib/market/store";
 import type { Phase } from "@/lib/battle/phase";
 import { audio, SFX } from "@/lib/audio/engine";
-import { triggerClip } from "./useDirector";
+import { triggerClip, verifyNavalReadouts } from "./useDirector";
 import { fireStats, view } from "./layout";
 
 const PHASES: Phase[] = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"];
@@ -59,6 +59,13 @@ export function DebugPanel() {
           }}>cam:{k}</button>
         ))}
       </div>
+      <button id="debug-readouts" className="mt-1 rounded bg-secondary px-1" onClick={() => {
+        if (!e?.mark) return;
+        const trades = e.recentTrades.slice(-3);
+        const prices = trades.length === 3 ? trades.map((trade) => trade.price) : [e.mark, e.bestBid(), e.bestAsk()].filter((price): price is number => typeof price === "number" && price > 0);
+        const notionals = trades.length === 3 ? trades.map((trade) => trade.notional) : [e.mark * 3, e.mark * 8, e.mark * 25];
+        verifyNavalReadouts(prices, notionals);
+      }}>audit 3 live readouts</button>
       <button className="mt-1 rounded bg-primary px-1 text-primary-foreground" onClick={() => triggerClip("Test clip")}>test clip</button>
     </div>
   );

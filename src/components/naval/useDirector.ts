@@ -110,6 +110,18 @@ export function radioCheck() {
   ]);
 }
 
+/** Debug-only audit: three current market prices traverse the same clip/channel path as live fire. */
+export function verifyNavalReadouts(prices: number[], notionals: number[]) {
+  prices.slice(0, 3).forEach((price, i) => {
+    const notional = notionals[i] ?? 250_000;
+    const fleet: FleetCallsign = i % 2 ? "Bear Fleet" : "Bull Fleet";
+    const tier = (["flagship", "cruiser", "frigate"] as const)[i] ?? "flagship";
+    naval(`readout-audit-${i + 1}`, 70 - i, "phone", fleet, `${usd(notional)} at ${fmtPrice(price)}`, [
+      line("Fire Control", phrase(`fc_${tier}_range`, `Enemy ${tier}, range`), ...navyPriceParts(price), ...navySizeParts(notional)),
+    ]);
+  });
+}
+
 export function triggerClip(title: string) {
   const now = Date.now();
   if (now - lastClip < 60_000) return;
