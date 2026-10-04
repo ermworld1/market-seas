@@ -1,3 +1,4 @@
+import { useShallow } from "zustand/react/shallow";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, Crosshair, Download, HelpCircle, Map, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
 import { savePrefs, useBattle, type TapeLine } from "@/lib/market/store";
@@ -62,7 +63,7 @@ function TugOfWar() {
 }
 
 function SoundControl() {
-  const { soundOn, volume } = useBattle();
+  const { soundOn, volume } = useBattle(useShallow((s) => ({ soundOn: s.soundOn, volume: s.volume })));
   const toggle = async () => {
     try {
       await audio.unlock();
@@ -102,7 +103,7 @@ function SoundControl() {
 }
 
 function Header({ now }: { now: number }) {
-  const { status, hud, scoreboard, presentation, alertsOn } = useBattle();
+  const { status, hud, scoreboard, presentation, alertsOn } = useBattle(useShallow((s) => ({ status: s.status, hud: s.hud, scoreboard: s.scoreboard, presentation: s.presentation, alertsOn: s.alertsOn })));
   const lat = hud.latency;
   const latTone = status !== "live" ? "text-muted-foreground" : lat > 10_000 ? "text-danger" : lat > 2000 ? "text-warn" : "text-ok";
   const intensity = intensityOf(hud.phase);
@@ -187,7 +188,7 @@ function DataPanels() {
 }
 
 function Filters() {
-  const { viewMode, filter } = useBattle();
+  const { viewMode, filter } = useBattle(useShallow((s) => ({ viewMode: s.viewMode, filter: s.filter })));
   const set = (p: Partial<{ viewMode: typeof viewMode; filter: typeof filter }>) => {
     useBattle.setState(p);
     if (p.viewMode) view.viewMode = p.viewMode;
@@ -234,7 +235,7 @@ function BossBar({ side, now }: { side: "bid" | "ask"; now: number }) {
 }
 
 function Banners() {
-  const { hud, callout, radio } = useBattle();
+  const { hud, callout, radio } = useBattle(useShallow((s) => ({ hud: s.hud, callout: s.callout, radio: s.radio })));
   const regime = regimeOf(hud.priceChange5m, hud.oiChangePct);
   const [show, setShow] = useState<typeof callout>(null);
   const [rad, setRad] = useState<typeof radio>(null);
@@ -426,7 +427,7 @@ function RoundCard({ r, kind, now }: { r: Round; kind: "round" | "flagRound"; no
 }
 
 function Predictions({ now }: { now: number }) {
-  const { round, flagRound, xp, streak } = useBattle();
+  const { round, flagRound, xp, streak } = useBattle(useShallow((s) => ({ round: s.round, flagRound: s.flagRound, xp: s.xp, streak: s.streak })));
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between px-1">
@@ -439,7 +440,7 @@ function Predictions({ now }: { now: number }) {
 }
 
 function ResultCard() {
-  const { result, scoreboard } = useBattle();
+  const { result, scoreboard } = useBattle(useShallow((s) => ({ result: s.result, scoreboard: s.scoreboard })));
   const [open, setOpen] = useState<typeof result>(null);
   useEffect(() => {
     if (!result) return;
@@ -584,7 +585,7 @@ function EnterGate() {
 }
 
 export function Hud() {
-  const { status, statusDetail, hud, presentation, lesson } = useBattle();
+  const { status, statusDetail, hud, presentation, lesson } = useBattle(useShallow((s) => ({ status: s.status, statusDetail: s.statusDetail, hud: s.hud, presentation: s.presentation, lesson: s.lesson })));
   const now = useNow(500);
   const [drawer, setDrawer] = useState(false);
   const war = hud.phase === "P5";
