@@ -115,10 +115,10 @@ function Header({ now }: { now: number }) {
     <header className="hud-panel pointer-events-auto p-2 md:p-2.5" data-tour="header">
       <div className="flex items-center gap-2 md:gap-4">
         <div className="flex min-w-0 shrink items-center gap-2">
-          <h1 className="font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>
+          <h1 className="whitespace-nowrap font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>
           <span className={cn("hud-num flex items-center gap-1 text-[11px]", latTone)} title="Milliseconds since the last market message">
             <span className={cn("inline-block h-2 w-2 rounded-full", status === "live" ? "live-dot bg-ok" : "bg-muted-foreground")} />
-            {status === "live" ? `LIVE · data ${lat}ms` : status === "connecting" ? "connecting" : "offline"}
+            {status === "live" ? <>LIVE<span className="hidden md:inline"> · data {lat}ms</span></> : status === "connecting" ? "connecting" : "offline"}
           </span>
           {hud.partial && <span className="rounded bg-warn/20 px-1 text-[10px] font-semibold uppercase text-warn">partial book</span>}
         </div>
@@ -379,26 +379,18 @@ function Ticker() {
   );
 }
 
-const LEGEND: { tier: string; w: number; range: string }[] = [
-  { tier: "Patrol", w: 10, range: "<40%" },
-  { tier: "Destroyer", w: 13, range: "40–70%" },
-  { tier: "Frigate", w: 16, range: "70–90%" },
-  { tier: "Cruiser", w: 22, range: "top 10%" },
-  { tier: "Battleship", w: 30, range: "largest" },
-];
 function LegendStrip() {
   return (
     <div className="pointer-events-auto flex items-center gap-3 overflow-x-auto px-1 text-[10px] text-foreground/80" data-tour="legend">
-      {LEGEND.map((l) => (
-        <span key={l.tier} className="flex shrink-0 items-center gap-1">
-          <svg width={l.w} height={8} viewBox={`0 0 ${l.w} 8`} aria-hidden>
-            <path d={`M0 4 L3 0 H${l.w - 1} L${l.w} 4 L${l.w - 1} 8 H3 Z`} className="fill-primary/80" />
-          </svg>
-          <span className="font-semibold">{l.tier}</span>
-          <span className="text-muted-foreground">{l.range}</span>
+      {SHIPS.map((u) => (
+        <span key={u.id} className="flex shrink-0 items-center gap-1">
+          <img src={`/legend/${u.icon}-bid.png`} alt="" width={32} height={14} className="h-3.5 w-8 object-contain" />
+          <img src={`/legend/${u.icon}-ask.png`} alt="" width={32} height={14} className="h-3.5 w-8 object-contain" />
+          <span className="font-semibold">{u.name}</span>
+          <span className="text-muted-foreground">{u.rule.replace("smallest ", "<").replace(" of price buckets", "")}</span>
         </span>
       ))}
-      <span className="shrink-0 text-muted-foreground">Buyers left · Sellers right · Bomber = liquidation · Sub = pulled big order</span>
+      <span className="shrink-0 text-muted-foreground"><span className="text-bull">Buyers left</span> · <span className="text-bear">Sellers right</span> · Bomber = liquidation · Sub = pulled big order</span>
     </div>
   );
 }
