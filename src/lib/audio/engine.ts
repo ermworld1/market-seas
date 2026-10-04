@@ -343,16 +343,21 @@ class AudioEngine {
     this.lastTorpedoVoice = now;
     void this.voice("torpedo", "Torpedo in the water!");
   }
-  private async loadVo(file: string) {
-    const key = "vo:" + file;
-    if (!this.samples.has(key)) {
-      this.samples.set(key, null);
-      try {
-        const r = await fetch(`/vo/${file}.wav`);
-        if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) this.samples.set(key, await this.ctx!.decodeAudioData(await r.arrayBuffer()));
-      } catch { /* slot empty */ }
+  private voLoads = new Map<string, Promise<AudioBuffer | null>>();
+  /** One shared load per file, so concurrent lines never fall back to TTS while a file is still loading. */
+  private loadVo(file: string) {
+    let p = this.voLoads.get(file);
+    if (!p) {
+      p = (async () => {
+        try {
+          const r = await fetch(`/vo/${file}.wav`);
+          if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) return await this.ctx!.decodeAudioData(await r.arrayBuffer());
+        } catch { /* slot empty */ }
+        return null;
+      })();
+      this.voLoads.set(file, p);
     }
-    return this.samples.get(key) ?? null;
+    return p;
   }
   private radioBuffer(buf: AudioBuffer) {
     const ctx = this.ctx!;
