@@ -236,6 +236,7 @@ class AudioEngine {
       s.start(now);
       nodes.push(s);
       dur = buf.duration / pitch;
+      if (["mg", "gun", "torpedo", "broadside", "hit"].includes(cat)) dur = Math.max(dur, this.synth(cat, out, now, nodes, opts.shots ?? 4, v % VARIANTS, pitch));
     } else dur = this.synth(cat, out, now, nodes, opts.shots ?? 4, v, pitch);
     this.played++;
     this.byCat[cat] = (this.byCat[cat] ?? 0) + 1;
@@ -642,6 +643,12 @@ class AudioEngine {
     const wind2 = ctx.createGain();
     wind2.gain.value = 0.035;
     this.chain(wind, amb, this.filt("bandpass", 1100, 0.3), wind2);
+    // Low engine-room vibration beneath the weather and distant guns.
+    for (const f of [31, 47, 63]) {
+      const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.value = 0.012;
+      o.connect(this.filt("lowpass", 180)).connect(g).connect(amb); o.start();
+    }
     // radio chatter bed: faint static under the music
     const hiss = this.noiseSrc(ctx.currentTime, 1e6, keep);
     const hg = ctx.createGain();
