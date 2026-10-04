@@ -9,7 +9,7 @@ import { seaState } from "@/lib/market/rules";
 import { view } from "./layout";
 
 const SUN_ELEV = 38; // degrees: high enough to glint into a near top-down camera
-const SUN_AZ = 180; // north: sun behind the Bears → glints across the strait
+const SUN_AZ = 90; // side-light the left/right fleets and vertical strait
 
 function cloudTexture() {
   const c = document.createElement("canvas");
@@ -206,7 +206,7 @@ export function Ocean() {
       }
       p.needsUpdate = true;
     }
-    rain.position.set(view.offsetX, 0, 0);
+    rain.position.set(view.cameraX, 0, 0);
   });
 
   return (

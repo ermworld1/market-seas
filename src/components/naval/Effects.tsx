@@ -259,7 +259,7 @@ export function Effects() {
       m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1, z);
       m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.3 : 0);
       if (p.kind === "bomber") {
-        if (Math.abs(x - view.offsetX) < view.halfW + 1 && p.t >= p.next) {
+        if (Math.abs(z) < view.halfW + 1 && p.t >= p.next) {
           p.next = p.t + 0.2;
           const rear = view.visible[p.side];
           const target = rear.length ? rear[Math.max(0, rear.length - 1 - Math.floor(Math.random() * Math.min(10, rear.length)))]! : null;

@@ -3,7 +3,7 @@ import type { Phase } from "@/lib/battle/phase";
 
 export const SYMBOL = "BTCUSDT";
 
-/** bid = Buyers fleet (south), ask = Sellers fleet (north) */
+/** bid = Buyers fleet (left), ask = Sellers fleet (right) */
 export type BookSide = "bid" | "ask";
 export type Fleet = "buyers" | "sellers";
 export type Tier = "patrol" | "destroyer" | "frigate" | "cruiser" | "battleship";
@@ -19,7 +19,7 @@ export type BattleEvent =
   | {
       type: "fire";
       t: number;
-      /** taker side: buy fires north at asks, sell fires south at bids */
+      /** taker side: buy fires right at asks, sell fires left at bids */
       taker: "buy" | "sell";
       target: BookSide;
       b: number;
