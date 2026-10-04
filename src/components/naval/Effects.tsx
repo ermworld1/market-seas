@@ -7,7 +7,7 @@ import { tracersFor } from "@/lib/market/rules";
 import { audio, panX } from "@/lib/audio/engine";
 import { useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
-import { fireStats, GAP, DEPTH, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
+import { fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
 import { makeFighterGeometry } from "./fighter";
 
 const MAX_PROJ = 2400;
@@ -171,7 +171,7 @@ export function Effects() {
     const ty = target ? 0.18 * target.s : 0;
     const tz = target ? target.z : zForBucket(ev.b);
     const base = { target };
-    const pan = { x: panX(mx, view.halfW) };
+    const pan = { x: panX(mx - view.frontX, REAR) };
     // one tracer per underlying fill (capped at 24)
     const n = tracersFor(ev.fills);
     for (let i = 0; i < n; i++)
@@ -230,7 +230,7 @@ export function Effects() {
         // strafe horizontally through the swept price buckets
         const dir = sideSign(ev.target);
         launch("fighter", { dur: 1.6, ax: view.frontX - dir * 2, az: z0 - 1.2, bx: x1 + dir * 5, bz: z0 + 1.2, alt: 1.6, side: ev.target });
-        audio.play("fighter", { x: panX(x0, view.halfW) });
+        audio.play("fighter", { x: panX(x0 - view.frontX, REAR) });
       } else if (ev.type === "liquidation") {
         const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
         const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);

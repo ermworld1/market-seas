@@ -7,7 +7,7 @@ import type { BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import { audio, panX } from "@/lib/audio/engine";
 import { makeFleetMaterial, useModelGeometry } from "./models";
-import { CAPITAL, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
+import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
 
 const CAP = 130;
 const SIDES: BookSide[] = ["bid", "ask"];
@@ -75,7 +75,7 @@ export function Fleet() {
         const key = ev.side + ev.b;
         const d = view.displays.get(key);
         const sign = sideSign(ev.side);
-        const pan = { x: panX(d?.x ?? 0, view.halfW) };
+        const pan = { x: panX((d?.x ?? view.frontX) - view.frontX, REAR) };
         switch (ev.type) {
           case "sink":
             if (d && !d.departing) d.departing = { kind: "sink", t0: view.time };

@@ -368,7 +368,7 @@ function LegendStrip() {
           <span className="text-muted-foreground">{l.range}</span>
         </span>
       ))}
-      <span className="shrink-0 text-muted-foreground">Bomber = liquidation · Sub = pulled big order</span>
+      <span className="shrink-0 text-muted-foreground">Buyers left · Sellers right · Bomber = liquidation · Sub = pulled big order</span>
     </div>
   );
 }

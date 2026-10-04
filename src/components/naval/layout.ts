@@ -51,7 +51,6 @@ export const view = {
   mobile: false,
   cap: 120,
   halfW: 8,
-  offsetX: 0,
   frontX: 0,
   origin: 0,
   cameraX: 0,
