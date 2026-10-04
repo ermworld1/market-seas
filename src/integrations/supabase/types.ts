@@ -14,13 +14,115 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      player_profiles: {
+        Row: {
+          created_at: string
+          nickname: string
+          side: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          nickname: string
+          side: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          nickname?: string
+          side?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      predictions: {
+        Row: {
+          battle_id: number
+          bucket: number | null
+          choice: string
+          correct: boolean | null
+          ends_at: string
+          id: string
+          locks_at: string
+          outcome: string | null
+          price: number | null
+          round_key: string
+          round_kind: string
+          settled_at: string | null
+          side: string | null
+          starts_at: string
+          submitted_at: string
+          user_id: string
+          xp_awarded: number
+        }
+        Insert: {
+          battle_id: number
+          bucket?: number | null
+          choice: string
+          correct?: boolean | null
+          ends_at: string
+          id?: string
+          locks_at: string
+          outcome?: string | null
+          price?: number | null
+          round_key: string
+          round_kind: string
+          settled_at?: string | null
+          side?: string | null
+          starts_at: string
+          submitted_at?: string
+          user_id: string
+          xp_awarded?: number
+        }
+        Update: {
+          battle_id?: number
+          bucket?: number | null
+          choice?: string
+          correct?: boolean | null
+          ends_at?: string
+          id?: string
+          locks_at?: string
+          outcome?: string | null
+          price?: number | null
+          round_key?: string
+          round_kind?: string
+          settled_at?: string | null
+          side?: string | null
+          starts_at?: string
+          submitted_at?: string
+          user_id?: string
+          xp_awarded?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      leaderboard_snapshot: {
+        Args: { period_key?: string }
+        Returns: {
+          accuracy: number
+          best_streak: number
+          correct: number
+          nickname: string
+          settled: number
+          side: string
+          xp: number
+        }[]
+      }
+      side_standings: {
+        Args: { period_key?: string }
+        Returns: {
+          accuracy: number
+          settled: number
+          side: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

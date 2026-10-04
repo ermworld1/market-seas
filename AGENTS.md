@@ -30,3 +30,5 @@
 - Particles use pooled point-sprite buffers (`ParticlePool`) and projectiles a single InstancedMesh — no per-effect React components.
 - The `/` route is `ssr: false` and lazy-loads the battle — WebGL, WebSocket and localStorage are browser-only.
 - Nothing is rendered from simulated data: background layers stay hidden until real data arrives.
+- Community profiles and predictions use authenticated server functions; public rankings expose aggregate scores only.
+- Cinema direction and quality adaptation consume existing real events and mutable scene state; they never create market events.

@@ -136,10 +136,11 @@ export function Fleet() {
       const seen = new Set<string>();
       updateFront(e.mark || mid);
       for (const side of SIDES) {
+        const qualityCap = view.quality === "low" ? (view.mobile ? 34 : 72) : view.quality === "medium" ? (view.mobile ? 44 : 96) : view.cap;
         const ships = [...e.trackers[side].ships.values()]
           .filter((s) => passes(s, mid))
           .sort((a, b) => (side === "bid" ? b.price - a.price : a.price - b.price))
-          .slice(0, view.cap);
+          .slice(0, qualityCap);
         const vis: Display[] = [];
         for (const s of ships) {
           const key = side + s.b;
@@ -254,7 +255,8 @@ export function Fleet() {
         dummy.scale.setScalar(Math.max(0.001, d.s));
         dummy.updateMatrix();
         m.setMatrixAt(n, dummy.matrix);
-        col.copy(WHITE).lerp(FOG, d.fade).multiplyScalar(1 - d.damage * 0.45 + d.hitFlash * 1.5);
+        const selected = view.selectedBucket?.side === d.side && view.selectedBucket.b === d.b;
+        col.copy(WHITE).lerp(FOG, d.fade).multiplyScalar((selected ? 1.65 : 1) * (1 - d.damage * 0.45 + d.hitFlash * 1.5));
         m.setColorAt(n, col);
         counts[mkey] = n + 1;
       }

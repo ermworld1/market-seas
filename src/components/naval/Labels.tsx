@@ -13,6 +13,7 @@ export function Labels() {
   const flag = useRef<Record<"bid" | "ask", HTMLDivElement | null>>({ bid: null, ask: null });
   const reps = useRef<(HTMLDivElement | null)[]>([]);
   const fl = useRef<(HTMLDivElement | null)[]>([]);
+  const line = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let raf = 0;
@@ -49,6 +50,17 @@ export function Labels() {
         if (el.textContent !== f.text) el.textContent = f.text;
         el.dataset["tone"] = f.tone;
       });
+      const l = line.current;
+      const selected = screen.selected;
+      if (l && selected) {
+        const startX = window.innerWidth >= 1024 ? window.innerWidth - 340 : window.innerWidth;
+        const startY = window.innerHeight * 0.5;
+        const dx = selected.x - startX;
+        const dy = selected.y - startY;
+        l.style.display = "";
+        l.style.width = `${Math.hypot(dx, dy)}px`;
+        l.style.transform = `translate(${startX}px, ${startY}px) rotate(${Math.atan2(dy, dx)}rad)`;
+      } else if (l) l.style.display = "none";
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -57,6 +69,7 @@ export function Labels() {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden>
+      <div ref={line} className="absolute left-0 top-0 h-px origin-left bg-primary/70" style={{ display: "none" }} />
       {(["bid", "ask"] as const).map((side) => (
         <div
           key={side}

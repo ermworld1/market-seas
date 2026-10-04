@@ -4,6 +4,7 @@ import type { ConvoyState, StreamStatus } from "./types";
 import type { Round } from "./predictions";
 import type { Phase } from "@/lib/battle/phase";
 import type { Scoreboard, Winner } from "@/lib/battle/round";
+import type { RecentTrade } from "./engine";
 
 export interface FlagSnap {
   side: "bid" | "ask";
@@ -57,7 +58,10 @@ export interface TapeLine {
   text: string;
   tone: "buy" | "sell" | "sub" | "liq" | "info";
   notional: number;
+  firstAggId?: number;
+  lastAggId?: number;
 }
+export interface LadderLevel { side: "bid" | "ask"; price: number; qty: number; notional: number; cumulative: number; bucket: number }
 export interface Callout {
   id: number;
   text: string;
@@ -92,6 +96,13 @@ interface BattleStore {
   volume: number;
   clip: ClipReady | null;
   tourOpen: boolean;
+  presentation: "cinema" | "map";
+  panelTab: "book" | "trades" | "tape" | "guide" | "rankings";
+  ladder: { bids: LadderLevel[]; asks: LadderLevel[] };
+  recentTrades: RecentTrade[];
+  selectedBucket: { side: "bid" | "ask"; b: number } | null;
+  lesson: { id: number; kind: string; text: string } | null;
+  alertsOn: boolean;
 }
 
 export const EMPTY_HUD: HudSnapshot = {
@@ -143,6 +154,13 @@ export const useBattle = create<BattleStore>(() => ({
   volume: 0.7,
   clip: null,
   tourOpen: false,
+  presentation: "cinema",
+  panelTab: "book",
+  ladder: { bids: [], asks: [] },
+  recentTrades: [],
+  selectedBucket: null,
+  lesson: null,
+  alertsOn: false,
 }));
 
 /** The active engine, read by the 3D scene every frame (no React re-render). */
@@ -177,7 +195,7 @@ const XP_KEY = "nms-xp-v1";
 export function loadProgress() {
   const p = safeGet<{ xp?: number; streak?: number; best?: number }>(XP_KEY, {});
   const sb = safeGet<Scoreboard | null>("nms-scoreboard-v1", null);
-  const prefs = safeGet<{ viewMode?: "capital" | "all"; filter?: BattleStore["filter"]; volume?: number }>("nms-prefs-v1", {});
+  const prefs = safeGet<{ viewMode?: "capital" | "all"; filter?: BattleStore["filter"]; volume?: number; presentation?: BattleStore["presentation"]; alertsOn?: boolean }>("nms-prefs-v1", {});
   useBattle.setState({
     xp: p.xp ?? 0,
     streak: p.streak ?? 0,
@@ -186,6 +204,8 @@ export function loadProgress() {
     viewMode: prefs.viewMode ?? "all",
     filter: prefs.filter ?? "all",
     volume: prefs.volume ?? 0.7,
+    presentation: prefs.presentation ?? "cinema",
+    alertsOn: prefs.alertsOn ?? false,
   });
 }
 export function saveProgress() {
@@ -193,6 +213,6 @@ export function saveProgress() {
   safeSet(XP_KEY, { xp, streak, best });
 }
 export function savePrefs() {
-  const { viewMode, filter, volume } = useBattle.getState();
-  safeSet("nms-prefs-v1", { viewMode, filter, volume });
+  const { viewMode, filter, volume, presentation, alertsOn } = useBattle.getState();
+  safeSet("nms-prefs-v1", { viewMode, filter, volume, presentation, alertsOn });
 }

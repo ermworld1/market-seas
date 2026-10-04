@@ -92,7 +92,7 @@ export function Effects() {
     [],
   );
   const planes = useMemo<Plane[]>(
-    () => Array.from({ length: 8 }, (_, i) => ({ on: false, t: 0, dur: 1, ax: 0, az: 0, bx: 0, bz: 0, alt: 6, side: "bid" as BookSide, next: 0, kind: i < 4 ? ("bomber" as const) : ("fighter" as const) })),
+    () => Array.from({ length: 16 }, (_, i) => ({ on: false, t: 0, dur: 1, ax: 0, az: 0, bx: 0, bz: 0, alt: 6, side: "bid" as BookSide, next: 0, kind: i < 12 ? ("bomber" as const) : ("fighter" as const) })),
     [],
   );
   const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
@@ -236,6 +236,10 @@ export function Effects() {
         const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);
         const span = view.halfW + 14;
         launch("bomber", { dur: 3.8, ax: x, az: -span, bx: x, bz: span, alt: 6, side });
+        if (engineRef.current?.phase.current === "P5") {
+          const wave = view.quality === "low" ? 5 : view.quality === "medium" ? 8 : 11;
+          for (let i = 1; i < wave; i++) launch(i % 3 ? "bomber" : "fighter", { dur: 3.2 + i * 0.12, ax: x + (Math.random() - 0.5) * 7, az: -span - i, bx: view.frontX, bz: span + i, alt: 4 + Math.random() * 5, side });
+        }
         audio.play("liquidation");
       } else if (ev.type === "sink") {
         const d = view.displays.get(ev.side + ev.b);

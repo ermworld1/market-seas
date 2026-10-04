@@ -26,6 +26,8 @@ const tmp = new THREE.Vector3();
 function CameraRig() {
   const { camera, size, gl } = useThree();
   const gesture = useRef({ pointers: new Map<number, number>(), lastX: 0, pinch: 0 });
+  const lastCut = useRef(0);
+  const frameSamples = useRef({ slow: 0, fast: 0 });
   useEffect(() => {
     const el = gl.domElement;
     const down = (e: PointerEvent) => {
@@ -73,7 +75,12 @@ function CameraRig() {
     const cam = camera as THREE.OrthographicCamera;
     view.mobile = size.width < 768;
     view.cap = view.mobile ? 50 : 120;
-    const elev = THREE.MathUtils.degToRad(ELEVATION);
+    view.presentation = useBattle.getState().presentation;
+    const cinema = view.presentation === "cinema";
+    const activeShot = view.shot && performance.now() < view.shot.until ? view.shot : null;
+    if (view.shot && !activeShot) view.shot = null;
+    const elevDeg = cinema ? (activeShot ? 24 : 34) : ELEVATION;
+    const elev = THREE.MathUtils.degToRad(elevDeg);
     // reserve space for the header (top) and sidebar (desktop right)
     const topPx = view.mobile ? 250 : 200;
     const botPx = view.mobile ? 215 : 110;
@@ -83,7 +90,8 @@ function CameraRig() {
     const worldHalfX = view.mobile ? GAP + DEPTH * 0.4 : REAR;
     const zoomX = usableW / (2 * worldHalfX);
     const zoomY = usableH / (2 * 8.5 * Math.sin(elev));
-    const zoom = Math.min(zoomX, zoomY) * (view.mobile ? view.zoomScale : 1);
+    const shotZoom = activeShot ? (activeShot.kind === "cascade" ? 1.08 : 1.7) : cinema ? 1.08 : 1;
+    const zoom = Math.min(zoomX, zoomY) * (view.mobile ? view.zoomScale : 1) * shotZoom;
     if (Math.abs(cam.zoom - zoom) > 1e-3) {
       cam.zoom = zoom;
       cam.updateProjectionMatrix();
@@ -92,12 +100,28 @@ function CameraRig() {
     // shift the strait so it sits in the middle of the free area
     const shiftX = sidePx / 2 / zoom;
     const shiftY = ((topPx - botPx) / 2 / zoom) / Math.sin(elev);
-    if (!view.mobile) view.cameraX = 0;
+    if (!view.mobile && !activeShot) view.cameraX += (view.frontX - view.cameraX) * (1 - Math.exp(-1.2 * dt));
+    if (activeShot && activeShot.side) {
+      const d = activeShot.bucket === undefined ? null : view.displays.get(activeShot.side + activeShot.bucket);
+      const targetX = d?.x ?? view.frontX;
+      view.cameraX += (targetX - view.cameraX) * (1 - Math.exp(-3 * dt));
+      lastCut.current = activeShot.at;
+    }
     fx.shake = Math.max(0, fx.shake - dt * 2.2);
     const sh = fx.shake * fx.shake * 0.25;
     lookAt.set(view.cameraX + shiftX + (Math.random() - 0.5) * sh, 0, -shiftY + (Math.random() - 0.5) * sh);
     cam.position.set(lookAt.x, Math.sin(elev) * 100, lookAt.z + Math.cos(elev) * 100);
     cam.lookAt(lookAt);
+    const ms = raw * 1000;
+    frameSamples.current.slow = ms > 24 ? frameSamples.current.slow + 1 : 0;
+    frameSamples.current.fast = ms < 17 ? frameSamples.current.fast + 1 : 0;
+    if (frameSamples.current.slow >= 30 && view.quality !== "low") {
+      view.quality = view.quality === "high" ? "medium" : "low";
+      frameSamples.current.slow = 0;
+    } else if (frameSamples.current.fast >= 180 && view.quality !== "high") {
+      view.quality = view.quality === "low" ? "medium" : "high";
+      frameSamples.current.fast = 0;
+    }
     if (import.meta.env.DEV) (window as unknown as { __nmsInfo: unknown }).__nmsInfo = state.gl.info.render;
   });
   return null;
@@ -123,6 +147,8 @@ function Projector() {
     screen.repairs = A.repairs.map((r) => p(r)!);
     screen.floaters = A.floaters.map((f) => ({ ...p(f)!, id: f.id, text: f.text, tone: f.tone, age: view.time - f.t0 }));
     screen.strait = p({ x: view.frontX, y: 0, z: 0 });
+    const selected = view.selectedBucket ? view.displays.get(view.selectedBucket.side + view.selectedBucket.b) : null;
+    screen.selected = selected ? p({ x: selected.x, y: selected.y + selected.s * 0.4, z: selected.z }) : null;
   });
   return null;
 }
@@ -155,6 +181,7 @@ export default function Battle() {
   useFront();
   useDirector();
   const started = useRef(false);
+  const presentation = useBattle((s) => s.presentation);
   if (!started.current) {
     started.current = true;
     preloadModels();
@@ -168,7 +195,7 @@ export default function Battle() {
     return () => window.removeEventListener("pagehide", end);
   }, []);
   return (
-    <div className="fixed inset-0 overflow-hidden bg-background">
+    <div className={presentation === "cinema" ? "cinema fixed inset-0 overflow-hidden bg-background" : "fixed inset-0 overflow-hidden bg-background"}>
       <Guard name="scene" fallback={<div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">3D view unavailable on this device. Live data still runs below.</div>}>
         <div id="battle-canvas" className="absolute inset-0">
           <Canvas
@@ -190,6 +217,7 @@ export default function Battle() {
           </Canvas>
         </div>
       </Guard>
+      {presentation === "cinema" && <><div className="cinema-grade pointer-events-none absolute inset-0" /><div className="letterbox pointer-events-none absolute inset-0" /></>}
       <Guard name="hud">
         <Hud />
       </Guard>

@@ -16,7 +16,7 @@ const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
 };
 const MAX_VOICES = 12;
 /** Voice lines: file in /public/vo or speechSynthesis fallback. */
-export const VO_FILES: Record<string, string> = { P2: "p2_contact", P3: "p3_fire", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo" };
+export const VO_FILES: Record<string, string> = { P2: "p2_contact", P3: "p3_fire", P4: "capital", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo", dive: "dive", surface: "surface", flagsunk: "flagsunk", liq: "bombers" };
 const VO_COOLDOWN = 8;
 const LAYERS = ["sea", "drone", "drums", "brass", "choir"] as const;
 type Layer = (typeof LAYERS)[number];
