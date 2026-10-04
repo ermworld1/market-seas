@@ -213,7 +213,7 @@ export function useDirector() {
         bound = e;
         off = e.onEvent((ev) => {
           try {
-            if (ev.type === "fire" && ev.notional > biggest.notional) biggest = { notional: ev.notional, text: `${ev.taker === "bid" ? "Buyers" : "Sellers"} fired $${(ev.notional / 1e6).toFixed(2)}M (${ev.weapon})` };
+            if (ev.type === "fire" && ev.notional > biggest.notional) biggest = { notional: ev.notional, text: `${ev.taker === "buy" ? "Buyers" : "Sellers"} fired $${(ev.notional / 1e6).toFixed(2)}M (${ev.weapon})` };
             const shot = selectShot(ev, performance.now(), lastCut, view.shot);
             if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; }
             const bookEvent = ["reinforce", "dive", "fled", "relocate", "hidden", "repair"].includes(ev.type);
