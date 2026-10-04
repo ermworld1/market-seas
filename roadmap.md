@@ -15,3 +15,8 @@
 - [x] v5 Part 4: browser alerts, mobile LOD/particle budgets, and supplied recorded radio lines.
 - [ ] v5 verification: tests, database lint, four live viewport/mode runs, forced P5, metrics, and limitations.
 - [ ] Real-device frame-rate check (needs a real phone/laptop GPU).
+
+## v6 open
+- [ ] End-to-end settlement with a real signed-up user (blocked: email confirmation required; needs a real inbox or the owner testing)
+- [ ] Close-up tracers render as large flat slabs near the cinema camera; fighter/bomber previews look wide when no real aircraft exists
+- [ ] Real-device FPS (sandbox has no GPU)
