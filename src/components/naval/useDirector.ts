@@ -10,6 +10,8 @@ import { recordClip } from "@/lib/clips";
 import { view } from "./layout";
 import { canNarrateRelocate, lessonForEvent, selectShot, tapeEligible } from "@/lib/market/presentation";
 import { makeLadder } from "./LivePanels";
+import { submitPrediction } from "@/lib/market/community.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const RADIO: Record<string, string[]> = {
   P1: ["All quiet on the line. Hold position."],
@@ -315,9 +317,16 @@ export function useDirector() {
   }, []);
 }
 
-export function choose(kind: "round" | "flagRound", c: Choice) {
+export async function choose(kind: "round" | "flagRound", c: Choice) {
   const r = useBattle.getState()[kind];
   if (!r || r.choice || (r.lockAt && Date.now() > r.lockAt)) return;
   useBattle.setState({ [kind]: { ...r, choice: c } } as never);
   track("prediction_made", `${r.kind}:${c}`);
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return;
+  try {
+    await submitPrediction({ data: { roundKey: `${r.kind}:${r.battleId ?? r.startedAt}:${r.side ?? "battle"}:${r.b ?? 0}`, roundKind: r.kind, battleId: r.battleId ?? battleWindow(r.startedAt).id, choice: c, ...(r.side ? { side: r.side } : {}), ...(r.b !== undefined ? { bucket: r.b } : {}), ...(r.price ? { price: r.price } : {}), startsAt: r.startedAt, endsAt: r.endsAt } });
+  } catch (err) {
+    toast(err instanceof Error ? err.message : "Could not lock prediction", "loss");
+  }
 }

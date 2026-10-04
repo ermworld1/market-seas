@@ -147,6 +147,8 @@ function Projector() {
     screen.repairs = A.repairs.map((r) => p(r)!);
     screen.floaters = A.floaters.map((f) => ({ ...p(f)!, id: f.id, text: f.text, tone: f.tone, age: view.time - f.t0 }));
     screen.strait = p({ x: view.frontX, y: 0, z: 0 });
+    const selected = view.selectedBucket ? view.displays.get(view.selectedBucket.side + view.selectedBucket.b) : null;
+    screen.selected = selected ? p({ x: selected.x, y: selected.y + selected.s * 0.4, z: selected.z }) : null;
   });
   return null;
 }
