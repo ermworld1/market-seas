@@ -154,7 +154,8 @@ class AudioEngine {
         const v = this.voices[i]!, l = this.voices[low]!;
         if (v.pri < l.pri || (v.pri === l.pri && v.end < l.end)) low = i; // steal oldest of lowest priority
       }
-      if (this.voices[low]!.pri > pri) {
+      // gunfire always sounds: weapons steal the weakest voice; others need higher priority
+      if (BUS[cat] !== "weapons" && this.voices[low]!.pri > pri) {
         this.dropped++;
         return;
       }

@@ -45,7 +45,7 @@ function radio(key: string) {
   if (!lines) return;
   const text = lines[Math.floor(Math.random() * lines.length)]!;
   useBattle.setState({ radio: { id: nextId(), text } });
-  void audio.voice(key, text);
+  if (key !== "P1") void audio.voice(key, text); // P1 is subtitle-only
 }
 
 export function triggerClip(title: string) {
