@@ -122,9 +122,9 @@ export function Fleet() {
             audio.play("surface", pan);
             break;
           case "reinforce":
-            if (d && ev.notional >= 250_000) {
+            if (d && ev.notional >= 1_500_000) {
               addFloater({ x: d.x, y: 0.4, z: d.z + sign * 0.2 }, `+${usd(ev.notional)}`, ev.side === "bid" ? "buy" : "sell");
-              if (ev.notional >= 1e6) audio.play("reinforce", pan);
+              if (ev.notional >= 5e6) audio.play("reinforce", pan);
             }
             break;
           case "repair":

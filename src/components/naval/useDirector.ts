@@ -107,7 +107,7 @@ function onEvent(ev: BattleEvent) {
       pushTape("HIDDEN", `HIDDEN (inferred, possible iceberg) ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, "sub", ev.notional);
       break;
     case "reinforce":
-      if (ev.notional >= 500_000) pushTape("REINFORCE", `REINFORCE ${fleet} +${usd(ev.notional)} at ${fmtPrice(ev.price)}`, side === "bid" ? "buy" : "sell", ev.notional);
+      if (ev.notional >= (ev.fresh ? 3_000_000 : 5_000_000)) pushTape("REINFORCE", `REINFORCE ${fleet} +${usd(ev.notional)} at ${fmtPrice(ev.price)}`, side === "bid" ? "buy" : "sell", ev.notional);
       break;
     case "repair":
       pushTape("REPAIR", `REPAIR (inferred) ${fleet} at ${fmtPrice(ev.price)}`, "info");
