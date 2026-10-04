@@ -1,52 +1,42 @@
-import type { BattleEvent, BookSide } from "./types";
+import type { BookSide } from "./types";
 
-export type QuestionKind = "hold" | "water" | "storm";
-export const ROTATION: QuestionKind[] = ["hold", "water", "storm"];
-export const DURATION: Record<QuestionKind, number> = { hold: 60_000, water: 60_000, storm: 300_000 };
-
+export type Choice = "buyers" | "sellers" | "sunk" | "dive" | "hold";
 export interface Round {
   id: number;
-  kind: QuestionKind;
+  kind: "winner" | "flagship";
   startedAt: number;
   endsAt: number;
-  /** hold */
+  /** winner: the battle id it belongs to; picks lock after `lockAt` */
+  battleId?: number;
+  lockAt?: number;
   side?: BookSide;
+  b?: number;
   price?: number;
-  startMark?: number;
-  startVol?: number;
-  failed?: boolean;
-  choice?: "a" | "b";
+  outcome?: "sunk" | "dive" | "hold";
+  choice?: Choice;
 }
 
-/** Option "a" = YES / Bulls, "b" = NO / Bears */
-export function questionText(r: Round): { q: string; a: string; b: string } {
-  if (r.kind === "hold")
+export const FLAG_ROUND_MS = 60_000;
+export const PICK_WINDOW_MS = 60_000;
+
+export function questionText(r: Round): { q: string; options: { id: Choice; label: string }[] } {
+  if (r.kind === "winner")
     return {
-      q: `Will ${r.side === "bid" ? "Bulls" : "Bears"} Battleship ${fmtPrice(r.price ?? 0)} hold for the next 60s?`,
-      a: "Yes, holds",
-      b: "No, falls",
+      q: "Who wins this 5-minute battle?",
+      options: [
+        { id: "buyers", label: "Buyers" },
+        { id: "sellers", label: "Sellers" },
+      ],
     };
-  if (r.kind === "water") return { q: "Which fleet gains water in the next minute?", a: "Bulls", b: "Bears" };
-  return { q: "Will a storm hit in the next 5 minutes?", a: "Yes, storm", b: "No, calm" };
-}
-
-/** Hold fails when the battleship level is consumed (sink) or pulled (ghost/pulled). */
-export function holdBroken(e: BattleEvent, side: BookSide, price: number) {
-  return (e.type === "sink" || e.type === "ghost" || e.type === "pulled") && e.side === side && e.price === price;
-}
-
-export function resolveWater(startMark: number, endMark: number): "a" | "b" | null {
-  if (endMark > startMark) return "a";
-  if (endMark < startMark) return "b";
-  return null;
-}
-
-export function resolveStorm(startVol: number, endVol: number): "a" | "b" {
-  return endVol > startVol ? "a" : "b";
-}
-
-export function resolveHold(failed: boolean): "a" | "b" {
-  return failed ? "b" : "a";
+  const name = r.side === "bid" ? "Buyers'" : "Sellers'";
+  return {
+    q: `Will the ${name} flagship ${fmtPrice(r.price ?? 0)} be sunk, dive, or hold in the next 60s?`,
+    options: [
+      { id: "sunk", label: "Sunk" },
+      { id: "dive", label: "Dive" },
+      { id: "hold", label: "Hold" },
+    ],
+  };
 }
 
 export function xpFor(streak: number) {
@@ -56,4 +46,11 @@ export function xpFor(streak: number) {
 export function fmtPrice(p: number) {
   const d = p >= 1000 ? 1 : p >= 100 ? 2 : 3;
   return p.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: d });
+}
+export function usd(n: number) {
+  const a = Math.abs(n);
+  if (a >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `$${(n / 1e6).toFixed(a >= 1e7 ? 1 : 2)}M`;
+  if (a >= 1e3) return `$${(n / 1e3).toFixed(a >= 1e5 ? 0 : 1)}K`;
+  return `$${n.toFixed(0)}`;
 }
