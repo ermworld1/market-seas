@@ -387,7 +387,7 @@ class AudioEngine {
     const character = key.startsWith("cap_") ? "captain" : key.startsWith("adm_") ? "admiral" : "spotter";
     this.lastVoiceAt = now;
     if (file) {
-      const buf = await this.loadVo(file);
+      const buf = await this.loadVo(`legacy:${file}`);
       if (buf) {
         this.radioBuffer(buf);
         this.voPlayed.push(key);
