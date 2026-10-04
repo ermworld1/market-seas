@@ -50,4 +50,4 @@
 ## v11 live unit cards and fighter waves
 - [x] Runtime scene-rendered Buyers/Sellers unit cards with live dollar thresholds and interactive previews
 - [x] $200K / three-level fighter trigger, queued three-second waves, finger-four flight, strafe splashes, pull-up, contrails and flak
-- [ ] Five-minute live fighter-rate/audio-count verification and wave screenshots at 1440/390
+- [ ] Five-minute live fighter target not met in one sample: 9 waves/5m (1.8/min); desktop wave captured, phone had no qualifying real order in 3m; physical audio remains unverified

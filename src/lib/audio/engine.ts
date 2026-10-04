@@ -176,7 +176,7 @@ class AudioEngine {
    * One-shot with variety: random variant (never the same twice in a row), pitch ±10 %,
    * gain ±3 dB, pan from x, distance low-pass + delay + reverb send for far shots.
    */
-  play(cat: SfxCat, opts: { x?: number; gain?: number; shots?: number; dist?: number } = {}) {
+  play(cat: SfxCat, opts: { x?: number; xEnd?: number; panSeconds?: number; gain?: number; shots?: number; dist?: number } = {}) {
     const ctx = this.ctx;
     if (!ctx || !this.enabled) return;
     if (ctx.state !== "running") {
@@ -211,6 +211,10 @@ class AudioEngine {
     const dist = Math.max(0, Math.min(1, opts.dist ?? Math.abs(opts.x ?? 0) * 0.5));
     const pan = ctx.createStereoPanner();
     pan.pan.value = Math.max(-1, Math.min(1, opts.x ?? 0));
+    if (opts.xEnd != null) {
+      pan.pan.setValueAtTime(pan.pan.value, now);
+      pan.pan.linearRampToValueAtTime(Math.max(-1, Math.min(1, opts.xEnd)), now + (opts.panSeconds ?? 2.5));
+    }
     const out = ctx.createGain();
     out.gain.value = (opts.gain ?? 1) * Math.pow(10, (Math.random() * 6 - 3) / 20) * (1 - dist * 0.45);
     const lp = this.filt("lowpass", 16000 - dist * 13500, 0.5);

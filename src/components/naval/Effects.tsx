@@ -298,7 +298,12 @@ export function Effects() {
           launch("fighter", { dur: 3.1 + row * 0.12, ax: rear - sideSign(attacker) * row * 0.8, az: z0 + wing * (0.75 + row * 0.35), bx: targetX, bz: z0 + wing * 0.28, alt: 0.65 + row * 0.12, side: ev.target, formation: i });
         }
         view.fighterWaves++;
-        audio.play("fighter", { x: panX(rear - view.frontX, REAR), gain: 1.15 });
+      audio.play("fighter", {
+        x: panX(rear - view.frontX, REAR),
+        xEnd: panX(targetX - view.frontX, REAR),
+        panSeconds: 2.5,
+        gain: 1.15,
+      });
       } else if (ev.type === "liquidation") {
         const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
         const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);
