@@ -26,9 +26,9 @@
 - [x] 5-min live runs at 1440 and 390: 0 book mismatches, trades rx = viz, active fire gap < 0.1s, P5 held
 
 ## v8
-- [ ] A real CC0/commercial sfx files per category + LICENSES.md
-- [ ] B "?" opens How it works panel (+ Replay tour)
-- [ ] C Binance-style order book widget
-- [ ] D green/red sides everywhere
-- [ ] E unit legend/guide/tour from one shared config + real renders
-- [ ] F full QA checklist
+- [x] A real CC0/commercial sfx files per category + LICENSES.md
+- [x] B "?" opens How it works panel (+ Replay tour)
+- [x] C Binance-style order book widget
+- [x] D green/red sides everywhere
+- [x] E unit legend/guide/tour from one shared config + real renders
+- [x] F full QA checklist (remaining: battle result card not caught by automation; real device)

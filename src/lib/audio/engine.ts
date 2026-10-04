@@ -131,8 +131,18 @@ class AudioEngine {
         this.samples.set(key, null);
       }
     };
+    // music stems are optional: only layers listed in /music/manifest.json are fetched (no 404 noise)
+    let stems: string[] = [];
+    try {
+      const m = await fetch("/music/manifest.json");
+      if (m.ok) stems = ((await m.json()) as { layers?: string[] }).layers ?? [];
+    } catch {
+      stems = [];
+    }
     await Promise.all([
-      ...(Object.keys(BANK) as BankFolder[]).flatMap((f) => bankUrls(f).map((u, i) => load(`${f}/${i + 1}`, u))), ...LAYERS.map((l) => load("music:" + l, `/music/${l}.mp3`))]);
+      ...(Object.keys(BANK) as BankFolder[]).flatMap((f) => bankUrls(f).map((u, i) => load(`${f}/${i + 1}`, u))),
+      ...LAYERS.filter((l) => stems.includes(l)).map((l) => load("music:" + l, `/music/${l}.mp3`)),
+    ]);
     // swap procedural layers for stems when present
     for (const l of LAYERS) {
       const buf = this.samples.get("music:" + l);
@@ -333,16 +343,21 @@ class AudioEngine {
     this.lastTorpedoVoice = now;
     void this.voice("torpedo", "Torpedo in the water!");
   }
-  private async loadVo(file: string) {
-    const key = "vo:" + file;
-    if (!this.samples.has(key)) {
-      this.samples.set(key, null);
-      try {
-        const r = await fetch(`/vo/${file}.wav`);
-        if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) this.samples.set(key, await this.ctx!.decodeAudioData(await r.arrayBuffer()));
-      } catch { /* slot empty */ }
+  private voLoads = new Map<string, Promise<AudioBuffer | null>>();
+  /** One shared load per file, so concurrent lines never fall back to TTS while a file is still loading. */
+  private loadVo(file: string) {
+    let p = this.voLoads.get(file);
+    if (!p) {
+      p = (async () => {
+        try {
+          const r = await fetch(`/vo/${file}.wav`);
+          if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) return await this.ctx!.decodeAudioData(await r.arrayBuffer());
+        } catch { /* slot empty */ }
+        return null;
+      })();
+      this.voLoads.set(file, p);
     }
-    return this.samples.get(key) ?? null;
+    return p;
   }
   private radioBuffer(buf: AudioBuffer) {
     const ctx = this.ctx!;

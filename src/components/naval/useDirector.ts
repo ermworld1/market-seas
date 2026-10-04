@@ -204,6 +204,7 @@ export function useDirector() {
     let bound: unknown = null;
     let battle = { id: 0, end: 0, startMark: 0, watchedFrom: 0 };
     let warned = true;
+    let biggest = { notional: 0, text: "" };
     const iv = setInterval(() => {
       const e = engineRef.current;
       if (!e) return;
@@ -212,6 +213,7 @@ export function useDirector() {
         bound = e;
         off = e.onEvent((ev) => {
           try {
+            if (ev.type === "fire" && ev.notional > biggest.notional) biggest = { notional: ev.notional, text: `${ev.taker === "buy" ? "Buyers" : "Sellers"} fired $${(ev.notional / 1e6).toFixed(2)}M (${ev.weapon})` };
             const shot = selectShot(ev, performance.now(), lastCut, view.shot);
             if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; }
             const bookEvent = ["reinforce", "dive", "fled", "relocate", "hidden", "repair"].includes(ev.type);
@@ -257,8 +259,9 @@ export function useDirector() {
           if (now - battle.watchedFrom >= 60_000) {
             const sb = recordResult(st.scoreboard, winner, battle.id);
             safeSet("nms-scoreboard-v1", sb);
-            useBattle.setState({ scoreboard: sb, result: { id: nextId(), winner, startMark: battle.startMark, endMark: e.mark } });
+            useBattle.setState({ scoreboard: sb, result: { id: nextId(), winner, startMark: battle.startMark, endMark: e.mark, pick: st.round?.kind === "winner" && st.round.battleId === battle.id ? (st.round.choice as string | undefined) : undefined, streak: st.streak, biggest: biggest.text } });
           }
+          biggest = { notional: 0, text: "" };
           if (watchedAll) track("battle_watched_to_end");
           const r = st.round;
           if (r && r.kind === "winner" && r.battleId === battle.id)
