@@ -15,7 +15,7 @@ function ensureSimplifier() {
 }
 
 /** Fleet ships are small on screen: decimate ~30k-triangle hulls to a mobile budget. */
-const TARGET_TRIS: Record<string, number> = { patrol: 4000, frigate: 5000, cruiser: 6000, battleship: 8000, tanker: 6000, transport: 4000, bomber: 5000 };
+const TARGET_TRIS: Record<string, number> = { patrol: 600, frigate: 1000, cruiser: 1800, battleship: 3200, tanker: 2000, transport: 1200, bomber: 1500 };
 
 function simplify(src: THREE.BufferGeometry, targetTris: number) {
   // weld UV/normal seams so the simplifier can collapse edges
@@ -121,8 +121,12 @@ export function preloadModels() {
   for (const url of Object.values(MODELS)) useGLTF.preload(url);
 }
 
-export function makeFleetMaterial(side: "bulls" | "bears") {
-  return side === "bulls"
+export function makeFleetMaterial(side: "buyers" | "sellers", trim = false) {
+  if (trim)
+    return side === "buyers"
+      ? new THREE.MeshStandardMaterial({ color: new THREE.Color(0.5, 0.36, 0.12), metalness: 0.6, roughness: 0.4, emissive: new THREE.Color(0.1, 0.35, 0.3), emissiveIntensity: 0.4 })
+      : new THREE.MeshStandardMaterial({ color: new THREE.Color(0.22, 0.24, 0.27), metalness: 0.7, roughness: 0.45, emissive: new THREE.Color(0.45, 0.2, 0.02), emissiveIntensity: 0.35 });
+  return side === "buyers"
     ? new THREE.MeshStandardMaterial({
         color: new THREE.Color(0.62, 0.42, 0.1),
         metalness: 0.6,
