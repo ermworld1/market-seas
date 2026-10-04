@@ -37,4 +37,4 @@
 - [x] Realistic non-emissive warship finishes, formations, wakes, foam, smoke, and restrained labels
 - [x] WWII naval weapon and ship ambience sound design
 - [x] Captain, Admiral, and Spotter recorded radio system and panel
-- [ ] Five-minute live desktop and phone verification
+- [x] Five-minute live desktop and phone verification (sandbox software renderer; physical-device sound/FPS remains unverified)
