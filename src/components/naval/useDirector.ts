@@ -78,7 +78,7 @@ function radio(key: string, detail?: string) {
 const flagHits: Record<string, { b: number; dmg: number; told: number }> = {};
 /** First sound enable: radio check with subtitle. */
 export function radioCheck() {
-  useBattle.setState({ radio: { id: nextId(), text: RADIO.cap_stations![0]!, speaker: "captain", detail: "Radio circuit open · live BTCUSDT battle" } });
+  useBattle.setState({ radio: { id: nextId(), text: RADIO["cap_stations"]![0]!, speaker: "captain", detail: "Radio circuit open · live BTCUSDT battle" } });
   audio.radioCheck();
 }
 
