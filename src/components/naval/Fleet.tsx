@@ -6,6 +6,7 @@ import { usd } from "@/lib/market/predictions";
 import type { BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import { audio, panX } from "@/lib/audio/engine";
+import { UNIT_PAINT_HEX } from "@/lib/battle/units";
 import { makeFleetMaterial, useModelGeometry } from "./models";
 import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
 
@@ -16,7 +17,7 @@ const euler = new THREE.Euler(0, 0, 0, "YXZ");
 const col = new THREE.Color();
 const WHITE = new THREE.Color(1, 1, 1);
 const FOG = new THREE.Color(0.55, 0.6, 0.64);
-const SIDE_COL = { bid: new THREE.Color("#0ecb81"), ask: new THREE.Color("#f6465d") };
+const SIDE_COL = { bid: new THREE.Color(UNIT_PAINT_HEX.bid), ask: new THREE.Color(UNIT_PAINT_HEX.ask) };
 const stripeGeo = new THREE.BoxGeometry(0.92, 0.055, 0.15).translate(0, 0.015, 0);
 const deckGeo = new THREE.BoxGeometry(0.38, 0.025, 0.12).translate(-0.08, 0.18, 0);
 const flagGeo = new THREE.PlaneGeometry(0.16, 0.1).translate(0.08, 0, 0);
@@ -87,17 +88,23 @@ export function Fleet() {
   );
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
   const marks = useMemo(() => {
-    const paint = (side: BookSide) => new THREE.MeshStandardMaterial({ color: SIDE_COL[side], metalness: 0.35, roughness: 0.64, side: THREE.DoubleSide });
-    const flag = (side: BookSide) => new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: SIDE_COL[side] }, uTime: { value: 0 } },
-      vertexShader: `uniform float uTime; varying float vShade; void main(){ vec3 p=position; float k=(p.x+0.08)/0.16; p.z += sin(uTime*5.0+k*5.5)*0.018*k; vShade=.72+.28*sin(uTime*5.0+k*5.5); gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
-      fragmentShader: `uniform vec3 uColor; varying float vShade; void main(){ gl_FragColor=vec4(uColor*vShade,1.0); }`,
-      side: THREE.DoubleSide,
-    });
+    const paint = (side: BookSide) => new THREE.MeshStandardMaterial({ color: SIDE_COL[side], emissive: 0x000000, emissiveIntensity: 0, metalness: 0.18, roughness: 0.78, side: THREE.DoubleSide });
+    const flag = (side: BookSide) => {
+      const material = new THREE.MeshStandardMaterial({ color: SIDE_COL[side], emissive: 0x000000, emissiveIntensity: 0, metalness: 0, roughness: 0.92, side: THREE.DoubleSide });
+      material.onBeforeCompile = (shader) => {
+        shader.uniforms["uTime"] = { value: 0 };
+        material.userData["shader"] = shader;
+        shader.vertexShader = shader.vertexShader
+          .replace("#include <common>", "#include <common>\nuniform float uTime;")
+          .replace("#include <begin_vertex>", "#include <begin_vertex>\nfloat clothK=(position.x+0.08)/0.16; transformed.z += sin(uTime*5.0+clothK*5.5)*0.018*clothK;");
+      };
+      material.customProgramCacheKey = () => `fleet-flag-${side}`;
+      return material;
+    };
     return {
       paint: { bid: paint("bid"), ask: paint("ask") },
       flag: { bid: flag("bid"), ask: flag("ask") },
-      pole: new THREE.MeshStandardMaterial({ color: "#20252b", metalness: 0.75, roughness: 0.4 }),
+      pole: new THREE.MeshStandardMaterial({ color: "#20252b", emissive: 0x000000, emissiveIntensity: 0, metalness: 0.75, roughness: 0.4 }),
     };
   }, []);
   useEffect(() => () => { [marks.paint.bid, marks.paint.ask, marks.flag.bid, marks.flag.ask, marks.pole].forEach((m) => m.dispose()); }, [marks]);
@@ -115,8 +122,11 @@ export function Fleet() {
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? fx.slowScale : 1);
-    marks.flag.bid.uniforms["uTime"]!.value = view.time;
-    marks.flag.ask.uniforms["uTime"]!.value = view.time;
+    for (const side of SIDES) {
+      const shader = marks.flag[side].userData["shader"] as { uniforms?: Record<string, { value: number }> } | undefined;
+      const time = shader?.uniforms?.["uTime"];
+      if (time) time.value = view.time;
+    }
     view.frameMs += (raw * 1000 - view.frameMs) * 0.05;
     view.time += dt;
     fx.slowmo = Math.max(0, fx.slowmo - Math.min(raw, 0.05));
@@ -273,8 +283,6 @@ export function Fleet() {
           if (glow && d.damage > 0.45 && Math.random() < dt * d.damage * 10 * QK[view.quality])
             glow.emit({ x: d.x, y: 0.2 * d.s, z: d.z, vy: 0.6, life: 0.5, size: 0.3 * d.s, grow: -0.6, color: "#ff7a1a", alpha: 0.9 });
           if (s.repairUntil > now) {
-            if (glow && Math.random() < dt * 18)
-              glow.emit({ x: d.x + (Math.random() - 0.5) * 0.3 * d.s, y: 0.22 * d.s, z: d.z + (Math.random() - 0.5) * 0.5 * d.s, vx: (Math.random() - 0.5) * 2, vy: 1.2 + Math.random(), vz: (Math.random() - 0.5) * 2, life: 0.45, size: 0.12, color: "#5dff8a", gravity: 5 });
             if (repairs.length < 3) repairs.push({ x: d.x, y: 0.5 * d.s, z: d.z });
           }
           if (!near || Math.abs(d.x - view.frontX) < Math.abs(near.x - view.frontX)) near = d;
@@ -321,7 +329,7 @@ export function Fleet() {
         dummy.updateMatrix();
         m.setMatrixAt(n, dummy.matrix);
         const selected = view.selectedBucket?.side === d.side && view.selectedBucket.b === d.b;
-        col.copy(WHITE).lerp(FOG, d.fade).multiplyScalar((selected ? 1.12 : 1) * (1 - d.damage * 0.38 + d.hitFlash * 0.45));
+        col.copy(WHITE).lerp(FOG, d.fade).multiplyScalar(1 - d.damage * 0.38);
         m.setColorAt(n, col);
         counts[mkey] = n + 1;
         const hk = d.side as string;

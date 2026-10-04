@@ -123,7 +123,14 @@ export function preloadModels() {
 /** Shared realistic naval paint; side identity comes from physical stripes, deck marks and flags. */
 export function makeFleetMaterial(side: "buyers" | "sellers", trim = false) {
   const color = new THREE.Color(trim ? "#657076" : side === "buyers" ? "#37454a" : "#414348").convertSRGBToLinear();
-  const material = new THREE.MeshStandardMaterial({ color, metalness: trim ? 0.48 : 0.62, roughness: trim ? 0.58 : 0.72, flatShading: false });
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
+    metalness: trim ? 0.48 : 0.62,
+    roughness: trim ? 0.58 : 0.72,
+    flatShading: false,
+  });
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvHullPos = position;");
     shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace(
