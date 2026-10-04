@@ -6,10 +6,10 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MODELS, makeFleetMaterial, normalizeGeometry } from "@/components/naval/models";
 import { makeFighterGeometry } from "@/components/naval/fighter";
-import { SIDE_HEX } from "@/lib/battle/units";
+import { SIDE_HEX, UNIT_PAINT_HEX } from "@/lib/battle/units";
 
-const W = 256;
-const H = 112;
+const W = 240;
+const H = 120;
 type Side = "bid" | "ask";
 
 export async function renderLegend(): Promise<Record<string, string>> {
@@ -21,7 +21,9 @@ export async function renderLegend(): Promise<Record<string, string>> {
   const geo = async (n: keyof typeof MODELS, kind: "ship" | "air") => normalizeGeometry((await loader.loadAsync(MODELS[n])).scene, kind);
   const shot = (g: THREE.BufferGeometry, mat: THREE.Material, side: Side, scale: number, air = false) => {
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight("#ffffff", "#334", 1.6));
+    scene.background = new THREE.Color("#183641");
+    scene.fog = new THREE.Fog("#52717a", 4, 10);
+    scene.add(new THREE.HemisphereLight("#dcebf0", "#18343d", 1.4));
     const d = new THREE.DirectionalLight("#ffffff", 2.2);
     d.position.set(2, 4, 3);
     scene.add(d);
@@ -29,8 +31,18 @@ export async function renderLegend(): Promise<Record<string, string>> {
     m.rotation.y = side === "bid" ? Math.PI : 0;
     m.scale.setScalar(scale);
     scene.add(m);
-    const cam = new THREE.PerspectiveCamera(22, W / H, 0.1, 50);
-    cam.position.set(0.15, air ? 0.9 : 0.55, 2.6);
+    if (!air) {
+      const mark = new THREE.MeshStandardMaterial({ color: UNIT_PAINT_HEX[side], emissive: 0x000000, roughness: 0.82, side: THREE.DoubleSide });
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.012, 0.035).translate(0, 0.045, 0), mark);
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.009, 0.055).translate(-0.08, 0.155, 0), mark);
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1).translate(0.08, 0, 0), mark);
+      flag.position.set(0.08, 0.28, 0); flag.rotation.y = Math.PI / 2;
+      for (const q of [stripe, deck, flag]) { q.rotation.y += m.rotation.y; q.scale.setScalar(scale); scene.add(q); }
+    }
+    const ocean = new THREE.Mesh(new THREE.PlaneGeometry(8, 4, 20, 10), new THREE.MeshPhysicalMaterial({ color: "#123945", roughness: 0.3, metalness: 0.25 }));
+    ocean.rotation.x = -Math.PI / 2; ocean.position.y = -0.025; scene.add(ocean);
+    const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
+    cam.position.set(0.25, air ? 1.1 : 0.75, 2.7);
     cam.lookAt(0, air ? 0 : 0.08, 0);
     r.setClearColor(0, 0);
     r.render(scene, cam);

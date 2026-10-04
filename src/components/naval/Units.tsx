@@ -1,25 +1,63 @@
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AIRCRAFT, EVENTS, RULES_FACTS, SCENERY, SHIPS, WEAPONS, type UnitDef } from "@/lib/battle/units";
-import { useBattle } from "@/lib/market/store";
+import { engineRef, useBattle } from "@/lib/market/store";
 import { cn } from "@/lib/utils";
 
-/** Rendered from the scene's own models/effects (see scripts/render-legend). */
+let legendPromise: Promise<Record<string, string>> | null = null;
+const legendCache: Record<string, string> = {};
+function loadLegend() {
+  legendPromise ??= import("@/lib/dev/renderLegend").then(({ renderLegend }) => renderLegend()).then((r) => Object.assign(legendCache, r));
+  return legendPromise;
+}
+
+/** Generated once at startup by an offscreen renderer using the battle's exact geometry and materials. */
 export function UnitIcon({ u, side }: { u: UnitDef; side?: "bid" | "ask" }) {
-  const src = u.sided ? `/legend/${u.icon}-${side ?? "bid"}.png` : `/legend/${u.icon}.png`;
-  return <img src={src} alt="" width={64} height={28} loading="lazy" className="h-7 w-16 shrink-0 object-contain" />;
+  const key = u.sided ? `${u.icon}-${side ?? "bid"}` : u.icon;
+  const [src, setSrc] = useState(legendCache[key] ?? "");
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => { void loadLegend().then((r) => setSrc(r[key] ?? "")); }, [key]);
+  return (
+    <button type="button" aria-label={`Preview ${side === "ask" ? "Sellers" : "Buyers"} ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative h-[60px] w-[120px] shrink-0 overflow-hidden rounded border border-border bg-secondary", playing && "is-playing")}>
+      {src ? <img src={src} alt="" width={120} height={60} className="h-full w-full object-cover" /> : <span className="text-[9px] text-muted-foreground">Rendering…</span>}
+      {playing && <span className={cn("unit-preview-fx", u.id)} aria-hidden />}
+      <span className={cn("absolute bottom-0.5 px-1 text-[8px] font-bold uppercase", side === "ask" ? "right-0.5 text-bear" : "left-0.5 text-bull")}>{side === "ask" ? "Sellers" : "Buyers"}</span>
+    </button>
+  );
+}
+
+const money = (n: number) => n >= 1e6 ? `$${(n / 1e6).toFixed(n >= 10e6 ? 0 : 1)}M` : `$${Math.round(n / 1e3)}K`;
+function liveRule(u: UnitDef) {
+  const e = engineRef.current;
+  if (!e) return u.rule;
+  const q = e.bucketSampler;
+  const tq = e.tradeSampler;
+  if (u.id === "patrol") return `orders under ${money(q.quantile(0.4))} right now`;
+  if (u.id === "destroyer") return `${money(q.quantile(0.4))}–${money(q.quantile(0.7))} right now`;
+  if (u.id === "frigate") return `${money(q.quantile(0.7))}–${money(q.quantile(0.9))} right now`;
+  if (u.id === "cruiser") return `${money(q.quantile(0.9))}–${money(q.quantile(1))} right now`;
+  if (u.id === "battleship") return `largest order on that side right now`;
+  if (u.id === "mg") return `trades under ${money(tq.quantile(0.6))} right now`;
+  if (u.id === "gun") return `${money(tq.quantile(0.6))}–${money(tq.quantile(0.9))} right now`;
+  if (u.id === "torpedo") return `${money(tq.quantile(0.9))}–${money(tq.quantile(0.99))} right now`;
+  if (u.id === "broadside") return `trades of ${money(tq.quantile(0.99))} or more right now`;
+  return u.rule;
 }
 
 export function UnitList({ items, both = true, compact = false }: { items: UnitDef[]; both?: boolean; compact?: boolean }) {
+  const nonce = useBattle((s) => s.nonce);
+  const [, refresh] = useState(0);
+  useEffect(() => { const id = window.setInterval(() => refresh((v) => v + 1), 2_000); return () => clearInterval(id); }, [nonce]);
   return (
-    <ul className="grid gap-1">
+    <ul className="grid gap-2">
       {items.map((u) => (
-        <li key={u.id} className="flex items-center gap-2 text-[11px] leading-snug" data-unit={u.id}>
-          <span className="flex shrink-0 gap-0.5">
+        <li key={u.id} className="text-[11px] leading-snug" data-unit={u.id}>
+          <span className="flex max-w-full gap-1 overflow-x-auto">
             <UnitIcon u={u} side="bid" />
             {both && u.sided && <UnitIcon u={u} side="ask" />}
           </span>
-          <span className="min-w-0">
-            <strong className="text-foreground">{u.name}</strong> <span className="text-muted-foreground">· {u.rule}</span>
+          <span className="mt-1 block min-w-0">
+            <strong className="text-foreground">{u.name}</strong> <span className="text-muted-foreground">· {liveRule(u)}</span>
             {!compact && <span className="block text-foreground/75">{u.text}</span>}
           </span>
         </li>
