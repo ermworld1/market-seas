@@ -193,7 +193,7 @@ export function Ocean() {
     if (war && Math.random() < dt * 0.4) flashT.current = 1;
     if (sunLight.current) sunLight.current.intensity = 2.6 * (1 - s * 0.6) + flashT.current * 3;
     if (hemi.current) hemi.current.intensity = 0.9 * (1 - s * 0.35) + flashT.current * 1.5;
-    gl.toneMappingExposure = 0.55 - s * 0.12 + flashT.current * 0.4;
+    gl.toneMappingExposure = 0.46 - s * 0.1 + flashT.current * 0.32;
 
     // rain
     const count = Math.floor(RAIN_MAX * Math.max(0, (s - 0.25) / 0.75) * (view.mobile ? 0.5 : 1));

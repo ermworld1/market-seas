@@ -16,9 +16,9 @@ let cutAt = 0;
 function wide(t: number) {
   // Readable 40° oblique establishing view: hull sides, decks and superstructure stay visible.
   const side = Math.floor(t / 28) % 2 ? 1 : -1;
-  const dist = view.mobile ? 21 : 18;
+  const dist = view.mobile ? 14 : 12;
   const elevation = THREE.MathUtils.degToRad(40);
-  pos.set(view.frontX + side * 3.8, dist * Math.sin(elevation), view.halfW + dist * Math.cos(elevation));
+  pos.set(view.frontX + side * 4.8, dist * Math.sin(elevation), view.halfW * 0.55 + dist * Math.cos(elevation));
   look.set(view.frontX - side * 1.3, 0.35, 0);
 }
 

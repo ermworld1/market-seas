@@ -10,7 +10,7 @@ export const REAR = GAP + DEPTH + 2.2;
 export const ELEVATION = 65; // degrees from horizontal
 
 export const TIERS: Tier[] = ["patrol", "destroyer", "frigate", "cruiser", "battleship"];
-export const TIER_SCALE: Record<Tier, number> = { patrol: 0.95, destroyer: 1.25, frigate: 1.6, cruiser: 2.2, battleship: 3.15 };
+export const TIER_SCALE: Record<Tier, number> = { patrol: 1.35, destroyer: 1.7, frigate: 2.25, cruiser: 3.15, battleship: 4.65 };
 export const CAPITAL: Tier[] = ["cruiser", "battleship"];
 
 export type DepartKind = "sink" | "dive" | "fled" | "pulled" | "drop";

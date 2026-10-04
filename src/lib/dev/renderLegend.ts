@@ -116,6 +116,5 @@ export async function renderLegend(): Promise<Record<string, string>> {
   fx("fx-cascade", () => { puff(128, 60, 60, "rgba(255,90,30,0.7)"); for (const [x, y] of [[50, 30], [200, 24], [140, 40]]) puff(x!, y!, 14, "rgba(15,15,15,0.9)"); g.fillStyle = "#2a2e31"; for (let i = 0; i < 4; i++) g.fillRect(40 + i * 50, 14 + (i % 2) * 10, 22, 4); });
   fx("fx-strait", () => { g.strokeStyle = "#fff4d6"; g.shadowColor = "#fff4d6"; g.shadowBlur = 14; g.lineWidth = 4; g.beginPath(); g.moveTo(128, 6); g.lineTo(128, 106); g.stroke(); for (let y = 12; y < 110; y += 20) { g.fillStyle = "#fff"; g.beginPath(); g.arc(128, y, 4, 0, 7); g.fill(); } });
   fx("fx-storm", () => { g.fillStyle = "rgba(58,66,72,0.8)"; g.fillRect(0, 0, W, 40); g.strokeStyle = "rgba(200,215,225,0.7)"; g.lineWidth = 1.5; for (let i = 0; i < 30; i++) { const x = (i * 37) % W; g.beginPath(); g.moveTo(x, 40 + (i % 5) * 10); g.lineTo(x - 6, 58 + (i % 5) * 10); g.stroke(); } });
-  fx("fx-searchlight", () => { const gr = g.createLinearGradient(128, 110, 170, 0); gr.addColorStop(0, "rgba(255,243,207,0.7)"); gr.addColorStop(1, "rgba(255,243,207,0)"); g.fillStyle = gr; g.beginPath(); g.moveTo(124, 110); g.lineTo(150, 0); g.lineTo(200, 0); g.lineTo(132, 110); g.fill(); });
   return out;
 }

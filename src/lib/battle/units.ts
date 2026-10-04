@@ -70,7 +70,6 @@ export const SCENERY: UnitDef[] = [
   { id: "convoy", name: "Convoy", icon: "transport", sided: true, rule: "open interest rising (polled every 30s)", text: "New positions arriving; the convoy leaves when open interest falls." },
   { id: "tanker", name: "Oil tanker", icon: "tanker", sided: true, rule: "funding rate", text: "Sits at each fleet's rear; the side that pays funding leaks oil." },
   { id: "storm", name: "Storm and rain", icon: "fx-storm", sided: false, rule: "realised volatility and battle phase", text: "Rougher sea when the market is wild." },
-  { id: "searchlights", name: "Searchlights", icon: "fx-searchlight", sided: false, rule: "night sky only", text: "Atmosphere only; carries no data." },
 ];
 
 export const RULES_FACTS = {
