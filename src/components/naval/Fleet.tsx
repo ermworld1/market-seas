@@ -8,7 +8,7 @@ import type { Tracked } from "@/lib/battle/orderRules";
 import { audio, panX } from "@/lib/audio/engine";
 import { UNIT_PAINT_HEX } from "@/lib/battle/units";
 import { makeFleetMaterial, useModelGeometry } from "./models";
-import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
+import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, hash01, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
 
 const CAP = 130;
 const SIDES: BookSide[] = ["bid", "ask"];
