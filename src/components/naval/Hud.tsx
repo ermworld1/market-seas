@@ -496,6 +496,15 @@ function Toast() {
 function EnterGate() {
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(localStorage.getItem("nms-entered") !== "1"), []);
+  // unlock the audio context on the very first tap anywhere (phones need a gesture)
+  useEffect(() => {
+    const once = () => {
+      void audio.unlock().catch((err) => console.error("[audio]", err));
+      window.removeEventListener("pointerdown", once, true);
+    };
+    window.addEventListener("pointerdown", once, true);
+    return () => window.removeEventListener("pointerdown", once, true);
+  }, []);
   if (!open) return null;
   const enter = async (sound: boolean) => {
     localStorage.setItem("nms-entered", "1");

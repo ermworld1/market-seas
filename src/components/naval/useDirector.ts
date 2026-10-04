@@ -18,6 +18,10 @@ export const RADIO: Record<string, string[]> = {
   P6push: ["Push forward!"],
   P6fall: ["Fall back! Fall back!"],
   P7: ["Cease fire. Damage report."],
+  dive: ["Dive, dive, dive!"],
+  surface: ["Sub surfacing, starboard side!"],
+  flagsunk: ["Flagship is going down!"],
+  liq: ["Bombers overhead! Take cover!"],
 };
 
 const pageStart = Date.now();
@@ -41,7 +45,7 @@ function radio(key: string) {
   if (!lines) return;
   const text = lines[Math.floor(Math.random() * lines.length)]!;
   useBattle.setState({ radio: { id: nextId(), text } });
-  void audio.vo(key.toLowerCase());
+  void audio.voice(key, text);
 }
 
 export function triggerClip(title: string) {
@@ -86,6 +90,7 @@ function onEvent(ev: BattleEvent) {
       if (ev.tier === "battleship") {
         fx.slowmo = 1.2;
         callout(`${fleet.toUpperCase()}' FLAGSHIP SUNK`, side === "bid" ? "sell" : "buy", true);
+        radio("flagsunk");
         triggerClip(`${fleet}' flagship sunk`);
       }
       break;
@@ -95,12 +100,14 @@ function onEvent(ev: BattleEvent) {
       pushTape(label, `${label} ${usd(ev.notional)} at ${fmtPrice(ev.price)} · lived ${(ev.lived / 1000).toFixed(1)}s${ev.neverHit ? " · never hit" : ""}`, "sub", ev.notional);
       flagEvents.push(ev);
       if (ev.tier === "battleship") callout(`${fleet.toUpperCase()}' FLAGSHIP ${ev.type === "dive" ? "DIVED" : "FLED"}`, "info");
+      if (ev.tier === "battleship" || ev.tier === "cruiser") radio("dive");
       break;
     }
     case "pulled":
       flagEvents.push(ev);
       break;
     case "relocate":
+      if (ev.notional >= 1_000_000) radio("surface");
       pushTape("RELOCATE", `RELOCATE (inferred) ${usd(ev.notional)} ${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, "sub", ev.notional);
       break;
     case "hidden":
@@ -116,6 +123,7 @@ function onEvent(ev: BattleEvent) {
       const what = ev.liquidated === "longs" ? "LONG" : "SHORT";
       pushTape("AIR STRIKE", `AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, "liq", ev.notional);
       callout(`AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)}`, "liq");
+      radio("liq");
       break;
     }
     case "phase":

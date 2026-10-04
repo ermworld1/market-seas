@@ -177,7 +177,12 @@ export function Fleet() {
           const s = d.ship;
           const tz = zFor(d.side, d.price);
           const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * mobileK;
-          d.z += (tz - d.z) * kMove;
+          const dz = (tz - d.z) * kMove;
+          d.z += dz;
+          // wake behind moving ships (and a faint bow wash on big ones)
+          const speed = Math.abs(dz) / Math.max(dt, 1e-3);
+          if (smoke && (speed > 0.15 ? Math.random() < dt * 40 : Math.random() < dt * 0.6 * d.s))
+            smoke.emit({ x: d.x + (Math.random() - 0.5) * 0.15 * d.s, y: 0.02, z: d.z + sign * 0.5 * d.s, vx: (Math.random() - 0.5) * 0.3, life: 1.4, size: 0.12 + 0.1 * d.s, grow: 2.2, color: "#eef7fa", alpha: 0.55 });
           d.s += (ts - d.s) * kScale;
           d.damage *= Math.exp(-0.05 * dt);
           d.roll += (d.damage * 0.3 + Math.sin(view.time * 0.9 + d.x) * 0.03 * stormBob - d.roll) * kMove;

@@ -95,3 +95,6 @@ export function addFloater(a: Anchor, text: string, tone: Floater["tone"]) {
   list.push({ ...a, id: ++floaterId, text, tone, t0: view.time });
   if (list.length > 10) list.shift();
 }
+
+/** Longest gap between visible shots (ms) — exposed in ?debug=1. */
+export const fireStats = { last: 0, maxGap: 0 };
