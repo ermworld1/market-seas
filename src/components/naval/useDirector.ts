@@ -78,7 +78,7 @@ function radio(key: string, detail?: string) {
 const flagHits: Record<string, { b: number; dmg: number; told: number }> = {};
 /** First sound enable: radio check with subtitle. */
 export function radioCheck() {
-  useBattle.setState({ radio: { id: nextId(), text: "Contact! Enemy ships on the move.", speaker: "spotter", detail: "Radio circuit open · live BTCUSDT battle" } });
+  useBattle.setState({ radio: { id: nextId(), text: RADIO.cap_stations![0]!, speaker: "captain", detail: "Radio circuit open · live BTCUSDT battle" } });
   audio.radioCheck();
 }
 
@@ -132,7 +132,7 @@ function onEvent(ev: BattleEvent) {
       if (ev.tier === "battleship") {
         fx.slowmo = 2; fx.slowScale = 0.3;
         callout(`${fleet.toUpperCase()}' FLAGSHIP SUNK`, side === "bid" ? "sell" : "buy", true);
-        radio("flagsunk", `${fleet}' flagship at ${fmtPrice(ev.price)} was fully traded`);
+        radio("spot_breaking", `${fleet}' flagship at ${fmtPrice(ev.price)} was fully traded`);
         triggerClip(`${fleet}' flagship sunk`);
       } else radio("spot_breaking", `${fleet}' ${ev.tier} worth ${usd(ev.notional)} sank at ${fmtPrice(ev.price)}`);
       break;
@@ -163,7 +163,7 @@ function onEvent(ev: BattleEvent) {
       flagEvents.push(ev);
       break;
     case "relocate":
-      if (ev.notional >= 1_000_000) radio("surface");
+      if (ev.notional >= 1_000_000) radio("spot_sonar", `${fleet}' ${usd(ev.notional)} order relocated from ${fmtPrice(ev.fromPrice)} to ${fmtPrice(ev.price)}`);
       if (canNarrateRelocate(Date.now(), lastRelocateTape)) { lastRelocateTape = Date.now(); pushTape("RELOCATE", `${fleet}' ${usd(ev.notional)} surfaced ${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, "sub", ev.notional); }
       break;
     case "hidden":
@@ -188,7 +188,11 @@ function onEvent(ev: BattleEvent) {
         const buyersPushing = (engineRef.current?.priceChange5m ?? 0) > 0;
         radio(buyersPushing ? (ev.detail === "fall back" ? "adm_withdraw" : Math.random() < 0.5 ? "cap_commence" : "cap_holdline") : (ev.detail === "fall back" ? "cap_holdline" : Math.random() < 0.5 ? "adm_openfire" : "adm_break"));
       }
-      else radio(ev.phase);
+      else {
+        const phaseLine: Partial<Record<string, string>> = { P2: "cap_stations", P3: "adm_openfire", P4: "cap_commence", P5: "cap_holdline", P7: "adm_withdraw" };
+        const key = phaseLine[ev.phase];
+        if (key) radio(key);
+      }
       if (ev.phase === "P5") triggerClip("Liquidation cascade");
       break;
   }

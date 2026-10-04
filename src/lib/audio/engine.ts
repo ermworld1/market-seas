@@ -16,7 +16,7 @@ const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
   surface: "ships", sink: "ships", reinforce: "ships",
 };
 const MAX_VOICES = 12;
-/** Voice lines: file in /public/vo or speechSynthesis fallback. */
+/** Voice lines are recorded files in /public/vo. There is deliberately no TTS path. */
 export const VO_FILES: Record<string, string> = { P2: "p2_contact", P3: "p3_fire", P4: "capital", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo", dive: "dive", surface: "surface", flagsunk: "flagsunk", liq: "bombers", radiocheck: "p2_contact", flaghit: "p3_fire", fighter: "p3_fire", start: "cap_stations", warn: "cap_holdline", end: "p7_ceasefire", capital: "capital", cap_commence: "cap_commence", cap_holdline: "cap_holdline", cap_stations: "cap_stations", adm_openfire: "adm_openfire", adm_break: "adm_break", adm_withdraw: "adm_withdraw", spot_hit: "spot_hit", spot_splash: "spot_splash", spot_aircraft: "spot_aircraft", spot_sonar: "spot_sonar", spot_fire: "spot_fire", spot_breaking: "spot_breaking" };
 const VO_COOLDOWN = 6;
 const VARIANTS = 6;
@@ -287,12 +287,12 @@ class AudioEngine {
   }
   merged = 0;
 
-  /** First sound enable: radio check (recorded file if present, else speech) so the radio is heard at once. */
+  /** First sound enable: a supplied Captain recording so the radio is heard at once. */
   radioCheck() {
     if (this.radioChecked) return;
     this.radioChecked = true;
     this.lastVoiceAt = -1e9;
-    void this.voice("radiocheck", "Contact! Enemy ships on the move.");
+    void this.voice("cap_stations", "Battle stations! All hands to battle stations!");
   }
 
   /** Play a radio line through mic clicks, static, a band-limited handset, and a squelch tail. */
@@ -318,26 +318,7 @@ class AudioEngine {
         return true;
       }
     }
-    if (typeof speechSynthesis === "undefined") return false;
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 1.15;
-    u.lang = "en-US";
-    const voices = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
-    u.voice = voices.find((v) => /male|david|daniel|alex|fred|george|guy|mark/i.test(v.name) && !/female/i.test(v.name)) ?? voices[0] ?? null;
-    u.pitch = 0.8;
-    const est = 0.5 + text.length * 0.06;
-    this.voBusyUntil = now + est;
-    this.static(now, 0.18);
-    this.duck(now, est);
-    u.onend = () => {
-      this.voBusyUntil = 0;
-      if (this.ctx) this.static(this.ctx.currentTime, 0.15);
-    };
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-    this.voPlayed.push(key + " (tts)");
-    this.voByCharacter[character] = (this.voByCharacter[character] ?? 0) + 1;
-    return true;
+    return false;
   }
   /** Play once on the first torpedo after 30 s without any voice. */
   torpedoVoice() {
