@@ -1,54 +1,69 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { fx } from "@/lib/market/store";
-import type { BookSide, Weapon } from "@/lib/market/types";
+import { engineRef, fx } from "@/lib/market/store";
+import type { BattleEvent, BookSide, Weapon } from "@/lib/market/types";
+import { tracersFor } from "@/lib/market/rules";
+import { audio, panX } from "@/lib/audio/engine";
 import { useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
-import { DEPTH, GAP, type Display, sideSign, view } from "./layout";
+import { GAP, DEPTH, type Display, sideSign, view, xFor, zFor } from "./layout";
+import { makeFighterGeometry } from "./fighter";
 
-const MAX_PROJ = 360;
+const MAX_PROJ = 2400;
 interface Proj {
   on: boolean;
-  fx: number;
-  fy: number;
-  fz: number;
-  tx: number;
-  ty: number;
-  tz: number;
-  t: number;
-  dur: number;
-  arc: number;
-  size: number;
-  len: number;
+  fx: number; fy: number; fz: number;
+  tx: number; ty: number; tz: number;
+  t: number; dur: number; arc: number; size: number; len: number;
   color: THREE.Color;
-  weapon: Weapon | "bomb";
+  weapon: Weapon | "bomb" | "cannon";
   target: Display | null;
-  hitFrac: number;
 }
-interface Bomber {
+interface Plane {
   on: boolean;
   t: number;
-  z: number;
+  dur: number;
+  ax: number; az: number; bx: number; bz: number;
+  alt: number;
   side: BookSide;
-  nextDrop: number;
+  next: number;
+  kind: "bomber" | "fighter";
 }
 
 const dummy = new THREE.Object3D();
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const COLORS = {
-  mg: new THREE.Color(1.6, 1.15, 0.35),
-  gun: new THREE.Color(2.2, 1.0, 0.25),
+  mg: new THREE.Color(1.5, 1.1, 0.35),
+  gun: new THREE.Color(2.0, 0.95, 0.25),
   torpedo: new THREE.Color(0.15, 0.17, 0.18),
-  broadside: new THREE.Color(2.4, 1.5, 0.5),
+  broadside: new THREE.Color(2.3, 1.45, 0.5),
   bomb: new THREE.Color(0.08, 0.08, 0.08),
+  cannon: new THREE.Color(1.8, 1.4, 0.6),
 };
+const POWER: Record<Proj["weapon"], number> = { mg: 0.15, cannon: 0.25, gun: 0.55, torpedo: 1.1, broadside: 1.4, bomb: 1.6 };
+
+/** Find the target ship for a bucket; if it is gone, continue into the next ship deeper in the book. */
+function targetFor(side: BookSide, b: number): Display | null {
+  const list = view.visible[side];
+  if (!list.length) return null;
+  const exact = view.displays.get(side + b);
+  if (exact && !exact.departing) return exact;
+  // asks: next higher bucket; bids: next lower bucket
+  let best: Display | null = null;
+  for (const d of list) {
+    const ahead = side === "ask" ? d.b >= b : d.b <= b;
+    if (!ahead) continue;
+    if (!best || Math.abs(d.b - b) < Math.abs(best.b - b)) best = d;
+  }
+  return best ?? list[0]!;
+}
 
 export function Effects() {
   const pools = useMemo(() => {
-    const glow = new ParticlePool(900, true);
-    const smoke = new ParticlePool(1400, false);
+    const glow = new ParticlePool(1400, true);
+    const smoke = new ParticlePool(2000, false);
     view.fx.glow = glow;
     view.fx.smoke = smoke;
     return { glow, smoke };
@@ -64,38 +79,23 @@ export function Effects() {
   );
 
   const bomberGeo = useModelGeometry("bomber");
-  const bomberMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#3d4236", metalness: 0.5, roughness: 0.55 }),
-    [],
-  );
+  const fighterGeo = useMemo(() => makeFighterGeometry(), []);
+  const planeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#3d4236", metalness: 0.5, roughness: 0.55 }), []);
+  const fighterMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7d8790", metalness: 0.6, roughness: 0.4, flatShading: true }), []);
   const projMesh = useRef<THREE.InstancedMesh>(null);
   const projGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 5).rotateX(Math.PI / 2), []);
   const projMat = useMemo(() => new THREE.MeshBasicMaterial({ toneMapped: false }), []);
   const projs = useMemo<Proj[]>(
-    () =>
-      Array.from({ length: MAX_PROJ }, () => ({
-        on: false,
-        fx: 0,
-        fy: 0,
-        fz: 0,
-        tx: 0,
-        ty: 0,
-        tz: 0,
-        t: 0,
-        dur: 1,
-        arc: 0,
-        size: 0.05,
-        len: 0.3,
-        color: COLORS.mg,
-        weapon: "mg",
-        target: null,
-        hitFrac: 0,
-      })),
+    () => Array.from({ length: MAX_PROJ }, () => ({ on: false, fx: 0, fy: 0, fz: 0, tx: 0, ty: 0, tz: 0, t: 0, dur: 1, arc: 0, size: 0.05, len: 0.3, color: COLORS.mg, weapon: "mg" as const, target: null })),
     [],
   );
-  const bombers = useMemo<Bomber[]>(() => Array.from({ length: 3 }, () => ({ on: false, t: 0, z: 0, side: "bid", nextDrop: 0 })), []);
-  const bomberRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const planes = useMemo<Plane[]>(
+    () => Array.from({ length: 8 }, (_, i) => ({ on: false, t: 0, dur: 1, ax: 0, az: 0, bx: 0, bz: 0, alt: 6, side: "bid" as BookSide, next: 0, kind: i < 4 ? ("bomber" as const) : ("fighter" as const) })),
+    [],
+  );
+  const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
   const shot = useRef(0);
+  const cursor = useRef(0);
 
   useEffect(() => {
     const m = projMesh.current;
@@ -103,172 +103,166 @@ export function Effects() {
     return () => {
       projGeo.dispose();
       projMat.dispose();
-      bomberMat.dispose();
+      planeMat.dispose();
+      fighterMat.dispose();
+      fighterGeo.dispose();
     };
-  }, [projGeo, projMat, bomberMat]);
+  }, [projGeo, projMat, planeMat, fighterMat, fighterGeo]);
 
+  /** Never drops a shot: when the pool is full the oldest projectile is recycled. */
   const spawn = (p: Partial<Proj> & Pick<Proj, "fx" | "fy" | "fz" | "tx" | "ty" | "tz" | "dur" | "weapon">) => {
-    const free = projs.find((q) => !q.on);
-    if (!free) return;
-    Object.assign(free, { arc: 0, size: 0.05, len: 0.3, target: null, hitFrac: 0, ...p, on: true, t: 0 });
+    let free: Proj | undefined;
+    for (let k = 0; k < MAX_PROJ; k++) {
+      const q = projs[(cursor.current + k) % MAX_PROJ]!;
+      if (!q.on) {
+        free = q;
+        cursor.current = (cursor.current + k + 1) % MAX_PROJ;
+        break;
+      }
+    }
+    if (!free) {
+      free = projs[cursor.current]!;
+      cursor.current = (cursor.current + 1) % MAX_PROJ;
+    }
+    Object.assign(free, { arc: 0, size: 0.05, len: 0.3, target: null, ...p, on: true, t: 0 });
     free.color = COLORS[p.weapon];
   };
 
   const splash = (x: number, z: number, power: number) => {
-    const n = Math.round(6 + power * 16);
+    const n = Math.round(4 + power * 14);
     for (let i = 0; i < n; i++)
-      pools.smoke.emit({
-        x: x + (Math.random() - 0.5) * 0.3 * power,
-        y: 0.05,
-        z: z + (Math.random() - 0.5) * 0.3 * power,
-        vx: (Math.random() - 0.5) * 1.5 * power,
-        vy: 2 + Math.random() * 3.5 * power,
-        vz: (Math.random() - 0.5) * 1.5 * power,
-        life: 0.9 + power * 0.4,
-        size: 0.18 + Math.random() * 0.25 * power,
-        grow: 1.4,
-        color: "#f4fbff",
-        alpha: 0.85,
-        gravity: 7,
-      });
-    for (let i = 0; i < 3 + power * 4; i++)
-      pools.smoke.emit({
-        x: x + (Math.random() - 0.5) * power,
-        y: 0.03,
-        z: z + (Math.random() - 0.5) * power,
-        life: 2.2,
-        size: 0.5 * power + 0.3,
-        grow: 2.5,
-        color: "#dde9ee",
-        alpha: 0.5,
-      });
+      pools.smoke.emit({ x: x + (Math.random() - 0.5) * 0.3 * power, y: 0.05, z: z + (Math.random() - 0.5) * 0.3 * power, vx: (Math.random() - 0.5) * 1.5 * power, vy: 2 + Math.random() * 3.5 * power, vz: (Math.random() - 0.5) * 1.5 * power, life: 0.9 + power * 0.4, size: 0.16 + Math.random() * 0.22 * power, grow: 1.4, color: "#f4fbff", alpha: 0.85, gravity: 7 });
+    for (let i = 0; i < 2 + power * 3; i++)
+      pools.smoke.emit({ x: x + (Math.random() - 0.5) * power, y: 0.03, z: z + (Math.random() - 0.5) * power, life: 2.2, size: 0.45 * power + 0.25, grow: 2.5, color: "#dde9ee", alpha: 0.5 });
   };
-
-  const flash = (x: number, y: number, z: number, size: number, color = "#ffb347") => {
-    pools.glow.emit({ x, y, z, life: 0.18, size, grow: 0.6, color, alpha: 1 });
-  };
+  const flash = (x: number, y: number, z: number, size: number, color = "#ffb347") => pools.glow.emit({ x, y, z, life: 0.16, size, grow: 0.6, color, alpha: 1 });
 
   const impact = (p: Proj) => {
-    const power = p.weapon === "mg" ? 0.2 : p.weapon === "gun" ? 0.55 : p.weapon === "torpedo" ? 1.1 : p.weapon === "broadside" ? 1.4 : 1.6;
+    const power = POWER[p.weapon];
     const d = p.target;
-    const onShip = d && !d.departing && Math.random() < 0.85;
-    if (onShip && d) {
-      d.hitFlash = Math.min(1, d.hitFlash + 0.25 + p.hitFrac);
-      flash(p.tx, p.ty + 0.1, p.tz, 0.6 * power + 0.3);
+    if (d && !d.departing && Math.random() < 0.9) {
+      d.hitFlash = Math.min(1, d.hitFlash + 0.08 + power * 0.3);
+      flash(p.tx, p.ty + 0.1, p.tz, 0.5 * power + 0.25);
       if (power > 0.5)
-        for (let i = 0; i < 6 * power; i++)
-          pools.glow.emit({
-            x: p.tx,
-            y: p.ty + 0.1,
-            z: p.tz,
-            vx: (Math.random() - 0.5) * 3,
-            vy: 1 + Math.random() * 2,
-            vz: (Math.random() - 0.5) * 3,
-            life: 0.6,
-            size: 0.18,
-            color: "#ff8a2a",
-            gravity: 5,
-          });
+        for (let i = 0; i < 5 * power; i++)
+          pools.glow.emit({ x: p.tx, y: p.ty + 0.1, z: p.tz, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 0.6, size: 0.16, color: "#ff8a2a", gravity: 5 });
       if (power > 0.3)
         for (let i = 0; i < 3 * power; i++)
-          pools.smoke.emit({
-            x: p.tx,
-            y: p.ty + 0.2,
-            z: p.tz,
-            vx: 0.2,
-            vy: 0.8,
-            life: 2,
-            size: 0.4 * power + 0.2,
-            grow: 2.5,
-            color: "#2b2826",
-            alpha: 0.7,
-            drag: 0.5,
-          });
-      if (p.weapon === "torpedo" || p.weapon === "broadside" || p.weapon === "bomb") splash(p.tx, p.tz, power * 0.8);
-    } else splash(p.tx, p.tz, power * 0.7);
+          pools.smoke.emit({ x: p.tx, y: p.ty + 0.2, z: p.tz, vx: 0.2, vy: 0.8, life: 2, size: 0.35 * power + 0.2, grow: 2.5, color: "#2b2826", alpha: 0.7, drag: 0.5 });
+      if (power >= 1) splash(p.tx, p.tz, power * 0.8);
+    } else if (power > 0.2 || Math.random() < 0.35) splash(p.tx, p.tz, power * 0.7);
   };
 
-  useFrame((state, raw) => {
-    const dt = Math.min(raw, 0.05);
-    // ── events → projectiles
-    let budget = 30;
+  const fire = (ev: Extract<BattleEvent, { type: "fire" }>) => {
+    const sSide: BookSide = ev.taker === "buy" ? "bid" : "ask";
+    const sign = sideSign(sSide);
+    const shooters = view.visible[sSide];
+    const target = targetFor(ev.target, ev.b);
+    const near = shooters.length ? shooters.slice(0, Math.min(8, shooters.length)) : [];
+    const shooter: Display | null =
+      ev.weapon === "broadside" ? (shooters.find((d) => d.tier === "battleship") ?? near[0] ?? null) : (near[shot.current++ % Math.max(1, near.length)] ?? null);
+    const mx = shooter ? shooter.x : xFor(ev.b);
+    const my = shooter ? 0.28 * shooter.s : 0.2;
+    const mz = shooter ? shooter.z - sign * 0.25 * shooter.s : sign * GAP;
+    const tx = target ? target.x : xFor(ev.b);
+    const ty = target ? 0.18 * target.s : 0;
+    const tz = target ? target.z : zFor(ev.target, ev.price);
+    const base = { target };
+    const pan = { x: panX(mx, view.halfW) };
+    // one tracer per underlying fill (capped at 24)
+    const n = tracersFor(ev.fills);
+    for (let i = 0; i < n; i++)
+      spawn({ ...base, weapon: "mg", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.35, ty, tz: tz + (Math.random() - 0.5) * 0.35, dur: 0.14 + i * 0.012, arc: 0.12, size: 0.03, len: 0.45 });
+    engineRef.current && (engineRef.current.tracersSpawned += n);
+    if (ev.weapon === "mg") audio.play("mg", pan);
+    else if (ev.weapon === "gun") {
+      flash(mx, my, mz, 0.55);
+      for (let i = 0; i < 2; i++) spawn({ ...base, weapon: "gun", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.4, ty, tz, dur: 0.32 + i * 0.05, arc: 1.4, size: 0.06, len: 0.3 });
+      audio.play("gun", pan);
+    } else if (ev.weapon === "torpedo") {
+      spawn({ ...base, weapon: "torpedo", fx: mx, fy: 0.01, fz: mz, tx, ty: 0.01, tz, dur: 0.45, size: 0.05, len: 0.5 });
+      audio.play("torpedo", pan);
+    } else {
+      fx.shake = Math.min(1.2, fx.shake + 0.8);
+      const s = shooter?.s ?? 1;
+      for (let i = 0; i < 6; i++) {
+        const ox = (i - 2.5) * 0.12 * s;
+        flash(mx + ox, my, mz, 1.1, "#ffd27a");
+        spawn({ ...base, weapon: "broadside", fx: mx + ox, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.8, ty, tz: tz + (Math.random() - 0.5) * 0.6, dur: 0.4 + i * 0.015, arc: 2.4, size: 0.09, len: 0.4 });
+      }
+      audio.play("broadside", pan);
+    }
+  };
+
+  const launch = (kind: Plane["kind"], init: Omit<Plane, "on" | "t" | "next" | "kind">) => {
+    const p = planes.find((q) => !q.on && q.kind === kind);
+    if (!p) return;
+    Object.assign(p, init, { on: true, t: 0, next: 0 });
+  };
+
+  useFrame((_, raw) => {
+    const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? 0.35 : 1);
+    const e = engineRef.current;
     for (const ev of view.frameEvents) {
       if (ev.type === "fire") {
-        const sSide: BookSide = ev.shooter === "bulls" ? "bid" : "ask";
-        const shooters = view.visible[sSide];
-        const targets = view.visible[ev.target];
-        if (!shooters.length || !targets.length) continue;
-        if (ev.weapon === "mg" && budget-- <= 0) continue;
-        const target = targets.find((d) => d.price === ev.price) ?? targets[0]!;
-        const sign = sideSign(sSide);
-        const shooter: Display =
-          ev.weapon === "broadside"
-            ? (shooters.find((d) => d.tier === "battleship") ?? shooters[0]!)
-            : shooters[shot.current++ % Math.min(5, shooters.length)]!;
-        const mx = shooter.x;
-        const my = 0.28 * shooter.s;
-        const mz = shooter.z - sign * 0.25 * shooter.s;
-        const tx = target.x;
-        const ty = 0.18 * target.s;
-        const tz = target.z;
-        const base = { target, hitFrac: ev.hitFrac };
-        if (ev.weapon === "mg") {
-          for (let i = 0; i < 3; i++)
-            spawn({ ...base, weapon: "mg", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.3, ty, tz: tz + (Math.random() - 0.5) * 0.3, dur: 0.16 + i * 0.03, arc: 0.15, size: 0.035, len: 0.5 });
-        } else if (ev.weapon === "gun") {
-          flash(mx, my, mz, 0.6);
-          for (let i = 0; i < 2; i++)
-            spawn({ ...base, weapon: "gun", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.4, ty, tz, dur: 0.34 + i * 0.05, arc: 1.6, size: 0.06, len: 0.3 });
-        } else if (ev.weapon === "torpedo") {
-          spawn({ ...base, weapon: "torpedo", fx: mx, fy: 0.01, fz: mz, tx, ty: 0.01, tz, dur: 0.45, size: 0.05, len: 0.5 });
-        } else {
-          fx.shake = Math.min(1.2, fx.shake + 0.8);
-          for (let i = 0; i < 6; i++) {
-            const ox = (i - 2.5) * 0.12 * shooter.s;
-            flash(mx + ox, my, mz, 1.2, "#ffd27a");
-            spawn({ ...base, weapon: "broadside", fx: mx + ox, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.8, ty, tz: tz + (Math.random() - 0.5) * 0.6, dur: 0.4 + i * 0.015, arc: 2.6, size: 0.09, len: 0.4 });
-          }
-        }
+        fire(ev);
+        if (e) e.tradesVisualized++;
+      } else if (ev.type === "fighter") {
+        const pts = ev.buckets.map((b) => targetFor(ev.target, b)).filter(Boolean) as Display[];
+        const a = pts[0];
+        const z0 = a?.z ?? sideSign(ev.target) * (GAP + 2);
+        const z1 = pts[pts.length - 1]?.z ?? z0 + sideSign(ev.target) * 3;
+        const x0 = a?.x ?? 0;
+        // strafe along the swept row: enter from the strait, exit past the last ship
+        const dir = sideSign(ev.target);
+        launch("fighter", { dur: 1.6, ax: x0 - 1.5, az: dir * GAP * 0.5 - dir * 2, bx: x0 + 1.5, bz: z1 + dir * 6, alt: 1.6, side: ev.target });
+        void z0;
+        audio.play("fighter", { x: panX(x0, view.halfW) });
       } else if (ev.type === "liquidation") {
-        const b = bombers.find((q) => !q.on);
-        if (b) {
-          b.on = true;
-          b.t = 0;
-          b.nextDrop = 0;
-          b.side = ev.liquidated === "longs" ? "bid" : "ask";
-          b.z = sideSign(b.side) * (GAP + DEPTH * 0.8);
-        }
+        const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
+        const z = sideSign(side) * (GAP + DEPTH * 0.75);
+        const span = view.halfW + 14;
+        launch("bomber", { dur: 3.8, ax: span + view.offsetX, az: z, bx: -span + view.offsetX, bz: z, alt: 6, side });
+        audio.play("liquidation");
+      } else if (ev.type === "sink") {
+        const d = view.displays.get(ev.side + ev.b);
+        if (d) splash(d.x, d.z, Math.min(2, 0.6 + d.s * 0.4));
       }
     }
 
-    // ── bombers
-    bombers.forEach((b, i) => {
-      const m = bomberRefs.current[i];
+    // planes
+    planes.forEach((p, i) => {
+      const m = planeRefs.current[i];
       if (!m) return;
-      if (!b.on) {
+      if (!p.on) {
         m.visible = false;
         return;
       }
-      b.t += dt;
-      const DUR = 3.8;
-      const span = view.halfW + 22;
-      const x = span - (b.t / DUR) * span * 2;
+      p.t += dt;
+      const u = Math.min(1, p.t / p.dur);
+      const x = p.ax + (p.bx - p.ax) * u;
+      const z = p.az + (p.bz - p.az) * u;
       m.visible = true;
-      m.position.set(x, 6 + Math.sin(b.t * 2) * 0.15, b.z);
-      m.rotation.set(Math.sin(b.t * 1.7) * 0.05, 0, 0);
-      if (Math.abs(x) < view.halfW + 1 && b.t >= b.nextDrop) {
-        b.nextDrop = b.t + 0.2;
-        const rear = view.visible[b.side];
-        const target = rear.length ? rear[Math.max(0, rear.length - 1 - Math.floor(Math.random() * Math.min(6, rear.length)))] : null;
-        const tx = x - 1.2;
-        const tz = b.z + (Math.random() - 0.5) * 3;
-        const near = target && Math.abs(target.x - tx) < 2.5 ? target : null;
-        spawn({ weapon: "bomb", fx: x, fy: 5.7, fz: b.z, tx: near ? near.x : tx, ty: near ? 0.2 * near.s : 0, tz: near ? near.z : tz, dur: 0.75, size: 0.08, len: 0.25, target: near, hitFrac: 0.4 });
+      m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1, z);
+      m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.3 : 0);
+      if (p.kind === "bomber") {
+        if (Math.abs(x - view.offsetX) < view.halfW + 1 && p.t >= p.next) {
+          p.next = p.t + 0.2;
+          const rear = view.visible[p.side];
+          const target = rear.length ? rear[Math.max(0, rear.length - 1 - Math.floor(Math.random() * Math.min(10, rear.length)))]! : null;
+          const tx = x - 1.2;
+          const tz = p.az + (Math.random() - 0.5) * 3;
+          const hit = target && Math.abs(target.x - tx) < 3 ? target : null;
+          spawn({ weapon: "bomb", fx: x, fy: p.alt - 0.3, fz: z, tx: hit ? hit.x : tx, ty: hit ? 0.2 * hit.s : 0, tz: hit ? hit.z : tz, dur: 0.75, size: 0.08, len: 0.25, target: hit });
+        }
+      } else if (p.t >= p.next && u > 0.1 && u < 0.85) {
+        p.next = p.t + 0.05;
+        spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + (Math.random() - 0.5) * 0.4, ty: 0.1, tz: z + sideSign(p.side) * 1.2, dur: 0.18, size: 0.035, len: 0.5, target: null });
       }
-      if (b.t > DUR) b.on = false;
+      if (u >= 1) p.on = false;
     });
 
-    // ── projectiles
+    // projectiles
     const m = projMesh.current;
     let n = 0;
     for (const p of projs) {
@@ -277,14 +271,13 @@ export function Effects() {
       const u = Math.min(1, p.t / p.dur);
       const h = p.arc * 4 * u * (1 - u);
       tmpA.set(p.fx + (p.tx - p.fx) * u, p.fy + (p.ty - p.fy) * u + h, p.fz + (p.tz - p.fz) * u);
-      if (p.weapon === "torpedo" && Math.random() < 0.9)
-        pools.smoke.emit({ x: tmpA.x, y: 0.03, z: tmpA.z, life: 1.2, size: 0.22, grow: 2.2, color: "#eef7fa", alpha: 0.7 });
+      if (p.weapon === "torpedo" && Math.random() < 0.9) pools.smoke.emit({ x: tmpA.x, y: 0.03, z: tmpA.z, life: 1.2, size: 0.2, grow: 2.2, color: "#eef7fa", alpha: 0.7 });
       if (u >= 1) {
         p.on = false;
         impact(p);
         continue;
       }
-      if (!m || n >= MAX_PROJ) continue;
+      if (!m) continue;
       const u2 = Math.min(1, u + 0.02);
       const h2 = p.arc * 4 * u2 * (1 - u2);
       tmpB.set(p.fx + (p.tx - p.fx) * u2, p.fy + (p.ty - p.fy) * u2 + h2, p.fz + (p.tz - p.fz) * u2);
@@ -301,10 +294,8 @@ export function Effects() {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
-
     pools.glow.update(dt);
     pools.smoke.update(dt);
-    void state;
   });
 
   return (
@@ -312,15 +303,15 @@ export function Effects() {
       <primitive object={pools.smoke.points} />
       <primitive object={pools.glow.points} />
       <instancedMesh ref={projMesh} args={[projGeo, projMat, MAX_PROJ]} frustumCulled={false} />
-      {bombers.map((_, i) => (
+      {planes.map((p, i) => (
         <mesh
           key={i}
           ref={(r) => {
-            bomberRefs.current[i] = r;
+            planeRefs.current[i] = r;
           }}
-          geometry={bomberGeo}
-          material={bomberMat}
-          scale={3}
+          geometry={p.kind === "bomber" ? bomberGeo : fighterGeo}
+          material={p.kind === "bomber" ? planeMat : fighterMat}
+          scale={p.kind === "bomber" ? 3 : 0.9}
           visible={false}
         />
       ))}

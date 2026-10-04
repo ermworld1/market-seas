@@ -5,7 +5,7 @@ import { engineRef } from "@/lib/market/store";
 import { makeFleetMaterial, useModelGeometry } from "./models";
 import { DEPTH, REAR, view } from "./layout";
 
-const BUOYS = 15;
+const BUOYS = 24;
 const CONVOY = 5;
 const dummy = new THREE.Object3D();
 
@@ -15,8 +15,8 @@ export function Background() {
   const transportGeo = useModelGeometry("transport");
   const mats = useMemo(
     () => ({
-      bulls: makeFleetMaterial("bulls"),
-      bears: makeFleetMaterial("bears"),
+      buyers: makeFleetMaterial("buyers"),
+      sellers: makeFleetMaterial("sellers"),
       transport: new THREE.MeshStandardMaterial({ color: "#5d6669", metalness: 0.4, roughness: 0.6 }),
       buoy: new THREE.MeshStandardMaterial({ color: "#ffefc2", emissive: "#ffcf5a", emissiveIntensity: 2.2, toneMapped: false }),
       slick: new THREE.MeshBasicMaterial({ color: "#07090a", transparent: true, opacity: 0, depthWrite: false }),
@@ -48,18 +48,18 @@ export function Background() {
     const e = engineRef.current;
     const t = view.time;
     // nothing here is shown until real market data has arrived
-    if (root.current) root.current.visible = !!e && e.bids.length > 0 && e.mark > 0;
+    if (root.current) root.current.visible = !!e && e.hasBook && e.mark > 0;
 
     // buoys at mark price
     const mark = e?.mark || view.mid;
-    const tz = view.mid && mark ? THREE.MathUtils.clamp((-(mark - view.mid) / Math.max(view.range, 1e-9)) * DEPTH, -0.95, 0.95) : 0;
+    const tz = view.mid && mark ? THREE.MathUtils.clamp((-(mark - view.mid) / (view.mid * 0.01)) * DEPTH, -0.85, 0.85) : 0;
     buoyZ.current += (tz - buoyZ.current) * (1 - Math.exp(-3 * dt));
     view.sinkPulse = Math.max(0, view.sinkPulse - dt * 1.5);
     const b = buoys.current;
     if (b) {
       const span = view.halfW + 4;
       for (let i = 0; i < BUOYS; i++) {
-        const x = -span + (i / (BUOYS - 1)) * span * 2;
+        const x = view.offsetX - span + (i / (BUOYS - 1)) * span * 2;
         dummy.position.set(x, 0.05 + Math.sin(t * 2 + i) * 0.03 * (1 + view.storm * 3), buoyZ.current);
         dummy.scale.setScalar(1 + view.sinkPulse * 1.2 + Math.sin(t * 3 + i * 0.7) * 0.12);
         dummy.updateMatrix();
@@ -74,7 +74,7 @@ export function Background() {
     for (const side of ["bid", "ask"] as const) {
       const sign = side === "ask" ? -1 : 1;
       const tk = tankers.current[side];
-      const x = view.halfW * (side === "bid" ? 0.62 : -0.62);
+      const x = view.offsetX + view.halfW * (side === "bid" ? 0.62 : -0.62);
       const z = sign * REAR;
       if (tk) {
         tk.position.set(x, Math.sin(t * 1.1 + sign) * 0.03, z);
@@ -97,8 +97,8 @@ export function Background() {
     // OI convoy
     const state = e?.convoy ?? "none";
     const c = conv.current;
-    if (state === "in-bulls" || state === "in-bears") {
-      const want = state === "in-bulls" ? 1 : -1;
+    if (state === "in-buyers" || state === "in-sellers") {
+      const want = state === "in-buyers" ? 1 : -1;
       if (c.side !== want && c.p > 0.01) c.p = Math.max(0, c.p - dt / 10);
       else {
         c.side = want;
@@ -124,8 +124,8 @@ export function Background() {
     <group ref={root} visible={false}>
       <instancedMesh ref={buoys} args={[buoyGeo, mats.buoy, BUOYS]} frustumCulled={false} />
       <instancedMesh ref={convoy} args={[transportGeo, mats.transport, CONVOY]} frustumCulled={false} />
-      <mesh ref={(m) => (tankers.current.bid = m)} geometry={tankerGeo} material={mats.bulls} scale={2.1} />
-      <mesh ref={(m) => (tankers.current.ask = m)} geometry={tankerGeo} material={mats.bears} scale={2.1} />
+      <mesh ref={(m) => (tankers.current.bid = m)} geometry={tankerGeo} material={mats.buyers} scale={2.1} />
+      <mesh ref={(m) => (tankers.current.ask = m)} geometry={tankerGeo} material={mats.sellers} scale={2.1} />
       <mesh ref={(m) => (slicks.current.bid = m)} geometry={slickGeo} material={mats.slick} renderOrder={1} />
       <mesh ref={(m) => (slicks.current.ask = m)} geometry={slickGeo} material={mats.slick} renderOrder={1} />
     </group>

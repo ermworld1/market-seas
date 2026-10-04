@@ -8,7 +8,7 @@ import { engineRef } from "@/lib/market/store";
 import { seaState } from "@/lib/market/rules";
 import { view } from "./layout";
 
-const SUN_ELEV = 9; // degrees
+const SUN_ELEV = 38; // degrees: high enough to glint into a near top-down camera
 const SUN_AZ = 180; // north: sun behind the Bears → glints across the strait
 
 function cloudTexture() {
@@ -152,8 +152,10 @@ export function Ocean() {
   useFrame((state, raw) => {
     const dt = Math.min(raw, 0.05);
     const e = engineRef.current;
-    const war = e ? e.fullWar(Date.now()) : false;
-    const target = Math.max(e ? seaState(e.volBps) : 0, war ? 0.85 : 0);
+    const phase = e?.phase.current ?? "P0";
+    const war = phase === "P5";
+    const mood = phase === "P5" ? 0.85 : phase === "P3" ? 0.4 : phase === "P1" || phase === "P7" ? 0 : 0.1;
+    const target = Math.max(e ? seaState(e.volBps) : 0, mood);
     storm.current += (target - storm.current) * (1 - Math.exp(-0.6 * dt));
     const s = storm.current;
     view.storm = s;
@@ -204,7 +206,7 @@ export function Ocean() {
       }
       p.needsUpdate = true;
     }
-    rain.position.set(state.camera.position.x * 0.5, 0, 0);
+    rain.position.set(view.offsetX, 0, 0);
   });
 
   return (

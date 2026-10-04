@@ -1,33 +1,34 @@
+import { LocalBook, type DepthDiff, type Snapshot } from "@/lib/battle/book";
+import { bucketOf, bucketWidth, bucketize, type Bucket } from "@/lib/battle/buckets";
+import { SideTracker, type OrderEvent } from "@/lib/battle/orderRules";
+import { PhaseMachine } from "@/lib/battle/phase";
+import { TapePipeline } from "@/lib/battle/tape";
+import { createWalls } from "@/lib/battle/walls";
 import { RollingPercentile } from "./percentile";
-import {
-  assignTiers,
-  countInWindow,
-  isFullWar,
-  liquidatedSide,
-  realizedVolBps,
-  tradeDirection,
-  weaponFor,
-} from "./rules";
-import type { BattleEvent, BookSide, ConvoyState, Level, MarketSymbol } from "./types";
+import { FIGHTER_Q, assignTiers, countInWindow, fillsOf, liquidatedSide, realizedVolBps, tradeDirection, weaponFor } from "./rules";
+import type { BattleEvent, BookSide, ConvoyState } from "./types";
+import { SYMBOL } from "./types";
 
-export const GHOST_TRADE_WINDOW = 3_000;
-export const REPAIR_WINDOW = 10_000;
-export const REPAIR_MIN_REFILLS = 2;
 export const OI_THRESHOLD_PCT = 0.3;
+const ORDER_WINDOW = 300;
 
-type RawLevel = [string, string];
-interface TradeMark {
-  t: number;
-  qty: number;
+interface OpenOrder {
+  key: string;
+  first: number;
+  taker: "buy" | "sell";
+  buckets: Set<number>;
 }
 
 /**
- * Pure market-state machine: feed it Binance payloads, it keeps the book,
- * percentiles and emits discrete BattleEvents. No sockets, no rendering.
+ * Pure market-state machine: feed it Binance payloads, it keeps the full
+ * local book, buckets, percentiles and emits discrete BattleEvents.
  */
 export class MarketEngine {
-  bids: Level[] = [];
-  asks: Level[] = [];
+  readonly symbol = SYMBOL;
+  book = new LocalBook();
+  partial = false;
+  needSnapshot = true;
+  width = 0;
   mark = 0;
   indexPrice = 0;
   funding = 0;
@@ -36,171 +37,203 @@ export class MarketEngine {
   oiChangePct = 0;
   lastMsgAt = 0;
   lastLiq: { t: number; liquidated: "longs" | "shorts"; notional: number; price: number } | null = null;
-  liqTimes: number[] = [];
-  ghostTimes: number[] = [];
   closes: { m: number; c: number }[] = [];
   volBps = 0;
 
-  readonly levelSampler = new RollingPercentile(4000);
-  readonly tradeSampler = new RollingPercentile(3000);
+  readonly bucketSampler = new RollingPercentile(6000);
+  readonly tradeSampler = new RollingPercentile(4000);
+  readonly orderSampler = new RollingPercentile(2000);
+  readonly trackers = { bid: new SideTracker("bid"), ask: new SideTracker("ask") };
+  readonly tape = new TapePipeline();
+  readonly walls = createWalls();
+  readonly phase = new PhaseMachine();
+
+  // counters (debug + verification)
+  counts: Record<string, number> = {};
+  tradesReceived = 0;
+  tradesVisualized = 0;
+  tracersSpawned = 0;
+  sunkNotional = { bid: 0, ask: 0 };
+  ghostTimes: number[] = [];
+  orderTimes: number[] = [];
+  flow: { t: number; buy: number; sell: number }[] = [];
 
   private events: BattleEvent[] = [];
-  private trades = new Map<number, TradeMark[]>();
-  private gone = new Map<string, { t: number; refills: number[]; damage: number }>();
+  private filled = { bid: new Map<number, number>(), ask: new Map<number, number>() };
+  private open = new Map<string, OpenOrder>();
   private lastSampleAt = 0;
+  private lastTickAt = 0;
   private oiHist: { t: number; oi: number }[] = [];
   private oiBase: { t: number; oi: number } | null = null;
-
-  constructor(public readonly symbol: MarketSymbol) {}
+  private tradeId = 0;
+  private listeners = new Set<(e: BattleEvent) => void>();
 
   drain(): BattleEvent[] {
     const e = this.events;
     this.events = [];
     return e;
   }
-
-  private listeners = new Set<(e: BattleEvent) => void>();
   onEvent(fn: (e: BattleEvent) => void) {
     this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
   }
-
   private emit(e: BattleEvent) {
+    this.counts[e.type] = (this.counts[e.type] ?? 0) + 1;
     for (const l of this.listeners) l(e);
     this.events.push(e);
-    if (this.events.length > 400) this.events.splice(0, this.events.length - 400);
+    // never drop fire events; cap only if the scene is not draining (tab hidden)
+    if (this.events.length > 6000) this.events.splice(0, this.events.length - 6000);
   }
 
   get bestBid() {
-    return this.bids[0]?.price ?? 0;
+    return this.book.bestBid();
   }
   get bestAsk() {
-    return this.asks[0]?.price ?? 0;
+    return this.book.bestAsk();
   }
   get mid() {
-    return this.bestBid && this.bestAsk ? (this.bestBid + this.bestAsk) / 2 : this.mark;
+    const b = this.bestBid;
+    const a = this.bestAsk;
+    return b && a ? (b + a) / 2 : this.mark;
   }
   get spread() {
-    return this.bestBid && this.bestAsk ? this.bestAsk - this.bestBid : 0;
+    const b = this.bestBid;
+    const a = this.bestAsk;
+    return b && a ? a - b : 0;
+  }
+  get ref() {
+    return this.mark || this.mid;
+  }
+  get ships() {
+    return this.trackers;
+  }
+  get hasBook() {
+    return this.book.bids.size > 0 && this.book.asks.size > 0;
   }
 
-  tradedAt(price: number, now: number, windowMs: number) {
-    const list = this.trades.get(price);
-    if (!list) return 0;
-    let q = 0;
-    for (const t of list) if (now - t.t <= windowMs) q += t.qty;
-    return q;
+  /** Flagship (battleship) of a side, if any. */
+  flagship(side: BookSide) {
+    for (const s of this.trackers[side].ships.values()) if (s.tier === "battleship") return s;
+    return null;
   }
 
   // ───────────────── depth ─────────────────
-  handleDepth(rawBids: RawLevel[], rawAsks: RawLevel[], now: number) {
+  handleDiff(d: DepthDiff, now: number) {
     this.lastMsgAt = now;
-    const sample = now - this.lastSampleAt >= 1000 || this.levelSampler.size < 40;
+    if (this.partial) return;
+    const r = this.book.push(d);
+    if (r === "gap") this.needSnapshot = true;
+    if (r === "applied") this.tick(now);
+  }
+
+  handleSnapshot(s: Snapshot, now: number) {
+    const r = this.book.loadSnapshot(s);
+    this.needSnapshot = r === "gap";
+    this.partial = false;
+    if (r === "applied") this.tick(now);
+  }
+
+  /** Fallback when the REST snapshot is unavailable. */
+  handlePartial(b: [string, string][], a: [string, string][], now: number) {
+    this.lastMsgAt = now;
+    this.partial = true;
+    this.book.setPartial(b, a);
+    this.tick(now);
+  }
+
+  private ensureWidth() {
+    if (!this.width && this.ref > 0) this.width = bucketWidth(this.ref);
+    return this.width;
+  }
+
+  tick(now: number) {
+    this.lastTickAt = now;
+    const ref = this.ref;
+    const w = this.ensureWidth();
+    if (!w || !ref) return;
+    const bids = bucketize("bid", this.book.bids, ref, w);
+    const asks = bucketize("ask", this.book.asks, ref, w);
+    const sample = now - this.lastSampleAt >= 1000 || this.bucketSampler.size < 60;
     if (sample) {
       this.lastSampleAt = now;
-      for (const [p, q] of rawBids) this.levelSampler.push(+p * +q);
-      for (const [p, q] of rawAsks) this.levelSampler.push(+p * +q);
+      for (const b of bids.values()) this.bucketSampler.push(b.notional);
+      for (const b of asks.values()) this.bucketSampler.push(b.notional);
     }
-    this.bids = this.diffSide("bid", this.bids, rawBids, now);
-    this.asks = this.diffSide("ask", this.asks, rawAsks, now);
+    const tierFn = (list: Bucket[]) => assignTiers(list.map((b) => b.notional), this.bucketSampler);
+    for (const side of ["bid", "ask"] as const) {
+      const evs = this.trackers[side].tick(side === "bid" ? bids : asks, this.filled[side], now, ref, tierFn);
+      this.filled[side].clear();
+      for (const e of evs) this.onOrderEvent(e, now);
+    }
+    const toLevels = (m: Map<number, Bucket>) => [...m.values()].map((b) => ({ px: b.price, sz: b.qty }));
+    this.walls.update(toLevels(bids), toLevels(asks), now);
+    this.flush(now);
     this.prune(now);
   }
 
-  private diffSide(side: BookSide, prev: Level[], raw: RawLevel[], now: number): Level[] {
-    const prevMap = new Map<number, Level>();
-    for (const l of prev) prevMap.set(l.price, l);
-    const next: Level[] = [];
-    for (const [ps, qs] of raw) {
-      const price = +ps;
-      const qty = +qs;
-      if (!(qty > 0)) continue;
-      const old = prevMap.get(price);
-      const key = side + price;
-      let level: Level;
-      if (old) {
-        level = { ...old, qty, notional: price * qty };
-        if (qty < old.qty) {
-          const traded = this.tradedAt(price, now, GHOST_TRADE_WINDOW);
-          if (traded > 0) level.damage = Math.min(0.95, level.damage + Math.min(1, (old.qty - qty) / old.qty) * 0.8);
-        } else if (qty > old.qty && this.tradedAt(price, now, REPAIR_WINDOW) > 0) {
-          this.registerRefill(side, level, now);
-        }
-      } else {
-        const g = this.gone.get(key);
-        level = { price, qty, notional: price * qty, tier: "patrol", tierFrac: 0, damage: 0, repairUntil: 0, refills: [] };
-        if (g && now - g.t <= REPAIR_WINDOW) {
-          level.refills = g.refills;
-          level.damage = g.damage;
-          this.gone.delete(key);
-          this.registerRefill(side, level, now);
-        }
-      }
-      next.push(level);
-    }
-    next.sort((a, b) => (side === "bid" ? b.price - a.price : a.price - b.price));
-    const tiers = assignTiers(next.map((l) => l.notional), this.levelSampler);
-    next.forEach((l, i) => {
-      l.tier = tiers[i]!.tier;
-      l.tierFrac = tiers[i]!.frac;
-    });
-
-    // removals
-    if (next.length) {
-      const worst = next[next.length - 1]!.price;
-      const seen = new Set(next.map((l) => l.price));
-      for (const old of prev) {
-        if (seen.has(old.price)) continue;
-        const beyond = side === "bid" ? old.price < worst : old.price > worst;
-        if (beyond) continue; // scrolled out of the visible top-20, not a real event
-        const traded = this.tradedAt(old.price, now, GHOST_TRADE_WINDOW) > 0;
-        if (traded) {
-          this.emit({ type: "sink", t: now, side, price: old.price, tier: old.tier });
-          this.gone.set(side + old.price, { t: now, refills: old.refills, damage: 0.5 });
-        } else if (old.tier === "cruiser" || old.tier === "battleship") {
-          this.ghostTimes.push(now);
-          this.emit({ type: "ghost", t: now, side, price: old.price, tier: old.tier });
-        } else {
-          this.emit({ type: "pulled", t: now, side, price: old.price, tier: old.tier });
-        }
-      }
-    }
-    return next;
-  }
-
-  private registerRefill(side: BookSide, level: Level, now: number) {
-    level.refills = [...level.refills.filter((t) => now - t <= REPAIR_WINDOW), now];
-    if (level.refills.length >= REPAIR_MIN_REFILLS) {
-      const fresh = level.repairUntil < now;
-      level.repairUntil = now + 4000;
-      level.damage *= 0.6;
-      if (fresh) this.emit({ type: "repair", t: now, side, price: level.price });
-    }
+  private onOrderEvent(e: OrderEvent, now: number) {
+    if (e.type === "sink") this.sunkNotional[e.side] += e.notional;
+    if (e.type === "dive" || e.type === "fled") this.ghostTimes.push(now);
+    this.emit(e);
   }
 
   // ───────────────── trades ─────────────────
-  handleTrade(d: { p: string; q: string; m: boolean; T?: number }, now: number) {
+  handleTrade(d: { p: string; q: string; m: boolean; T?: number; f?: number; l?: number }, now: number) {
     this.lastMsgAt = now;
+    this.tradesReceived++;
     const price = +d.p;
     const qty = +d.q;
     const notional = price * qty;
+    const fills = fillsOf(d.f, d.l);
     this.tradeSampler.push(notional);
-    const list = this.trades.get(price) ?? [];
-    list.push({ t: now, qty });
-    this.trades.set(price, list);
     const dir = tradeDirection(d.m);
-    const book = dir.target === "bid" ? this.bids : this.asks;
-    const lvl = book.find((l) => l.price === price);
-    this.emit({
-      type: "fire",
-      t: now,
-      shooter: dir.shooter,
-      target: dir.target,
-      price,
-      qty,
-      notional,
-      weapon: weaponFor(notional, this.tradeSampler),
-      hitFrac: lvl ? Math.min(1, qty / lvl.qty) : 0,
-    });
+    const w = this.ensureWidth();
+    const b = w ? bucketOf(price, w) : 0;
+    const f = this.filled[dir.target];
+    f.set(b, (f.get(b) ?? 0) + qty);
+    this.walls.erode(dir.taker === "buy" ? 1 : -1, price, qty, now);
+    this.phase.trade(now, notional);
+    const at = d.T ?? now;
+    const key = this.tape.aggregate({ a: dir.taker === "buy" ? "taker-buy" : "taker-sell", orderSide: dir.taker === "buy" ? 1 : -1, hash: undefined, trade: notional, sz: qty, fills, at });
+    let o = this.open.get(key);
+    if (!o) {
+      o = { key, first: now, taker: dir.taker, buckets: new Set() };
+      this.open.set(key, o);
+    }
+    o.buckets.add(b);
+    const last = this.flow[this.flow.length - 1];
+    const sec = Math.floor(now / 1000);
+    if (last && last.t === sec) last[dir.taker] += notional;
+    else this.flow.push({ t: sec, buy: dir.taker === "buy" ? notional : 0, sell: dir.taker === "sell" ? notional : 0 });
+    this.emit({ type: "fire", t: now, taker: dir.taker, target: dir.target, b, price, qty, notional, fills, weapon: weaponFor(notional, this.tradeSampler), id: ++this.tradeId });
+    if (now - this.lastTickAt > 250) this.flush(now);
+  }
+
+  /** Close taker orders whose 300 ms aggregation window has passed. */
+  flush(now: number) {
+    for (const o of this.open.values()) {
+      if (now - o.first < ORDER_WINDOW + 50) continue;
+      this.open.delete(o.key);
+      const p = this.tape.take(o.key);
+      if (!p || !this.tape.accept(o.key, now, 1000)) continue;
+      this.orderTimes.push(now);
+      const big = this.orderSampler.size >= 30 && p.trade >= this.orderSampler.quantile(FIGHTER_Q);
+      this.orderSampler.push(p.trade);
+      const sides = o.taker === "buy" ? 1 : -1;
+      const buckets = [...o.buckets].sort((a, b) => (a - b) * sides);
+      this.phase.order(now, p.trade);
+      this.emit({ type: "order", t: now, taker: o.taker, notional: p.trade, qty: p.sz, fills: p.fills, avg: p.trade / Math.max(p.sz, 1e-12), buckets });
+      if (big) this.emit({ type: "fighter", t: now, taker: o.taker, target: o.taker === "buy" ? "ask" : "bid", notional: p.trade, buckets });
+    }
+  }
+
+  /** Called every ~250 ms by the app clock: phase machine + order flush. */
+  heartbeat(now: number) {
+    this.flush(now);
+    this.phase.tick(now);
+    for (const c of this.phase.drain()) this.emit({ type: "phase", ...c });
   }
 
   // ───────────────── liquidations ─────────────────
@@ -209,8 +242,8 @@ export class MarketEngine {
     const price = +(o.ap && +o.ap > 0 ? o.ap : o.p);
     const qty = +(o.z && +o.z > 0 ? o.z : o.q);
     const liquidated = liquidatedSide(o.S);
-    this.liqTimes.push(now);
     this.lastLiq = { t: now, liquidated, notional: price * qty, price };
+    this.phase.liquidation(now, price * qty);
     this.emit({ type: "liquidation", t: now, liquidated, price, qty, notional: price * qty });
   }
 
@@ -221,6 +254,7 @@ export class MarketEngine {
     if (d.i) this.indexPrice = +d.i;
     this.funding = +d.r;
     this.nextFundingTime = d.T;
+    this.phase.price(now, this.mark);
     const minute = Math.floor((d.E ?? now) / 60_000);
     const last = this.closes[this.closes.length - 1];
     if (last && last.m === minute) last.c = this.mark;
@@ -237,7 +271,6 @@ export class MarketEngine {
     this.volBps = realizedVolBps(this.closes.map((c) => c.c));
   }
 
-  /** Mark change (%) over ~5 minutes from 1-minute closes. */
   get priceChange5m() {
     if (this.closes.length < 2) return 0;
     const ref = this.closes[Math.max(0, this.closes.length - 6)]!.c;
@@ -249,7 +282,6 @@ export class MarketEngine {
   seedOIBase(t: number, oi: number) {
     this.oiBase = { t, oi };
   }
-
   setOI(oi: number, now: number) {
     this.oi = oi;
     this.oiHist.push({ t: now, oi });
@@ -260,29 +292,34 @@ export class MarketEngine {
     if (!base && this.oiHist[0] && now - this.oiHist[0].t >= 4 * 60_000) base = this.oiHist[0];
     this.oiChangePct = base ? ((oi - base.oi) / base.oi) * 100 : 0;
   }
-
   get convoy(): ConvoyState {
-    if (this.oiChangePct > OI_THRESHOLD_PCT) return this.priceChange5m >= 0 ? "in-bulls" : "in-bears";
+    if (this.oiChangePct > OI_THRESHOLD_PCT) return this.priceChange5m >= 0 ? "in-buyers" : "in-sellers";
     if (this.oiChangePct < -OI_THRESHOLD_PCT) return "out";
     return "none";
   }
 
-  fullWar(now: number) {
-    return isFullWar(this.liqTimes, now);
+  /** Taker buy / sell notional over the last `sec` seconds. */
+  flowWindow(now: number, sec = 60) {
+    const s = Math.floor(now / 1000) - sec;
+    let buy = 0;
+    let sell = 0;
+    for (const f of this.flow) if (f.t > s) {
+      buy += f.buy;
+      sell += f.sell;
+    }
+    return { buy, sell };
   }
-
-  ghostsPerMinute(now: number) {
-    return countInWindow(this.ghostTimes, now, 60_000);
+  ordersPerMinute(now: number) {
+    return countInWindow(this.orderTimes, now, 60_000);
+  }
+  ghostsPerHour(now: number) {
+    return countInWindow(this.ghostTimes, now, 3_600_000);
   }
 
   private prune(now: number) {
-    for (const [p, list] of this.trades) {
-      const kept = list.filter((t) => now - t.t <= REPAIR_WINDOW);
-      if (kept.length) this.trades.set(p, kept);
-      else this.trades.delete(p);
-    }
-    for (const [k, g] of this.gone) if (now - g.t > REPAIR_WINDOW) this.gone.delete(k);
-    this.ghostTimes = this.ghostTimes.filter((t) => now - t <= 60_000);
-    this.liqTimes = this.liqTimes.filter((t) => now - t <= 60_000);
+    if (this.orderTimes.length > 4000) this.orderTimes = this.orderTimes.filter((t) => now - t <= 60_000);
+    if (this.ghostTimes.length > 4000) this.ghostTimes = this.ghostTimes.filter((t) => now - t <= 3_600_000);
+    const cut = Math.floor(now / 1000) - 70;
+    while (this.flow.length && this.flow[0]!.t < cut) this.flow.shift();
   }
 }
