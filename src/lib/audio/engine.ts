@@ -131,8 +131,18 @@ class AudioEngine {
         this.samples.set(key, null);
       }
     };
+    // music stems are optional: only layers listed in /music/manifest.json are fetched (no 404 noise)
+    let stems: string[] = [];
+    try {
+      const m = await fetch("/music/manifest.json");
+      if (m.ok) stems = ((await m.json()) as { layers?: string[] }).layers ?? [];
+    } catch {
+      stems = [];
+    }
     await Promise.all([
-      ...(Object.keys(BANK) as BankFolder[]).flatMap((f) => bankUrls(f).map((u, i) => load(`${f}/${i + 1}`, u))), ...LAYERS.map((l) => load("music:" + l, `/music/${l}.mp3`))]);
+      ...(Object.keys(BANK) as BankFolder[]).flatMap((f) => bankUrls(f).map((u, i) => load(`${f}/${i + 1}`, u))),
+      ...LAYERS.filter((l) => stems.includes(l)).map((l) => load("music:" + l, `/music/${l}.mp3`)),
+    ]);
     // swap procedural layers for stems when present
     for (const l of LAYERS) {
       const buf = this.samples.get("music:" + l);
