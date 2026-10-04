@@ -60,6 +60,18 @@ export const view = {
   shot: null as ShotRequest | null,
   quality: "high" as QualityTier,
   selectedBucket: null as null | { side: BookSide; b: number },
+  /** what the current first-time lesson points at */
+  lessonTarget: null as null | { kind: "ship"; side: BookSide; b: number } | { kind: "plane" },
+  /** world position of the most recently launched aircraft (written by Effects) */
+  plane: null as Anchor | null,
+  planeDir: null as null | { x: number; z: number },
+  /** last big projectile for the cinema tracking shot */
+  track: null as null | { side: BookSide; fx: number; fz: number; tx: number; tz: number; t0: number; dur: number },
+  /** depth-of-field focus distance (0 = off) */
+  focus: 0,
+  /** director cuts per shot kind since load (debug) */
+  cuts: {} as Record<string, number>,
+  tapeTotal: 0,
   mid: 0,
   storm: 0,
   war: false,

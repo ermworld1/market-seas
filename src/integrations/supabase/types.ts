@@ -44,6 +44,8 @@ export type Database = {
           bucket: number | null
           choice: string
           correct: boolean | null
+          end_mark: number | null
+          end_size: number | null
           ends_at: string
           id: string
           locks_at: string
@@ -53,6 +55,8 @@ export type Database = {
           round_kind: string
           settled_at: string | null
           side: string | null
+          start_mark: number | null
+          start_size: number | null
           starts_at: string
           submitted_at: string
           user_id: string
@@ -63,6 +67,8 @@ export type Database = {
           bucket?: number | null
           choice: string
           correct?: boolean | null
+          end_mark?: number | null
+          end_size?: number | null
           ends_at: string
           id?: string
           locks_at: string
@@ -72,6 +78,8 @@ export type Database = {
           round_kind: string
           settled_at?: string | null
           side?: string | null
+          start_mark?: number | null
+          start_size?: number | null
           starts_at: string
           submitted_at?: string
           user_id: string
@@ -82,6 +90,8 @@ export type Database = {
           bucket?: number | null
           choice?: string
           correct?: boolean | null
+          end_mark?: number | null
+          end_size?: number | null
           ends_at?: string
           id?: string
           locks_at?: string
@@ -91,6 +101,8 @@ export type Database = {
           round_kind?: string
           settled_at?: string | null
           side?: string | null
+          start_mark?: number | null
+          start_size?: number | null
           starts_at?: string
           submitted_at?: string
           user_id?: string

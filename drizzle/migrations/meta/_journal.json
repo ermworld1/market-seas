@@ -8,6 +8,13 @@
       "when": 1791106010939,
       "tag": "0000_create_player_predictions_and_leaderboards",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791107215439,
+      "tag": "0001_prediction_settlement",
+      "breakpoints": true
     }
   ]
 }

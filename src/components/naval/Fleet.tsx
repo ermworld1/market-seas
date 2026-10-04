@@ -24,6 +24,7 @@ function passes(s: Tracked, mid: number) {
   return true;
 }
 
+const QK = { low: 0.35, medium: 0.7, high: 1 } as const;
 export function Fleet() {
   const frigate = useModelGeometry("frigate");
   const geos: Record<Tier, THREE.BufferGeometry> = {
@@ -55,7 +56,7 @@ export function Fleet() {
   }, []);
 
   useFrame((_, raw) => {
-    const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? 0.35 : 1);
+    const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? fx.slowScale : 1);
     view.frameMs += (raw * 1000 - view.frameMs) * 0.05;
     view.time += dt;
     fx.slowmo = Math.max(0, fx.slowmo - Math.min(raw, 0.05));
@@ -122,12 +123,14 @@ export function Fleet() {
             audio.play("surface", pan);
             break;
           case "reinforce":
+            if (d) d.damage *= 0.4;
             if (d && ev.notional >= 1_500_000) {
               addFloater({ x: d.x + sign * 0.2, y: 0.4, z: d.z }, `+${usd(ev.notional)}`, ev.side === "bid" ? "buy" : "sell");
               if (ev.notional >= 5e6) audio.play("reinforce", pan);
             }
             break;
           case "repair":
+            if (d) d.damage = 0;
             break;
         }
       }
@@ -186,7 +189,7 @@ export function Fleet() {
           if (smoke && (speed > 0.15 ? Math.random() < dt * 40 : Math.random() < dt * 0.6 * d.s))
             smoke.emit({ x: d.x + sign * 0.5 * d.s, y: 0.02, z: d.z + (Math.random() - 0.5) * 0.15 * d.s, vz: (Math.random() - 0.5) * 0.3, life: 1.4, size: 0.12 + 0.1 * d.s, grow: 2.2, color: "#eef7fa", alpha: 0.55 });
           d.s += (ts - d.s) * kScale;
-          d.damage *= Math.exp(-0.05 * dt);
+          // damage persists until the order is refilled (reinforce/repair) or sunk
           d.roll += (d.damage * 0.3 + Math.sin(view.time * 0.9 + d.x) * 0.03 * stormBob - d.roll) * kMove;
           d.pitch += (0 - d.pitch) * kMove;
           d.y = bob - d.damage * 0.05 * d.s;
@@ -204,7 +207,10 @@ export function Fleet() {
           }
           if (smoke && d.damage > 0.15 && Math.random() < dt * d.damage * 8)
             smoke.emit({ x: d.x, y: 0.25 * d.s, z: d.z, vx: 0.3, vy: 0.9, life: 2.4, size: 0.45 * d.s, grow: 3, color: "#2a2826", alpha: 0.65, drag: 0.6 });
-          if (glow && d.damage > 0.45 && Math.random() < dt * d.damage * 10)
+          // heavy damage: tall black column (stacked soft billboards rising 6–10 units) + deck fire
+          if (smoke && d.damage > 0.45 && Math.random() < dt * d.damage * QK[view.quality] * 6)
+            smoke.emit({ x: d.x + (Math.random() - 0.5) * 0.2 * d.s, y: 0.4 * d.s, z: d.z, vx: 0.25, vy: 1.6 + Math.random() * 0.6, life: 4.5, size: 0.5 * d.s + 0.3, grow: 3.5, color: "#1c1a19", alpha: 0.7, drag: 0.15 });
+          if (glow && d.damage > 0.45 && Math.random() < dt * d.damage * 10 * QK[view.quality])
             glow.emit({ x: d.x, y: 0.2 * d.s, z: d.z, vy: 0.6, life: 0.5, size: 0.3 * d.s, grow: -0.6, color: "#ff7a1a", alpha: 0.9 });
           if (s.repairUntil > now) {
             if (glow && Math.random() < dt * 18)
