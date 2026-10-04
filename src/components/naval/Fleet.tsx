@@ -340,7 +340,7 @@ export function Fleet() {
           dummy.scale.set(sz * 2.1 + 0.25, 1, sz * 2.1 + 0.25);
           dummy.updateMatrix();
           hm.setMatrixAt(hn, dummy.matrix);
-          const fs = Math.min(2.2, 0.8 + d.s * 0.9) * (1 - d.fade);
+          const fs = (0.25 + d.s * 0.55) * (view.presentation === "map" ? 1.6 : 1) * (1 - d.fade);
           dummy.position.set(d.x, d.y + 0.34 * d.s + 0.16, d.z);
           dummy.rotation.set(0, d.side === "bid" ? 0 : Math.PI, Math.sin(view.time * 6 + d.b) * 0.08);
           dummy.scale.setScalar(Math.max(0.001, fs));
