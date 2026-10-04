@@ -212,6 +212,7 @@ export function Fleet() {
       // visible ships: nearest buckets first, up to the cap
       const seen = new Set<string>();
       updateFront(e.mark || mid);
+      view.bucketVisual.clear();
       for (const side of SIDES) {
         const qualityCap = view.quality === "low" ? (view.mobile ? 34 : 72) : view.quality === "medium" ? (view.mobile ? 44 : 96) : view.cap;
         const ships = [...e.trackers[side].ships.values()]
@@ -222,7 +223,6 @@ export function Fleet() {
         const cinemaCap = view.mobile ? 18 : 30;
         const visualCap = view.presentation === "cinema" ? cinemaCap : qualityCap;
         const groupSize = Math.max(1, Math.ceil(ships.length / visualCap));
-        view.bucketVisual.clear();
         for (let gi = 0; gi < ships.length; gi += groupSize) {
           const group = ships.slice(gi, gi + groupSize);
           const s = group.reduce((best, item) => item.notional > best.notional ? item : best, group[0]!);

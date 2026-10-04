@@ -28,7 +28,7 @@ export function cinemaPose(cam: THREE.PerspectiveCamera, dt: number) {
   // aircraft shots only cut while that real aircraft is actually in the sky
   const air = shot?.kind === "fighter" || shot?.kind === "bomber";
   const kind = shot && !(air && !view.planeActive && lastKind !== shot.kind) ? shot.kind : "wide";
-  const target = shot?.side && shot.bucket !== undefined ? view.displays.get(shot.side + shot.bucket) : null;
+  const target = shot?.side && shot.bucket !== undefined ? (view.bucketVisual.get(shot.side + shot.bucket) ?? view.displays.get(shot.side + shot.bucket)) : null;
   const tr = view.track;
   const plane = view.plane;
   const pd = view.planeDir;
