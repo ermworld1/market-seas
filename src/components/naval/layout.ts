@@ -35,6 +35,7 @@ export interface Display {
   pitch: number;
   fade: number;
   visualWeight: number;
+  lod: "high" | "low";
 }
 
 export interface Anchor {
@@ -82,6 +83,7 @@ export const view = {
   filter: "all" as "all" | "1m" | "near" | "subs",
   visible: { bid: [] as Display[], ask: [] as Display[] },
   displays: new Map<string, Display>(),
+  bucketVisual: new Map<string, Display>(),
   frameEvents: [] as BattleEvent[],
   fx: { glow: null as ParticlePool | null, smoke: null as ParticlePool | null },
   sinkPulse: 0,

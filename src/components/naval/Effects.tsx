@@ -56,8 +56,8 @@ const POWER: Record<Proj["weapon"], number> = { mg: 0.15, cannon: 0.25, gun: 0.5
 function targetFor(side: BookSide, b: number): Display | null {
   const list = view.visible[side];
   if (!list.length) return null;
-  const exact = view.displays.get(side + b);
-  if (exact && !exact.departing) return exact;
+  const exact = view.bucketVisual.get(side + b) ?? view.displays.get(side + b);
+  if (exact && !exact.departing && view.visible[side].includes(exact)) return exact;
   // asks: next higher bucket; bids: next lower bucket
   let best: Display | null = null;
   for (const d of list) {
