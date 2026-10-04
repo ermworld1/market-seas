@@ -7,19 +7,25 @@ import { cn } from "@/lib/utils";
 let legendPromise: Promise<Record<string, string>> | null = null;
 const legendCache: Record<string, string> = {};
 function loadLegend() {
-  legendPromise ??= import("@/lib/dev/renderLegend").then(({ renderLegend }) => renderLegend()).then((r) => Object.assign(legendCache, r));
+  legendPromise ??= new Promise((resolve) => {
+    const start = () => { void import("@/lib/dev/renderLegend").then(({ renderLegend }) => renderLegend()).then((r) => resolve(Object.assign(legendCache, r))); };
+    const idle = window.requestIdleCallback;
+    if (idle) idle(start, { timeout: 4_000 });
+    else window.setTimeout(start, 2_000);
+  });
   return legendPromise;
 }
 
 /** Generated once at startup by an offscreen renderer using the battle's exact geometry and materials. */
 export function UnitIcon({ u, side }: { u: UnitDef; side?: "bid" | "ask" }) {
   const key = u.sided ? `${u.icon}-${side ?? "bid"}` : u.icon;
-  const [src, setSrc] = useState(legendCache[key] ?? "");
+  const staticSrc = u.sided ? `/legend/${u.icon}-${side ?? "bid"}.png` : `/legend/${u.icon}.png`;
+  const [src, setSrc] = useState(legendCache[key] ?? staticSrc);
   const [playing, setPlaying] = useState(false);
   useEffect(() => { void loadLegend().then((r) => setSrc(r[key] ?? "")); }, [key]);
   return (
     <button type="button" aria-label={`Preview ${side === "ask" ? "Sellers" : "Buyers"} ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative h-[60px] w-[120px] shrink-0 overflow-hidden rounded border border-border bg-secondary", playing && "is-playing")}>
-      {src ? <img src={src} alt="" width={120} height={60} className="h-full w-full object-cover" /> : <span className="text-[9px] text-muted-foreground">Rendering…</span>}
+      <img src={src} alt="" width={120} height={60} className="h-full w-full object-cover" />
       {playing && <span className={cn("unit-preview-fx", u.id)} aria-hidden />}
       <span className={cn("absolute bottom-0.5 px-1 text-[8px] font-bold uppercase", side === "ask" ? "right-0.5 text-bear" : "left-0.5 text-bull")}>{side === "ask" ? "Sellers" : "Buyers"}</span>
     </button>
