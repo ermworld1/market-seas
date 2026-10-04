@@ -46,7 +46,7 @@ export function xpFor(streak: number) {
 // cached formatters — toLocaleString builds a new Intl.NumberFormat per call
 const PRICE_FMT = [1, 2, 3].map((d) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: d }));
 export function fmtPrice(p: number) {
-  return PRICE_FMT[p >= 1000 ? 0 : p >= 100 ? 1 : 2].format(p);
+  return PRICE_FMT[p >= 1000 ? 0 : p >= 100 ? 1 : 2]!.format(p);
 }
 export function usd(n: number) {
   const a = Math.abs(n);
