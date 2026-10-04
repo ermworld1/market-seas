@@ -592,7 +592,7 @@ export function Hud() {
           </div>
         </div>
         <LegendStrip />
-        <p className="hidden px-1 text-[10px] leading-tight text-foreground/70 sm:block">Live Binance Futures public market data · Not financial advice · Not affiliated with Binance</p>
+        <p className="truncate px-1 text-[9px] leading-tight text-foreground/70 md:text-[10px]">Live Binance Futures public market data · Not financial advice · Not affiliated with Binance</p>
       </div>
       <Ticker />
 
