@@ -18,5 +18,9 @@
 
 ## v6 open
 - [ ] End-to-end settlement with a real signed-up user (blocked: email confirmation required; needs a real inbox or the owner testing)
-- [ ] Close-up tracers render as large flat slabs near the cinema camera; fighter/bomber previews look wide when no real aircraft exists
 - [ ] Real-device FPS (sandbox has no GPU)
+
+## v7
+- [x] How to read panel by default (desktop) + phone chip; raw Binance book with grouping and 15s REST sync check
+- [x] Layered randomized gunfire, ambience bed, siren, radio chatter, more radio triggers, thin tracer streaks, P5 director lock
+- [x] 5-min live runs at 1440 and 390: 0 book mismatches, trades rx = viz, active fire gap < 0.1s, P5 held
