@@ -9,4 +9,9 @@
 - [x] v3: bullet sounds, ambient action, radio voices.
 - [x] v4: left/right battlefield, moving vertical price front, mobile pan/zoom/recenter, orientation copy and clip updates.
 - [x] v4 verification at 1440 and 390 with live BTCUSDT, screenshots and render/data metrics.
+- [ ] v5 Part 1: verifiable Book/Trades/Tape/Guide panels, cross-highlighting, lessons, and noise controls.
+- [ ] v5 Part 2: Cinema/Map modes, event camera director, cinematic effects, minimal HUD, and adaptive quality.
+- [ ] v5 Part 3: optional profiles/auth, server-locked predictions, rankings, standings, and share cards.
+- [ ] v5 Part 4: browser alerts, mobile LOD/particle budgets, and supplied recorded radio lines.
+- [ ] v5 verification: tests, database lint, four live viewport/mode runs, forced P5, metrics, and limitations.
 - [ ] Real-device frame-rate check (needs a real phone/laptop GPU).
