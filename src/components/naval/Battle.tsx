@@ -9,7 +9,7 @@ import { Background } from "./Background";
 import { Effects } from "./Effects";
 import { Fleet } from "./Fleet";
 import { Ocean } from "./Ocean";
-import { ELEVATION, REAR, view } from "./layout";
+import { DEPTH, ELEVATION, GAP, REAR, view } from "./layout";
 import { preloadModels } from "./models";
 import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";

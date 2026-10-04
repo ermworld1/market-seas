@@ -7,7 +7,7 @@ import type { BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import { audio, panX } from "@/lib/audio/engine";
 import { makeFleetMaterial, useModelGeometry } from "./models";
-import { CAPITAL, TIERS, TIER_SCALE, addFloater, type Display, sideSign, view, xFor, zFor } from "./layout";
+import { CAPITAL, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForBucket } from "./layout";
 
 const CAP = 130;
 const SIDES: BookSide[] = ["bid", "ask"];
@@ -104,8 +104,8 @@ export function Fleet() {
             const to = view.displays.get(key);
             if (to) to.surfacing = 1;
             if (smoke && to) {
-              const fx0 = from?.x ?? xFor(ev.from);
-              const fz0 = from?.z ?? zFor(ev.side, ev.fromPrice);
+              const fx0 = from?.x ?? xForPrice(ev.side, ev.fromPrice);
+              const fz0 = from?.z ?? zForBucket(ev.from);
               for (let i = 0; i <= 14; i++) {
                 const u = i / 14;
                 smoke.emit({ x: fx0 + (to.x - fx0) * u, y: 0.02, z: fz0 + (to.z - fz0) * u, life: 2.5, size: 0.35, grow: 1.6, color: "#e6f2f6", alpha: 0.6 });
@@ -123,7 +123,7 @@ export function Fleet() {
             break;
           case "reinforce":
             if (d && ev.notional >= 1_500_000) {
-              addFloater({ x: d.x, y: 0.4, z: d.z + sign * 0.2 }, `+${usd(ev.notional)}`, ev.side === "bid" ? "buy" : "sell");
+              addFloater({ x: d.x + sign * 0.2, y: 0.4, z: d.z }, `+${usd(ev.notional)}`, ev.side === "bid" ? "buy" : "sell");
               if (ev.notional >= 5e6) audio.play("reinforce", pan);
             }
             break;
@@ -134,6 +134,7 @@ export function Fleet() {
 
       // visible ships: nearest buckets first, up to the cap
       const seen = new Set<string>();
+      updateFront(e.mark || mid);
       for (const side of SIDES) {
         const ships = [...e.trackers[side].ships.values()]
           .filter((s) => passes(s, mid))
@@ -144,9 +145,9 @@ export function Fleet() {
           const key = side + s.b;
           let d = view.displays.get(key);
           if (!d) {
-            const z = zFor(side, s.price);
+            const x = xForPrice(side, s.price);
             d = {
-              key, side, b: s.b, price: s.price, x: xFor(s.b), z: z + sideSign(side) * 1.5, y: 0, s: 0.05, tier: s.tier, ship: s,
+              key, side, b: s.b, price: s.price, x: x + sideSign(side) * 1.5, z: zForBucket(s.b), y: 0, s: 0.05, tier: s.tier, ship: s,
               departing: null, surfacing: 0, smoke: 0, hitFlash: 0, damage: 0, roll: 0, pitch: 0, fade: 0,
             };
             view.displays.set(key, d);
@@ -175,14 +176,14 @@ export function Fleet() {
         let hidden = subsOnly;
         if (!d.departing && d.ship) {
           const s = d.ship;
-          const tz = zFor(d.side, d.price);
+          const tx = xForPrice(d.side, d.price);
           const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * mobileK;
-          const dz = (tz - d.z) * kMove;
-          d.z += dz;
+          const dx = (tx - d.x) * kMove;
+          d.x += dx;
           // wake behind moving ships (and a faint bow wash on big ones)
-          const speed = Math.abs(dz) / Math.max(dt, 1e-3);
+          const speed = Math.abs(dx) / Math.max(dt, 1e-3);
           if (smoke && (speed > 0.15 ? Math.random() < dt * 40 : Math.random() < dt * 0.6 * d.s))
-            smoke.emit({ x: d.x + (Math.random() - 0.5) * 0.15 * d.s, y: 0.02, z: d.z + sign * 0.5 * d.s, vx: (Math.random() - 0.5) * 0.3, life: 1.4, size: 0.12 + 0.1 * d.s, grow: 2.2, color: "#eef7fa", alpha: 0.55 });
+            smoke.emit({ x: d.x + sign * 0.5 * d.s, y: 0.02, z: d.z + (Math.random() - 0.5) * 0.15 * d.s, vz: (Math.random() - 0.5) * 0.3, life: 1.4, size: 0.12 + 0.1 * d.s, grow: 2.2, color: "#eef7fa", alpha: 0.55 });
           d.s += (ts - d.s) * kScale;
           d.damage *= Math.exp(-0.05 * dt);
           d.roll += (d.damage * 0.3 + Math.sin(view.time * 0.9 + d.x) * 0.03 * stormBob - d.roll) * kMove;
@@ -198,7 +199,7 @@ export function Fleet() {
           if (smoke && d.smoke > 0) {
             d.smoke -= dt;
             if (Math.random() < dt * 40)
-              smoke.emit({ x: d.x + (Math.random() - 0.5) * d.s, y: 0.1, z: d.z + sign * 0.4 * d.s, vx: (Math.random() - 0.5) * 0.5, vy: 0.15, life: 3, size: 0.6 * d.s + 0.3, grow: 2.2, color: "#c9d2d6", alpha: 0.55 });
+              smoke.emit({ x: d.x + sign * 0.4 * d.s, y: 0.1, z: d.z + (Math.random() - 0.5) * d.s, vz: (Math.random() - 0.5) * 0.5, vy: 0.15, life: 3, size: 0.6 * d.s + 0.3, grow: 2.2, color: "#c9d2d6", alpha: 0.55 });
           }
           if (smoke && d.damage > 0.15 && Math.random() < dt * d.damage * 8)
             smoke.emit({ x: d.x, y: 0.25 * d.s, z: d.z, vx: 0.3, vy: 0.9, life: 2.4, size: 0.45 * d.s, grow: 3, color: "#2a2826", alpha: 0.65, drag: 0.6 });
@@ -209,7 +210,7 @@ export function Fleet() {
               glow.emit({ x: d.x + (Math.random() - 0.5) * 0.3 * d.s, y: 0.22 * d.s, z: d.z + (Math.random() - 0.5) * 0.5 * d.s, vx: (Math.random() - 0.5) * 2, vy: 1.2 + Math.random(), vz: (Math.random() - 0.5) * 2, life: 0.45, size: 0.12, color: "#5dff8a", gravity: 5 });
             if (repairs.length < 3) repairs.push({ x: d.x, y: 0.5 * d.s, z: d.z });
           }
-          if (!near || Math.abs(d.z) < Math.abs(near.z)) near = d;
+          if (!near || Math.abs(d.x - view.frontX) < Math.abs(near.x - view.frontX)) near = d;
         } else if (d.departing) {
           const age = view.time - d.departing.t0;
           const k = d.departing.kind;
@@ -225,17 +226,17 @@ export function Fleet() {
             const speed = k === "fled" ? 2.2 : 1;
             d.pitch = Math.min(0.12, age * 0.2);
             d.y = -age * age * 0.35 * speed * Math.max(1, d.s * 0.6);
-            d.z += sign * dt * 1.5 * speed; // heading away from the strait
+            d.x += sign * dt * 1.5 * speed; // heading away from the strait
             d.fade = Math.min(1, age / 1.4);
             if (smoke && Math.random() < dt * 35)
               smoke.emit({ x: d.x + (Math.random() - 0.5) * 0.4 * d.s, y: 0.02, z: d.z + (Math.random() - 0.5) * 0.6 * d.s, vy: 0.4, life: 1.1, size: 0.18, grow: 1.4, color: "#f4fbff", alpha: 0.8 });
             if (smoke && age > 0.8 && Math.random() < dt * 20)
-              smoke.emit({ x: d.x, y: 0.02, z: d.z + sign * age * 0.6, life: 1.8, size: 0.2, grow: 2.4, color: "#eaf6fa", alpha: 0.6 }); // periscope wake
+              smoke.emit({ x: d.x + sign * age * 0.6, y: 0.02, z: d.z, life: 1.8, size: 0.2, grow: 2.4, color: "#eaf6fa", alpha: 0.6 }); // periscope wake
             if (age > 2.4) view.displays.delete(d.key);
           } else {
             d.s *= Math.exp(-(k === "drop" ? 4 : 2.5) * dt);
             d.fade = Math.min(1, age);
-            d.z += sign * dt * 0.8;
+            d.x += sign * dt * 0.8;
             if (age > 1) view.displays.delete(d.key);
           }
         }
@@ -247,7 +248,7 @@ export function Fleet() {
         const m = meshes.current[mkey];
         const n = counts[mkey] ?? 0;
         if (!m || n >= CAP) continue;
-        euler.set(d.pitch, d.side === "bid" ? 0 : Math.PI, d.roll);
+        euler.set(d.pitch, d.side === "bid" ? Math.PI : 0, d.roll);
         dummy.position.set(d.x, d.y, d.z);
         dummy.quaternion.setFromEuler(euler);
         dummy.scale.setScalar(Math.max(0.001, d.s));
