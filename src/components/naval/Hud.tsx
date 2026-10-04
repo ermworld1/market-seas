@@ -138,7 +138,7 @@ function Header({ now }: { now: number }) {
       <div className="mt-2 md:hidden">
         <TugOfWar />
       </div>
-      <div className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 md:grid-cols-9">
+      <div className="mt-1.5 grid grid-cols-4 gap-x-3 gap-y-1 md:grid-cols-9">
         <Stat label="Last / mark">
           {hud.last ? fmtPrice(hud.last) : "—"}
           <span className="ml-1 text-muted-foreground">{hud.mark ? fmtPrice(hud.mark) : ""}</span>
@@ -146,19 +146,19 @@ function Header({ now }: { now: number }) {
         <Stat label="Funding">
           <span className={hud.funding > 0 ? "text-bull" : hud.funding < 0 ? "text-bear" : ""}>{hud.mark ? `${(hud.funding * 100).toFixed(4)}%` : "—"}</span>
         </Stat>
-        <Stat label="Open interest">
+        <Stat label="Open interest" className="hidden md:block">
           {hud.oi ? hud.oi.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 }) : "—"}
           {hud.oi ? <span className={cn("ml-1", hud.oiChangePct >= 0 ? "text-ok" : "text-bear")}>{hud.oiChangePct >= 0 ? "+" : ""}{hud.oiChangePct.toFixed(2)}%</span> : null}
         </Stat>
-        <Stat label="Orders/min">{hud.ordersMin}</Stat>
+        <Stat label="Orders/min" className="hidden md:block">{hud.ordersMin}</Stat>
         <Stat label="Intensity">
           <span className={intensity === "Extreme" ? "text-danger" : intensity === "Heavy" ? "text-warn" : ""}>{intensity}</span>
         </Stat>
-        <Stat label="Sunk B / S" className="col-span-2 md:col-span-1">
+        <Stat label="Sunk B / S" className="hidden md:block">
           <span className="text-bull">{usd(hud.sunk.bid)}</span> / <span className="text-bear">{usd(hud.sunk.ask)}</span>
         </Stat>
         <Stat label="Ships on map">{hud.ships.bid + hud.ships.ask}</Stat>
-        <Stat label="Ghosts 1h">{hud.ghostsHour}</Stat>
+        <Stat label="Ghosts 1h" className="hidden md:block">{hud.ghostsHour}</Stat>
       </div>
     </header>
   );
@@ -178,7 +178,7 @@ function Filters() {
   }, [viewMode, filter]);
   const btn = (on: boolean) => cn("rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-wider", on ? "bg-primary text-primary-foreground" : "bg-secondary/80 text-secondary-foreground hover:bg-accent");
   return (
-    <div className="pointer-events-auto flex flex-wrap items-center gap-1">
+    <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap">
       <button className={btn(viewMode === "capital")} onClick={() => set({ viewMode: "capital" })}>Capital ships</button>
       <button className={btn(viewMode === "all")} onClick={() => set({ viewMode: "all" })}>All ships</button>
       <span className="mx-1 hud-label">Show</span>
@@ -200,7 +200,7 @@ function BossBar({ side, now }: { side: "bid" | "ask"; now: number }) {
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <span className={cn("truncate font-display font-semibold uppercase tracking-wider", side === "bid" ? "text-bull" : "text-bear")}>
           {name} flagship {f.price ? fmtPrice(f.price) : ""}
-          {f.status === "on station" && <span className="hud-num font-normal normal-case text-muted-foreground"> · {usd(f.notional)} · {(f.away * 100).toFixed(2)}% away · on station {mins}m</span>}
+          {f.status === "on station" && <span className="hud-num hidden font-normal normal-case text-muted-foreground sm:inline"> · {usd(f.notional)} · {(f.away * 100).toFixed(2)}% away · on station {mins}m</span>}
         </span>
         {f.status !== "on station" && <span className="rounded bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">{f.status}</span>}
       </div>
@@ -380,7 +380,7 @@ function RoundCard({ r, kind, now }: { r: Round; kind: "round" | "flagRound"; no
   return (
     <div className="hud-panel pointer-events-auto p-2.5">
       <div className="flex items-start justify-between gap-2">
-        <p className="font-display text-sm font-semibold leading-tight text-foreground">{q.q}</p>
+        <p className="font-display text-xs font-semibold leading-tight text-foreground md:text-sm">{q.q}</p>
         <span className="hud-num shrink-0 text-xs text-primary">{mmss(left)}</span>
       </div>
       <div className={cn("mt-2 grid gap-1.5", q.options.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
@@ -390,7 +390,7 @@ function RoundCard({ r, kind, now }: { r: Round; kind: "round" | "flagRound"; no
             disabled={!!r.choice || locked}
             onClick={() => choose(kind, o.id)}
             className={cn(
-              "rounded py-2 font-display text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-60",
+              "rounded py-1.5 font-display text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-60",
               r.choice === o.id ? "bg-primary text-primary-foreground" : o.id === "buyers" ? "bg-bull/20 text-bull hover:bg-bull/30" : o.id === "sellers" ? "bg-bear/25 text-bear hover:bg-bear/35" : "bg-secondary text-secondary-foreground hover:bg-accent",
             )}
           >
@@ -536,7 +536,7 @@ export function Hud() {
       <Labels />
       <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <Header now={now} />
-        <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <div className="flex items-center justify-between gap-1.5">
           <Filters />
           <button onClick={() => setDrawer((v) => !v)} className="pointer-events-auto rounded bg-secondary px-2 py-1 text-[11px] font-semibold uppercase lg:hidden">
             {drawer ? "Close guide" : "Guide & tape"}
@@ -592,7 +592,7 @@ export function Hud() {
           </div>
         </div>
         <LegendStrip />
-        <p className="px-1 text-[10px] leading-tight text-foreground/70">Live Binance Futures public market data · Not financial advice · Not affiliated with Binance</p>
+        <p className="hidden px-1 text-[10px] leading-tight text-foreground/70 sm:block">Live Binance Futures public market data · Not financial advice · Not affiliated with Binance</p>
       </div>
       <Ticker />
 

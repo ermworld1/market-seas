@@ -32,8 +32,8 @@ function CameraRig() {
     view.cap = view.mobile ? 50 : 120;
     const elev = THREE.MathUtils.degToRad(ELEVATION);
     // reserve space for the header (top) and sidebar (desktop right)
-    const topPx = view.mobile ? 150 : 128;
-    const botPx = view.mobile ? 190 : 70;
+    const topPx = view.mobile ? 250 : 200;
+    const botPx = view.mobile ? 215 : 110;
     const sidePx = size.width >= 1100 ? 340 : 0;
     const usableH = Math.max(200, size.height - topPx - botPx);
     const zoom = usableH / (2 * (REAR + 0.8) * Math.sin(elev));
