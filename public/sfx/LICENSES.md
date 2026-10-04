@@ -9,6 +9,8 @@ with a low-passed CC0 detonation.
 Sounds with no suitable CC0 recording stay procedural (synthesised in the browser):
 dive-bomber whistle, submarine dive/surface, fled, reinforce, cascade sting.
 
+The naval mix layers these recordings with original browser synthesis: 20 mm/.50-calibre deck-gun transients, paired 40 mm Bofors thumps, 5-inch shell crack and whistle, main-battery pressure wave and rolling sea echo, shell-miss whistle and splash, torpedo hiss/rumble, engine-room vibration, general-quarters klaxon and bosun's whistle. These generated layers contain no third-party recording.
+
 | File | Original | Source | License |
 |---|---|---|---|
 | `mg/1.mp3` | gun3Machinegun.ogg (burst of 6 rounds) | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
