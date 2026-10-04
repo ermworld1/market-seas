@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Bloom, DepthOfField, EffectComposer, Noise, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { DepthOfField, EffectComposer, Noise, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { BlendFunction, ToneMappingMode } from "postprocessing";
 import type { DepthOfFieldEffect } from "postprocessing";
 import { view } from "./layout";
@@ -8,7 +8,7 @@ import type { QualityTier } from "@/lib/market/presentation";
 
 /**
  * Cinema post stack, scaled by the adaptive quality tier:
- * high = DOF + glare + grain + vignette, medium = glare + grain + vignette, low = vignette only.
+ * No bloom: muzzle flashes and fires light the scene physically without neon auras.
  */
 const noPost = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("nopost");
 export function CinemaPost() {
@@ -37,7 +37,6 @@ export function CinemaPost() {
   if (tier === "medium")
     return (
       <EffectComposer multisampling={0}>
-        <Bloom intensity={0.35} luminanceThreshold={0.85} mipmapBlur />
         <Noise opacity={0.06} blendFunction={BlendFunction.OVERLAY} />
         <Vignette darkness={0.6} offset={0.28} />
         <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
@@ -46,7 +45,6 @@ export function CinemaPost() {
   return (
     <EffectComposer multisampling={0}>
       <DepthOfField ref={dof} worldFocusDistance={10} worldFocusRange={6} bokehScale={0} />
-      <Bloom intensity={0.35} luminanceThreshold={0.85} mipmapBlur />
       <Noise opacity={0.06} blendFunction={BlendFunction.OVERLAY} />
       <Vignette darkness={0.6} offset={0.28} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />

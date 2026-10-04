@@ -120,9 +120,8 @@ export function preloadModels() {
   for (const url of Object.values(MODELS)) useGLTF.preload(url);
 }
 
-/** Saturated Binance side colours on the hull itself (Buyers green, Sellers red). */
+/** Shared realistic naval paint; side identity comes from physical stripes, deck marks and flags. */
 export function makeFleetMaterial(side: "buyers" | "sellers", trim = false) {
-  const base = new THREE.Color(side === "buyers" ? "#0ecb81" : "#f6465d").convertSRGBToLinear();
-  const color = trim ? base.clone().lerp(new THREE.Color(1, 1, 1), 0.25) : base.clone().multiplyScalar(0.85);
-  return new THREE.MeshStandardMaterial({ color, metalness: 0.35, roughness: 0.5, emissive: base, emissiveIntensity: trim ? 0.32 : 0.22 });
+  const color = new THREE.Color(trim ? "#657076" : side === "buyers" ? "#37454a" : "#414348").convertSRGBToLinear();
+  return new THREE.MeshStandardMaterial({ color, metalness: trim ? 0.48 : 0.62, roughness: trim ? 0.58 : 0.72, flatShading: false });
 }

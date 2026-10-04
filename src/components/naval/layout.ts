@@ -106,9 +106,11 @@ export function hash01(v: number) {
   return s - Math.floor(s);
 }
 
-/** Deterministic vertical formation slot per bucket so a ship keeps its lane. */
+/** Stable line-astern naval columns parallel to the moving price front. */
 export function zForBucket(b: number) {
-  return ((hash01(b * 0.731) * 2 - 1) * 0.9 + (hash01(b) - 0.5) * 0.08) * view.halfW;
+  const lanes = view.mobile ? 7 : 11;
+  const lane = ((Math.abs(b) % lanes) / Math.max(1, lanes - 1)) * 2 - 1;
+  return (lane * 0.82 + (hash01(b) - 0.5) * 0.035) * view.halfW;
 }
 
 export function updateFront(mark: number) {
@@ -121,7 +123,7 @@ let floaterId = 0;
 export function addFloater(a: Anchor, text: string, tone: Floater["tone"]) {
   const list = view.anchors.floaters;
   list.push({ ...a, id: ++floaterId, text, tone, t0: view.time });
-  if (list.length > 10) list.shift();
+  if (list.length > 3) list.shift();
 }
 
 /** Longest gap between visible shots (ms) — exposed in ?debug=1. */
