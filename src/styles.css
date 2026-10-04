@@ -66,6 +66,7 @@
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
+  --color-sub: var(--sub);
   --color-hud: var(--hud);
   --color-hud-strong: var(--hud-strong);
   --font-display: var(--font-display);
@@ -102,6 +103,7 @@
   --warn: oklch(0.86 0.17 95);
   --danger: oklch(0.64 0.23 25);
   --ok: oklch(0.78 0.17 150);
+  --sub: oklch(0.82 0.1 230);
   --hud: oklch(0.16 0.03 230 / 0.66);
   --hud-strong: oklch(0.14 0.03 230 / 0.86);
   --war: oklch(0.55 0.23 25 / 0.28);
@@ -181,3 +183,50 @@
 @media (prefers-reduced-motion: reduce) {
   .war-vignette { animation: none; }
 }
+
+.live-dot { animation: live-pulse 1.4s ease-in-out infinite; }
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+.floater {
+  font-family: var(--font-display, inherit);
+  font-weight: 700; font-size: 12px; letter-spacing: 0.04em; white-space: nowrap;
+  text-shadow: 0 1px 3px oklch(0 0 0 / 0.8);
+  color: var(--foreground);
+}
+.floater[data-tone="buy"] { color: var(--bull); }
+.floater[data-tone="sell"] { color: var(--bear); }
+.floater[data-tone="sub"] { color: var(--sub); }
+.floater[data-tone="ok"] { color: var(--ok); }
+.regime-banner {
+  font-family: var(--font-display, inherit); font-weight: 800; letter-spacing: 0.22em; font-size: 12px;
+  padding: 2px 10px; border-radius: 3px; background: oklch(0.18 0.03 230 / 0.8); color: var(--primary);
+  border: 1px solid var(--primary);
+}
+.phase-chip {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; padding: 2px 8px; border-radius: 3px;
+  background: oklch(0.15 0.02 230 / 0.7); color: var(--muted-foreground);
+}
+.callout {
+  position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); z-index: 25; pointer-events: none;
+  font-family: var(--font-display, inherit); font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
+  font-size: clamp(22px, 5vw, 46px); text-align: center; white-space: nowrap;
+  text-shadow: 0 2px 12px oklch(0 0 0 / 0.85); animation: callout-in 2.2s ease-out forwards;
+}
+.callout-slow { animation-duration: 3.2s; }
+.callout-buy { color: var(--bull); }
+.callout-sell { color: var(--bear); }
+.callout-liq { color: var(--danger); }
+.callout-info { color: var(--foreground); }
+@keyframes callout-in {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -54%) scale(0.98); }
+}
+.radio-sub {
+  position: absolute; left: 50%; bottom: 30%; transform: translateX(-50%); z-index: 25; pointer-events: none;
+  font-family: var(--font-mono, monospace); font-size: 13px; padding: 4px 10px; border-radius: 3px;
+  background: oklch(0.1 0.02 230 / 0.82); color: var(--foreground); max-width: 92vw; text-align: center;
+}
+.ticker-inner { animation: ticker 40s linear infinite; padding-left: 100%; }
+@keyframes ticker { to { transform: translateX(-100%); } }
+.tour-spot { box-shadow: 0 0 0 9999px oklch(0.08 0.02 230 / 0.72); outline: 2px solid var(--primary); pointer-events: none; transition: all 0.2s; }

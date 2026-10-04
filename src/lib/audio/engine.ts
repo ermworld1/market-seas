@@ -175,7 +175,7 @@ class AudioEngine {
     if (!buf) return;
     const s = ctx.createBufferSource();
     s.buffer = buf;
-    s.connect(this.buses.vo!);
+    s.connect(this.buses["vo"]!);
     s.start();
   }
 
@@ -387,7 +387,7 @@ class AudioEngine {
       P6: { sea: 0.6, drone: 0.8, drums: 0.8, brass: 0.6, choir: 0.4 },
       P7: { sea: 1, drone: 0.6 },
     };
-    const m = mix[p] ?? mix.P0!;
+    const m = mix[p] ?? mix["P0"]!;
     for (const l of LAYERS) this.layerGain[l]?.gain.setTargetAtTime(m[l] ?? 0, ctx.currentTime, 0.6); // ~2 s crossfade
     if (!this.enabled || p === prev) return;
     const t = ctx.currentTime;

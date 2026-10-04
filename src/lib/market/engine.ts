@@ -163,7 +163,7 @@ export class MarketEngine {
     }
     const tierFn = (list: Bucket[]) => assignTiers(list.map((b) => b.notional), this.bucketSampler);
     for (const side of ["bid", "ask"] as const) {
-      const evs = this.trackers[side].tick(side === "bid" ? bids : asks, this.filled[side], now, ref, tierFn);
+      const evs = this.trackers[side].tick(side === "bid" ? bids : asks, this.filled[side], now, ref, tierFn, this.bucketSampler.quantile(0.9));
       this.filled[side].clear();
       for (const e of evs) this.onOrderEvent(e, now);
     }
