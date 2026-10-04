@@ -23,6 +23,7 @@ export function DebugPanel() {
     <div id="debug-panel" className="pointer-events-auto absolute bottom-24 left-2 z-30 max-h-[35vh] w-64 overflow-y-auto rounded bg-background/90 p-2 font-mono text-[10px] text-foreground">
       <div className="font-bold">DEBUG</div>
       <div>phase {e?.phase.current} · frame {view.frameMs.toFixed(1)}ms</div>
+      <div>view {view.presentation} · shot {view.shot?.kind ?? "wide"} · quality {view.quality}</div>
       <div>tris {info?.triangles ?? "?"} · calls {info?.calls ?? "?"}</div>
       <div>trades rx {e?.tradesReceived ?? 0} · viz {e?.tradesVisualized ?? 0} · tracers {e?.tracersSpawned ?? 0}</div>
       <div>book {e?.book.bids.size ?? 0}/{e?.book.asks.size ?? 0} lvls · {e?.partial ? "partial" : "full"} · u={e?.book.lastU}</div>
