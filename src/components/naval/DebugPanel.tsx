@@ -62,7 +62,7 @@ export function DebugPanel() {
       <button id="debug-readouts" className="mt-1 rounded bg-secondary px-1" onClick={() => {
         if (!e?.mark) return;
         const trades = e.recentTrades.slice(-3);
-        const prices = trades.length === 3 ? trades.map((trade) => trade.price) : [e.mark, e.bestBid(), e.bestAsk()].filter((price): price is number => typeof price === "number" && price > 0);
+        const prices = trades.length === 3 ? trades.map((trade) => trade.price) : [e.mark, e.bestBid, e.bestAsk].filter((price): price is number => typeof price === "number" && price > 0);
         const notionals = trades.length === 3 ? trades.map((trade) => trade.notional) : [e.mark * 3, e.mark * 8, e.mark * 25];
         verifyNavalReadouts(prices, notionals);
       }}>audit 3 live readouts</button>
