@@ -7,7 +7,6 @@ import { tracersFor } from "@/lib/market/rules";
 import { audio, panX } from "@/lib/audio/engine";
 import { useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
-import { SIDE_HEX } from "@/lib/battle/units";
 import { fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
 import { makeFighterGeometry } from "./fighter";
 
@@ -53,12 +52,6 @@ const COLORS = {
   bomb: new THREE.Color(0.08, 0.08, 0.08),
   cannon: new THREE.Color(1.8, 1.4, 0.6),
 };
-/** Restrained side tint on hot tracer metal; never a neon aura. */
-const TINT: Record<BookSide, Record<string, THREE.Color>> = { bid: {}, ask: {} };
-for (const side of ["bid", "ask"] as const) {
-  const sc = new THREE.Color(SIDE_HEX[side]);
-  for (const [w, c] of Object.entries(COLORS)) TINT[side][w] = w === "torpedo" || w === "bomb" ? c : c.clone().lerp(sc, 0.18);
-}
 const POWER: Record<Proj["weapon"], number> = { mg: 0.15, cannon: 0.25, gun: 0.55, torpedo: 1.1, broadside: 1.4, bomb: 1.6 };
 
 /** Find the target ship for a bucket; if it is gone, continue into the next ship deeper in the book. */
@@ -99,8 +92,8 @@ export function Effects() {
   const fighterGeo = useMemo(() => makeFighterGeometry(), []);
   // aircraft wear the colour of the side that sends them (the opposite of the side they attack)
   const airMats = useMemo(() => {
-    const m = (_hex: string) => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), metalness: 0.55, roughness: 0.62, flatShading: true });
-    return { bid: m(SIDE_HEX.bid), ask: m(SIDE_HEX.ask) };
+    const m = () => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), emissive: 0x000000, emissiveIntensity: 0, metalness: 0.55, roughness: 0.62, flatShading: true });
+    return { bid: m(), ask: m() };
   }, []);
   const planeMat = airMats.ask;
   const fighterMat = airMats.bid;
@@ -167,7 +160,7 @@ export function Effects() {
       cursor.current = (cursor.current + 1) % MAX_PROJ;
     }
     Object.assign(free, { arc: 0, size: 0.05, len: 0.3, target: null, ...p, on: true, t: 0 });
-    free.color = p.side ? TINT[p.side][p.weapon]! : COLORS[p.weapon];
+    free.color = COLORS[p.weapon];
   };
 
   const splash = (x: number, z: number, power: number) => {

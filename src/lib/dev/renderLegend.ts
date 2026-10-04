@@ -47,13 +47,13 @@ export async function renderLegend(): Promise<Record<string, string>> {
       out[`${id}-${side}`] = shot(g, mat, side, sc);
     }
   }
-  const air = (hex: string) => new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).convertSRGBToLinear().multiplyScalar(0.8), emissive: new THREE.Color(hex).convertSRGBToLinear(), emissiveIntensity: 0.3, metalness: 0.4, roughness: 0.5, flatShading: true });
+  const air = () => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), emissive: 0x000000, emissiveIntensity: 0, metalness: 0.4, roughness: 0.62, flatShading: true });
   const bomber = await geo("bomber", "air");
   const fighter = makeFighterGeometry();
   fighter.computeBoundingBox();
   for (const side of ["bid", "ask"] as Side[]) {
-    out[`bomber-${side}`] = shot(bomber, air(SIDE_HEX[side]), side, 1, true);
-    out[`fighter-${side}`] = shot(fighter, air(SIDE_HEX[side]), side, 0.9, true);
+    out[`bomber-${side}`] = shot(bomber, air(), side, 1, true);
+    out[`fighter-${side}`] = shot(fighter, air(), side, 0.9, true);
   }
   r.dispose();
   // effect icons: same colours as the scene's effects
