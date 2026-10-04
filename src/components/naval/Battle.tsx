@@ -9,7 +9,7 @@ import { Background } from "./Background";
 import { Effects } from "./Effects";
 import { Fleet } from "./Fleet";
 import { Ocean } from "./Ocean";
-import { DEPTH, ELEVATION, GAP, REAR, view } from "./layout";
+import { DEPTH, ELEVATION, GAP, REAR, startFleetIntro, view } from "./layout";
 import { preloadModels } from "./models";
 import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";
@@ -189,6 +189,7 @@ function useFront() {
     view.origin = 0;
     view.frontX = 0;
     view.cameraX = 0;
+    startFleetIntro();
     let stop = () => {};
     try {
       stop = connectFront(engine, (status, detail) => useBattle.setState({ status, statusDetail: detail }));

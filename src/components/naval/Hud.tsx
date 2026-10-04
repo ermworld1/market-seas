@@ -11,7 +11,7 @@ import { audio } from "@/lib/audio/engine";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { choose, radioCheck } from "./useDirector";
-import { view } from "./layout";
+import { startFleetIntro, view } from "./layout";
 import { Labels } from "./Labels";
 import { Tour } from "./Tour";
 import { DebugPanel } from "./DebugPanel";
@@ -139,7 +139,7 @@ function Header({ now }: { now: number }) {
           <button onClick={() => useBattle.setState({ helpOpen: true })} aria-label="How it works" className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
             <HelpCircle className="h-4 w-4" />
           </button>
-          <button onClick={() => { const next = presentation === "cinema" ? "map" : "cinema"; useBattle.setState({ presentation: next }); view.presentation = next; savePrefs(); }} aria-label={`Switch to ${presentation === "cinema" ? "map" : "cinema"} view`} className="flex items-center gap-1 rounded bg-secondary px-2 py-1.5 text-[10px] font-semibold uppercase text-foreground hover:bg-accent">
+          <button onClick={() => { const next = presentation === "cinema" ? "map" : "cinema"; useBattle.setState({ presentation: next }); view.presentation = next; startFleetIntro(); audio.openingAdvance(); savePrefs(); }} aria-label={`Switch to ${presentation === "cinema" ? "map" : "cinema"} view`} className="flex items-center gap-1 rounded bg-secondary px-2 py-1.5 text-[10px] font-semibold uppercase text-foreground hover:bg-accent">
             <Map className="h-4 w-4" /> {presentation}
           </button>
           <button onClick={async () => { const on = !alertsOn; if (on && "Notification" in window) await Notification.requestPermission(); useBattle.setState({ alertsOn: on }); savePrefs(); }} aria-label={alertsOn ? "Disable alerts" : "Enable alerts"} className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
@@ -288,7 +288,7 @@ function Banners() {
 
 const GUIDE = [
   "The vertical line in the middle is the live BTC price on Binance Futures. Buy orders wait on the left; sell orders wait on the right.",
-  "A ship's distance from the strait is how far its price is from the live price. Bigger ship = bigger order.",
+  "Left/right = price. Front/back = how long the order has been waiting: new orders arrive from the back and move forward as they stay. Bigger ship = bigger order.",
   "Every shot is a real trade. The taker fires; the ship at that price is hit and loses the amount filled. A ship that is fully filled sinks and the front line moves.",
   "A big order that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
   "Bombers are liquidations (sampled by Binance: max 1 per second).",
