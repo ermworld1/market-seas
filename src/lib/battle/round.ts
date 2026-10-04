@@ -28,7 +28,7 @@ export function utcDay(t: number) {
 }
 export function recordResult(sb: Scoreboard | null, w: Winner, battleId: number): Scoreboard {
   const day = utcDay(battleId);
-  const cur = sb && sb.day === day ? { ...sb } : { day, buyers: 0, sellers: 0, draws: 0, last: 0 };
+  const cur = sb && sb.day === day ? { ...sb } : { day, buyers: 0, sellers: 0, draws: 0, last: -1 };
   if (cur.last === battleId) return cur;
   cur.last = battleId;
   if (w === "buyers") cur.buyers++;
