@@ -39,7 +39,7 @@ export function bucketize(side: BookSide, levels: Map<number, number> | [number,
     const b = bucketOf(p, width);
     let k = out.get(b);
     if (!k) {
-      k = { side, idx: Math.abs(b - markB), price: side === "bid" ? (b + 1) * width : b * width, qty: 0, notional: 0 };
+      k = { side, idx: Math.abs(b - markB), price: (b + 0.5) * width, qty: 0, notional: 0 };
       out.set(b, k);
     }
     k.qty += q;
