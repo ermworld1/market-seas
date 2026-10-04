@@ -247,7 +247,7 @@ export function Fleet() {
             d = {
               key, side, b: s.b, price: s.price, x, z: -view.halfW, y: 0, s: 0.05, tier: s.tier, ship: s,
               departing: null, surfacing: 0, smoke: 0, hitFlash: 0, damage: 0, roll: 0, pitch: 0, fade: 0, visualWeight: 1, lod: "low",
-              introBorn: view.introSerial,
+              introBorn: view.introSerial, stationZ: zForStation(s.bornAt),
             };
             view.displays.set(key, d);
           }
@@ -259,7 +259,7 @@ export function Fleet() {
           d.lod = gi < (view.mobile ? 4 : 8) || s.tier === "battleship" ? "high" : "low";
           view.bucketVisual.set(key, d);
           const station = stationTargets.get(key);
-          if (station) d.z = d.z || station.z;
+          if (station) d.stationZ = station.z;
           seen.add(key);
           if (!d.departing) vis.push(d);
         }
@@ -284,7 +284,7 @@ export function Fleet() {
           const introElapsed = performance.now() - view.introStartedAt;
           const intro = introProgress(s.tier, introElapsed);
           const tx = exactX + sign * REAR * (1 - intro);
-          const targetZ = zForStation(s.bornAt);
+          const targetZ = d.stationZ;
           const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * d.visualWeight * mobileK;
           const dx = (tx - d.x) * kMove;
           d.x += dx;

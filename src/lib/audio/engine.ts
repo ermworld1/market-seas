@@ -1,5 +1,6 @@
 import type { Phase } from "@/lib/battle/phase";
 import { BANK, CAT_FOLDER, bankUrls, type BankFolder } from "./bank";
+import { chainText, type VoiceChain, type VoiceChannel, type VoicePart } from "./navalVoice";
 
 /**
  * Web Audio engine: one master gain, per-category buses, stereo panning by
@@ -56,6 +57,9 @@ class AudioEngine {
   private siren: { stop: () => void } | null = null;
   private battleBed: { s: AudioBufferSourceNode; g: GainNode } | null = null;
   private pending: { key: string; text: string; at: number } | null = null;
+  private navalQueue: VoiceChain[] = [];
+  private navalBusy = false;
+  voiceChainLog: Array<{ at: number; id: string; role: string; channel: VoiceChannel; clips: string[]; text: string; played: boolean }> = [];
   private radioChecked = false;
   private lastVoiceAt = -1e9;
   private lastTorpedoVoice = 0;
@@ -218,8 +222,9 @@ class AudioEngine {
     const out = ctx.createGain();
     out.gain.value = (opts.gain ?? 1) * Math.pow(10, (Math.random() * 6 - 3) / 20) * (1 - dist * 0.45);
     const lp = this.filt("lowpass", 16000 - dist * 13500, 0.5);
-    const delay = ctx.createDelay(0.5);
-    delay.delayTime.value = dist * 0.14;
+    const delay = ctx.createDelay(0.7);
+    const isGun = BUS[cat] === "weapons" && cat !== "hit" && cat !== "miss";
+    delay.delayTime.value = isGun && dist > 0.35 ? 0.2 + dist * 0.4 : dist * 0.14;
     out.connect(lp).connect(delay).connect(pan);
     pan.connect(this.buses[BUS[cat]]!);
     if (this.reverb) {
@@ -298,6 +303,72 @@ class AudioEngine {
     this.lastVoiceAt = -1e9;
     void this.voice("cap_stations", "Battle stations! All hands to battle stations!");
   }
+
+  /** Opening movement is the only non-market ship motion: alarm, telegraph and engines. */
+  openingAdvance() {
+    this.play("klaxon", { gain: 0.9 });
+    this.play("reinforce", { x: -0.7, gain: 0.7 });
+    window.setTimeout(() => this.play("reinforce", { x: 0.7, gain: 0.7 }), 180);
+  }
+
+  enqueueVoiceChain(chain: VoiceChain) {
+    const duplicate = this.navalQueue.find((item) => item.id === chain.id);
+    if (!duplicate) this.navalQueue.push(chain);
+    this.navalQueue.sort((a, b) => b.priority - a.priority);
+    void this.runNavalQueue();
+  }
+
+  private async runNavalQueue() {
+    if (this.navalBusy || !this.ctx || !this.enabled) return;
+    const chain = this.navalQueue.shift();
+    if (!chain) return;
+    this.navalBusy = true;
+    for (const entry of chain.lines) {
+      let played = false;
+      for (const part of entry.parts) {
+        played = (await this.playVoicePart(part, chain.channel)) || played;
+        await new Promise((resolve) => window.setTimeout(resolve, 120 + Math.random() * 80));
+      }
+      this.voiceChainLog.push({ at: Date.now(), id: chain.id, role: entry.role, channel: chain.channel, clips: entry.parts.map((part) => part.clip), text: entry.parts.map((part) => part.word).join(" "), played });
+      if (this.voiceChainLog.length > 120) this.voiceChainLog.shift();
+    }
+    this.voPlayed.push(chain.id);
+    this.navalBusy = false;
+    window.setTimeout(() => void this.runNavalQueue(), 180);
+  }
+
+  private async playVoicePart(part: VoicePart, channel: VoiceChannel) {
+    const ctx = this.ctx;
+    if (!ctx) return false;
+    const buf = await this.loadVo(part.clip);
+    if (!buf) return false;
+    const t = Math.max(ctx.currentTime + 0.03, this.voBusyUntil);
+    const source = ctx.createBufferSource(); source.buffer = buf;
+    const gain = ctx.createGain(); gain.gain.value = channel === "1mc" ? 1.35 : channel === "phone" ? 1.05 : 1.15;
+    if (channel === "tbs") {
+      this.micClick(t - 0.025); this.static(t, Math.min(0.12, buf.duration));
+      this.chain(source, this.buses["vo"]!, this.filt("highpass", 300, 0.8), this.filt("lowpass", 3400, 0.8), gain);
+      this.static(t + buf.duration, 0.18); this.micClick(t + buf.duration + 0.12);
+    } else if (channel === "phone") {
+      const shaper = ctx.createWaveShaper();
+      const curve = new Float32Array(256); for (let i = 0; i < curve.length; i++) { const x = i / 127.5 - 1; curve[i] = Math.tanh(x * 1.5); }
+      shaper.curve = curve;
+      this.chain(source, this.buses["vo"]!, this.filt("highpass", 400, 0.8), this.filt("lowpass", 3000, 0.8), shaper, gain);
+    } else {
+      const delay = ctx.createDelay(0.3); delay.delayTime.value = 0.11;
+      const echo = ctx.createGain(); echo.gain.value = 0.18;
+      delay.connect(echo).connect(this.buses["vo"]!);
+      source.connect(delay);
+      this.chain(source, this.buses["vo"]!, this.filt("highpass", 180, 0.7), this.filt("lowpass", 6500, 0.7), gain);
+    }
+    source.start(t);
+    this.voBusyUntil = t + buf.duration;
+    this.duck(t, buf.duration);
+    await new Promise((resolve) => window.setTimeout(resolve, (buf.duration + 0.03) * 1000));
+    return true;
+  }
+
+  describeVoiceChain(chain: VoiceChain) { return chainText(chain); }
 
   /** Play a radio line through mic clicks, static, a band-limited handset, and a squelch tail. */
   async voice(key: string, text: string): Promise<boolean> {

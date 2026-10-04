@@ -38,6 +38,7 @@ export interface Display {
   visualWeight: number;
   lod: "high" | "low";
   introBorn: number;
+  stationZ: number;
 }
 
 export interface Anchor {
