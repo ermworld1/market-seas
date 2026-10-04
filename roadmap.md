@@ -57,3 +57,9 @@
 - [ ] Preserve PBR materials with zero emissive and separate muted side markings
 - [ ] Use supplied fighter/bomber models and regenerate scene-matched guide renders
 - [ ] Verify sizes, material safety, responsive screenshots, frame time and draw calls
+## v13 data positions and naval comms
+- [ ] Replace formation placement with exact price X and logarithmic order-age depth, with overlap nudges only in depth
+- [ ] Add staged three-second fleet advance on load and Cinema/Map switches without dropping trade fire
+- [ ] Update How to read, Guide, and tour copy for price/time-on-station axes
+- [ ] Add three processed voice channels, clip-chain number readouts, prioritized event chains, and naval ship/weapon layers
+- [ ] Verify opening screenshots and forced-audio chain logs; recorded voice clips remain pending user delivery
