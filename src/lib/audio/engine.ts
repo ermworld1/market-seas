@@ -14,7 +14,10 @@ const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
   dive: "alarms", fled: "alarms", cascade: "alarms",
   surface: "ships", sink: "ships", reinforce: "ships",
 };
-const MAX_VOICES = 8;
+const MAX_VOICES = 12;
+/** Voice lines: file in /public/vo or speechSynthesis fallback. */
+export const VO_FILES: Record<string, string> = { P2: "p2_contact", P3: "p3_fire", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo" };
+const VO_COOLDOWN = 8;
 const LAYERS = ["sea", "drone", "drums", "brass", "choir"] as const;
 type Layer = (typeof LAYERS)[number];
 
@@ -37,6 +40,12 @@ class AudioEngine {
   phase: Phase | "P0" = "P0";
   played = 0;
   dropped = 0;
+  byCat: Record<string, number> = {};
+  voPlayed: string[] = [];
+  voBusyUntil = 0;
+  private lastVoiceAt = -1e9;
+  private lastTorpedoVoice = 0;
+  private comp: DynamicsCompressorNode | null = null;
   private noise: AudioBuffer | null = null;
   private drumTimer: ReturnType<typeof setInterval> | null = null;
   private nextBeat = 0;
@@ -51,12 +60,19 @@ class AudioEngine {
       this.ctx = ctx;
       this.master = ctx.createGain();
       this.master.gain.value = 0;
-      this.master.connect(ctx.destination);
+      // glue + loudness so dense firefights stay audible on phone speakers
+      this.comp = ctx.createDynamicsCompressor();
+      this.comp.threshold.value = -18;
+      this.comp.ratio.value = 6;
+      this.comp.attack.value = 0.003;
+      this.comp.release.value = 0.15;
+      this.master.connect(this.comp);
+      this.comp.connect(ctx.destination);
       this.recordDest = ctx.createMediaStreamDestination();
-      this.master.connect(this.recordDest);
+      this.comp.connect(this.recordDest);
       for (const b of ["weapons", "ships", "air", "alarms", "vo"]) {
         const g = ctx.createGain();
-        g.gain.value = b === "weapons" ? 0.55 : 0.8;
+        g.gain.value = b === "weapons" ? 0.9 : b === "vo" ? 1.2 : 0.8;
         g.connect(this.master);
         this.buses[b] = g;
       }
@@ -70,7 +86,15 @@ class AudioEngine {
       void this.loadSlots();
       this.startMusic();
     }
+    // iOS needs a silent buffer started inside the gesture
+    const s = this.ctx.createBufferSource();
+    s.buffer = this.ctx.createBuffer(1, 1, 22050);
+    s.connect(this.ctx.destination);
+    s.start();
     await this.ctx.resume();
+  }
+  get state() {
+    return this.ctx?.state ?? "none";
   }
 
   private async loadSlots() {
@@ -114,16 +138,24 @@ class AudioEngine {
     this.master.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime, 0.05);
   }
 
-  play(cat: SfxCat, opts: { x?: number; gain?: number } = {}) {
+  play(cat: SfxCat, opts: { x?: number; gain?: number; shots?: number } = {}) {
     const ctx = this.ctx;
-    if (!ctx || !this.enabled || ctx.state !== "running") return;
+    if (!ctx || !this.enabled) return;
+    if (ctx.state !== "running") {
+      void ctx.resume();
+      return;
+    }
     const now = ctx.currentTime;
     this.voices = this.voices.filter((v) => v.end > now);
     const pri = PRIORITY[cat];
     if (this.voices.length >= MAX_VOICES) {
       let low = 0;
-      for (let i = 1; i < this.voices.length; i++) if (this.voices[i]!.pri < this.voices[low]!.pri) low = i;
-      if (this.voices[low]!.pri >= pri) {
+      for (let i = 1; i < this.voices.length; i++) {
+        const v = this.voices[i]!, l = this.voices[low]!;
+        if (v.pri < l.pri || (v.pri === l.pri && v.end < l.end)) low = i; // steal oldest of lowest priority
+      }
+      // gunfire always sounds: weapons steal the weakest voice; others need higher priority
+      if (BUS[cat] !== "weapons" && this.voices[low]!.pri > pri) {
         this.dropped++;
         return;
       }
@@ -146,8 +178,9 @@ class AudioEngine {
       s.start(now);
       nodes.push(s);
       dur = buf.duration;
-    } else dur = this.synth(cat, out, now, nodes);
+    } else dur = this.synth(cat, out, now, nodes, opts.shots ?? 4);
     this.played++;
+    this.byCat[cat] = (this.byCat[cat] ?? 0) + 1;
     this.voices.push({
       pri,
       end: now + dur,
@@ -159,24 +192,94 @@ class AudioEngine {
     setTimeout(() => pan.disconnect(), (dur + 0.5) * 1000);
   }
 
-  /** Optional voice-over slot: /vo/<id>.mp3 */
-  async vo(id: string) {
+  /** Play a radio line: file through a radio filter, else speechSynthesis. One at a time, 8 s cooldown. */
+  async voice(key: string, text: string): Promise<boolean> {
     const ctx = this.ctx;
-    if (!ctx || !this.enabled) return;
-    const key = "vo:" + id;
+    if (!ctx || !this.enabled || ctx.state !== "running") return false;
+    const now = ctx.currentTime;
+    if (now < this.voBusyUntil || now - this.lastVoiceAt < VO_COOLDOWN) return false;
+    const file = VO_FILES[key];
+    this.lastVoiceAt = now;
+    if (file) {
+      const buf = await this.loadVo(file);
+      if (buf) {
+        this.radioBuffer(buf);
+        this.voPlayed.push(key);
+        return true;
+      }
+    }
+    if (typeof speechSynthesis === "undefined") return false;
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.15;
+    u.lang = "en-US";
+    const voices = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
+    u.voice = voices.find((v) => /male|david|daniel|alex|fred|george|guy|mark/i.test(v.name) && !/female/i.test(v.name)) ?? voices[0] ?? null;
+    u.pitch = 0.8;
+    const est = 0.5 + text.length * 0.06;
+    this.voBusyUntil = now + est;
+    this.static(now, 0.18);
+    this.duck(now, est);
+    u.onend = () => {
+      this.voBusyUntil = 0;
+      if (this.ctx) this.static(this.ctx.currentTime, 0.15);
+    };
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+    this.voPlayed.push(key + " (tts)");
+    return true;
+  }
+  /** Play once on the first torpedo after 30 s without any voice. */
+  torpedoVoice() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    if (now - this.lastVoiceAt < 30 || now - this.lastTorpedoVoice < 30) return;
+    this.lastTorpedoVoice = now;
+    void this.voice("torpedo", "Torpedo in the water!");
+  }
+  private async loadVo(file: string) {
+    const key = "vo:" + file;
     if (!this.samples.has(key)) {
       this.samples.set(key, null);
       try {
-        const r = await fetch(`/vo/${id}.mp3`);
-        if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) this.samples.set(key, await ctx.decodeAudioData(await r.arrayBuffer()));
+        const r = await fetch(`/vo/${file}.wav`);
+        if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) this.samples.set(key, await this.ctx!.decodeAudioData(await r.arrayBuffer()));
       } catch { /* slot empty */ }
     }
-    const buf = this.samples.get(key);
-    if (!buf) return;
+    return this.samples.get(key) ?? null;
+  }
+  private radioBuffer(buf: AudioBuffer) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + 0.2;
+    this.static(ctx.currentTime, 0.2);
     const s = ctx.createBufferSource();
     s.buffer = buf;
-    s.connect(this.buses["vo"]!);
-    s.start();
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) {
+      const x = (i / 1023) * 2 - 1;
+      curve[i] = Math.tanh(x * 2.2) / Math.tanh(2.2);
+    }
+    shaper.curve = curve;
+    const g = ctx.createGain();
+    g.gain.value = 1.1;
+    this.chain(s, this.buses["vo"]!, this.filt("highpass", 300, 0.8), this.filt("lowpass", 3400, 0.8), this.filt("peaking", 1800, 1), shaper, g);
+    s.start(t);
+    this.voBusyUntil = t + buf.duration;
+    this.duck(t, buf.duration);
+    this.static(t + buf.duration, 0.15);
+  }
+  private static(t: number, dur: number) {
+    const n: AudioScheduledSourceNode[] = [];
+    this.chain(this.noiseSrc(t, dur, n), this.buses["vo"]!, this.filt("bandpass", 2500, 0.5), this.env(t, 0.005, 0.18, dur));
+  }
+  /** Duck music by 6 dB while a voice speaks. */
+  private duck(t: number, dur: number) {
+    const m = this.music;
+    if (!m) return;
+    m.gain.cancelScheduledValues(t);
+    m.gain.setTargetAtTime(0.45 * 0.5, t, 0.05);
+    m.gain.setTargetAtTime(0.45, t + dur + 0.2, 0.3);
   }
 
   // ───────── procedural synth kit ─────────
@@ -226,23 +329,45 @@ class AudioEngine {
     this.chain(this.osc("sine", f, f * 0.45, t, dur, nodes), out, this.env(t, 0.005, peak, dur));
   }
 
-  private synth(cat: SfxCat, out: AudioNode, t: number, n: AudioScheduledSourceNode[]): number {
+  private synth(cat: SfxCat, out: AudioNode, t: number, n: AudioScheduledSourceNode[], fills = 4): number {
     switch (cat) {
       case "mg": {
-        const shots = 3 + Math.floor(Math.random() * 3);
-        for (let i = 0; i < shots; i++) this.chain(this.noiseSrc(t + i * 0.045, 0.04, n), out, this.filt("bandpass", 1800 + Math.random() * 600, 1.2), this.env(t + i * 0.045, 0.002, 0.35, 0.04));
-        return shots * 0.045 + 0.05;
+        // deck machine-gun burst: one crack per fill (capped)
+        const shots = Math.max(2, Math.min(10, fills));
+        const gap = 0.055;
+        for (let i = 0; i < shots; i++) {
+          const ti = t + i * gap + Math.random() * 0.008;
+          this.chain(this.noiseSrc(ti, 0.05, n), out, this.filt("bandpass", 1400 + Math.random() * 900, 1.1), this.env(ti, 0.001, 0.7, 0.05));
+          this.chain(this.noiseSrc(ti, 0.08, n), out, this.filt("lowpass", 500), this.env(ti, 0.001, 0.5, 0.08));
+        }
+        return shots * gap + 0.08;
       }
       case "gun":
-        this.boom(t, out, n, 90, 0.45, 1100, 0.7);
-        return 0.5;
+        // deck gun: sharp crack + low thump + short tail
+        this.chain(this.noiseSrc(t, 0.08, n), out, this.filt("bandpass", 2200, 0.9), this.env(t, 0.001, 0.9, 0.08));
+        this.boom(t, out, n, 110, 0.55, 1600, 0.85);
+        return 0.6;
       case "torpedo":
-        this.chain(this.noiseSrc(t, 0.35, n), out, this.filt("highpass", 1200), this.env(t, 0.02, 0.25, 0.35));
-        this.boom(t + 0.45, out, n, 45, 1.1, 220, 1);
+        // launch: filtered noise sweep, then a muffled underwater boom
+        {
+          const src = this.noiseSrc(t, 0.45, n);
+          const f = this.filt("bandpass", 600, 1.5);
+          f.frequency.setValueAtTime(400, t);
+          f.frequency.exponentialRampToValueAtTime(3000, t + 0.4);
+          this.chain(src, out, f, this.env(t, 0.03, 0.55, 0.45));
+          this.chain(this.osc("sine", 180, 60, t, 0.15, n), out, this.env(t, 0.002, 0.5, 0.15));
+        }
+        this.boom(t + 0.45, out, n, 55, 1.1, 320, 1);
+        this.chain(this.noiseSrc(t + 0.45, 0.6, n), out, this.filt("bandpass", 500, 0.7), this.env(t + 0.45, 0.01, 0.5, 0.6));
         return 1.6;
       case "broadside":
-        for (let i = 0; i < 4; i++) this.boom(t + i * 0.07, out, n, 60 - i * 5, 0.9, 700, 0.8);
-        this.chain(this.osc("sine", 38, 28, t, 2.2, n), out, this.env(t, 0.05, 0.8, 2.2));
+        for (let i = 0; i < 5; i++) {
+          const ti = t + i * 0.06;
+          this.chain(this.noiseSrc(ti, 0.1, n), out, this.filt("bandpass", 1600, 0.8), this.env(ti, 0.001, 0.9, 0.1));
+          this.boom(ti, out, n, 65 - i * 5, 0.9, 1200, 0.85);
+        }
+        this.chain(this.osc("sine", 40, 28, t, 2.2, n), out, this.env(t, 0.05, 0.8, 2.2));
+        this.chain(this.noiseSrc(t + 0.2, 2, n), out, this.filt("lowpass", 400), this.env(t + 0.2, 0.2, 0.5, 2));
         return 2.3;
       case "fighter": {
         const o = this.osc("sawtooth", 520, 210, t, 1.6, n);

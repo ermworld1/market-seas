@@ -6,4 +6,5 @@
 - [x] v2 Phase C: header/filters, guide, action tape, ticker, legend, tour, guards, ?debug=1, /stats.
 - [x] v2 Phase D: Web Audio engine + procedural sfx/music/radio with slots, auto-clips.
 - [x] v2 verification at 1440 and 390 with live BTCUSDT.
+- [x] v3: bullet sounds, ambient action, radio voices.
 - [ ] Real-device frame-rate check (needs a real phone/laptop GPU).

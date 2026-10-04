@@ -7,7 +7,7 @@ import { tracersFor } from "@/lib/market/rules";
 import { audio, panX } from "@/lib/audio/engine";
 import { useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
-import { GAP, DEPTH, type Display, sideSign, view, xFor, zFor } from "./layout";
+import { fireStats, GAP, DEPTH, type Display, sideSign, view, xFor, zFor } from "./layout";
 import { makeFighterGeometry } from "./fighter";
 
 const MAX_PROJ = 2400;
@@ -32,6 +32,8 @@ interface Plane {
 }
 
 const dummy = new THREE.Object3D();
+const beamGeo = new THREE.CylinderGeometry(0.04, 0.8, 22, 12, 1, true).translate(0, 11, 0);
+const beamMat = new THREE.MeshBasicMaterial({ color: "#fff3cf", transparent: true, opacity: 0.03, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const COLORS = {
@@ -94,6 +96,7 @@ export function Effects() {
     [],
   );
   const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const lightRefs = useRef<(THREE.Mesh | null)[]>([]);
   const shot = useRef(0);
   const cursor = useRef(0);
 
@@ -174,14 +177,24 @@ export function Effects() {
     for (let i = 0; i < n; i++)
       spawn({ ...base, weapon: "mg", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.35, ty, tz: tz + (Math.random() - 0.5) * 0.35, dur: 0.14 + i * 0.012, arc: 0.12, size: 0.03, len: 0.45 });
     engineRef.current && (engineRef.current.tracersSpawned += n);
-    if (ev.weapon === "mg") audio.play("mg", pan);
-    else if (ev.weapon === "gun") {
+    // near miss: trade printed in a bucket with no ship → splash where it landed
+    if (!view.displays.get(ev.target + ev.b)) splash(xFor(ev.b), zFor(ev.target, ev.price), 0.35);
+    const now = performance.now();
+    if (fireStats.last) fireStats.maxGap = Math.max(fireStats.maxGap, now - fireStats.last);
+    fireStats.last = now;
+    if (ev.weapon === "mg") {
+      flash(mx, my, mz, 0.3, "#ffe08a"); // muzzle flash on the taker fleet
+      audio.play("mg", { ...pan, shots: n });
+    } else if (ev.weapon === "gun") {
       flash(mx, my, mz, 0.55);
       for (let i = 0; i < 2; i++) spawn({ ...base, weapon: "gun", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.4, ty, tz, dur: 0.32 + i * 0.05, arc: 1.4, size: 0.06, len: 0.3 });
       audio.play("gun", pan);
     } else if (ev.weapon === "torpedo") {
+      flash(mx, my, mz, 0.6);
+      fx.shake = Math.min(1.2, fx.shake + 0.35);
       spawn({ ...base, weapon: "torpedo", fx: mx, fy: 0.01, fz: mz, tx, ty: 0.01, tz, dur: 0.45, size: 0.05, len: 0.5 });
       audio.play("torpedo", pan);
+      audio.torpedoVoice();
     } else {
       fx.shake = Math.min(1.2, fx.shake + 0.8);
       const s = shooter?.s ?? 1;
@@ -296,12 +309,22 @@ export function Effects() {
     }
     pools.glow.update(dt);
     pools.smoke.update(dt);
+    // searchlights sweeping the night sky from the rear of each fleet
+    lightRefs.current.forEach((l, i) => {
+      if (!l) return;
+      const side = i < 2 ? -1 : 1;
+      l.position.set(view.offsetX + (i % 2 ? 1 : -1) * view.halfW * 0.55, 0, side * (GAP + DEPTH + 1));
+      l.rotation.set(side * -0.5 + Math.sin(view.time * 0.23 + i * 1.7) * 0.25, 0, Math.sin(view.time * 0.31 + i * 2.3) * 0.6);
+    });
   });
 
   return (
     <group>
       <primitive object={pools.smoke.points} />
       <primitive object={pools.glow.points} />
+      {[0, 1, 2, 3].map((i) => (
+        <mesh key={"sl" + i} ref={(r) => { lightRefs.current[i] = r; }} geometry={beamGeo} material={beamMat} frustumCulled={false} />
+      ))}
       <instancedMesh ref={projMesh} args={[projGeo, projMat, MAX_PROJ]} frustumCulled={false} />
       {planes.map((p, i) => (
         <mesh
