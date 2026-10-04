@@ -12,7 +12,7 @@ import { canNarrateRelocate, lessonForEvent, lessonText, selectShot, tapeEligibl
 import { makeLadder } from "./LivePanels";
 import { settleMine, submitPrediction } from "@/lib/market/community.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { line, navyPriceParts, navySizeParts, phrase, type FleetCallsign, type VoiceChain, type VoiceChannel } from "@/lib/audio/navalVoice";
+import { line, lineOn, navyPriceParts, navySizeParts, phrase, type FleetCallsign, type VoiceChain, type VoiceChannel } from "@/lib/audio/navalVoice";
 
 export const RADIO: Record<string, string[]> = {
   P1: ["All quiet on the line. Hold position."],
@@ -77,6 +77,10 @@ function radio(key: string, detail?: string, afterQuietSeconds = 0) {
   if (key !== "P1") void audio.voice(key, text); // P1 is subtitle-only
 }
 const callsign = (side: BookSide): FleetCallsign => side === "bid" ? "Bull Fleet" : "Bear Fleet";
+const attackFleet = (taker: "buy" | "sell"): FleetCallsign => taker === "buy" ? "Bull Fleet" : "Bear Fleet";
+const commenceClip = (fleet: FleetCallsign) => fleet === "Bull Fleet" ? "bull_cap_callsign_commence" : "bear_cap_commence";
+const aaClip = (fleet: FleetCallsign) => fleet === "Bull Fleet" ? "bull_cap_aa" : "bear_cap_aa";
+const abandonClip = (fleet: FleetCallsign) => fleet === "Bull Fleet" ? "bull_cap_abandon" : "bear_cap_abandon";
 function naval(id: string, priority: number, channel: VoiceChannel, fleet: FleetCallsign | undefined, detail: string, lines: VoiceChain["lines"]) {
   const chain: VoiceChain = { id: `${id}:${Date.now()}`, priority, channel, lines, ...(fleet ? { fleet } : {}), detail };
   const speaker = lines[0]?.role === "Captain" ? "captain" : fleet === "Bear Fleet" ? "admiral" : "spotter";
@@ -84,11 +88,13 @@ function naval(id: string, priority: number, channel: VoiceChannel, fleet: Fleet
   audio.enqueueVoiceChain(chain);
 }
 function orderReadout(ev: Extract<BattleEvent, { type: "fire" }>, targetTier?: string) {
-  const fleet = callsign(ev.target);
+  const fleet = attackFleet(ev.taker);
+  const tier = targetTier === "cruiser" ? "cruiser" : targetTier === "frigate" ? "frigate" : "flagship";
   naval("flagship-target", 80, "phone", fleet, `${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [
-    line("Fire Control", phrase("fire_control_enemy_flagship_range", `Enemy ${targetTier ?? "ship"}, range`), ...navyPriceParts(ev.price), ...navySizeParts(ev.notional)),
-    line("Captain", phrase("captain_commence_firing", "Commence firing")),
-    line("Gunnery Officer", phrase("gunnery_firing", "Firing")),
+    lineOn("phone", "Fire Control", phrase(`fc_${tier}_range`, `Enemy ${tier}, range`), ...navyPriceParts(ev.price), ...navySizeParts(ev.notional)),
+    lineOn("tbs", "Captain", phrase(commenceClip(fleet), `${fleet}, commence firing`)),
+    lineOn("phone", "Gunnery Officer", phrase("gun_firing", "Firing")),
+    lineOn("tbs", "Lookout/Spotter", phrase("spot_hithit", "Hit! Hit!")),
   ]);
 }
 /** cumulative damage per flagship, announced each time another 25 % of its peak size is traded */
@@ -99,9 +105,21 @@ export function radioCheck() {
   audio.radioCheck();
   audio.openingAdvance();
   naval("battle-start", 100, "1mc", "Bull Fleet", "Opening fleet advance", [
-    line("1MC", phrase("1mc_general_quarters", "General quarters, all hands man your battle stations")),
-    line("Captain", phrase("captain_set_condition_zebra", "Set condition Zebra")),
+    lineOn("1mc", "1MC", phrase("legacy:cap_stations", "Battle stations! All hands to battle stations!")),
+    lineOn("phone", "Captain", phrase("bull_cap_zebra", "Set condition Zebra")),
   ]);
+}
+
+/** Debug-only audit: three current market prices traverse the same clip/channel path as live fire. */
+export function verifyNavalReadouts(prices: number[], notionals: number[]) {
+  prices.slice(0, 3).forEach((price, i) => {
+    const notional = notionals[i] ?? 250_000;
+    const fleet: FleetCallsign = i % 2 ? "Bear Fleet" : "Bull Fleet";
+    const tier = (["flagship", "cruiser", "frigate"] as const)[i] ?? "flagship";
+    naval(`readout-audit-${i + 1}`, 70 - i, "phone", fleet, `${usd(notional)} at ${fmtPrice(price)}`, [
+      line("Fire Control", phrase(`fc_${tier}_range`, `Enemy ${tier}, range`), ...navyPriceParts(price), ...navySizeParts(notional)),
+    ]);
+  });
 }
 
 export function triggerClip(title: string) {
@@ -135,7 +153,7 @@ function onEvent(ev: BattleEvent) {
       const sideName = ev.target === "bid" ? "Buyers'" : "Sellers'";
       const detail = `${usd(ev.notional)} ${ev.taker} order ${target ? `hit the ${sideName} ${target.tier}` : "splashed between levels"} at ${fmtPrice(ev.price)}`;
       radio(target ? "spot_hit" : "spot_splash", detail);
-      naval(target ? "hit" : "splash", 45, "tbs", callsign(ev.target), detail, [line("Lookout/Spotter", phrase(target ? "spotter_hit" : "spotter_splash_short_up_two_hundred", target ? "Hit! Hit!" : "Splash, short. Up two hundred"))]);
+      naval(target ? "hit" : "splash", 45, "tbs", callsign(ev.target), detail, [line("Lookout/Spotter", phrase(target ? "spot_hithit" : "spot_over", target ? "Hit! Hit!" : "Over! Down two hundred"))]);
       break;
     }
     case "order":
@@ -145,7 +163,7 @@ function onEvent(ev: BattleEvent) {
     case "fighter":
       radio("spot_aircraft", `${ev.formation} aircraft launched by ${usd(ev.notional)} of ${ev.taker} orders across ${ev.buckets.length} price levels`, 30);
       pushTape("FIGHTER", `${ev.formation}-FIGHTER wave · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows${ev.queuedOrders > 1 ? ` · ${ev.queuedOrders} orders queued` : ""}`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
-      naval("fighter", 75, "tbs", callsign(ev.target), `${ev.formation} aircraft · ${usd(ev.notional)}`, [line("Radar/CIC", phrase("radar_bogeys_inbound_angels_two", "Bogeys inbound, angels two")), line("Captain", phrase("captain_aa_batteries_open_fire", "AA batteries, open fire"))]);
+      naval("fighter", 75, "phone", callsign(ev.target), `${ev.formation} aircraft · ${usd(ev.notional)}`, [lineOn("phone", "Radar/CIC", phrase("radar_bogeys", "Bogeys inbound, angels two")), lineOn("tbs", "Captain", phrase(aaClip(callsign(ev.target)), `${callsign(ev.target)}, AA batteries, open fire`))]);
       break;
     case "sink":
       pushTape("SUNK", `SUNK ${fleet} ${ev.tier} ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, side === "bid" ? "buy" : "sell", ev.notional);
@@ -159,7 +177,7 @@ function onEvent(ev: BattleEvent) {
         callout(`${fleet.toUpperCase()}' FLAGSHIP SUNK`, side === "bid" ? "sell" : "buy", true);
         radio("spot_breaking", `${fleet}' flagship at ${fmtPrice(ev.price)} was fully traded`);
         triggerClip(`${fleet}' flagship sunk`);
-        naval("flagship-sunk", 95, "tbs", callsign(ev.side), `${fleet} flagship at ${fmtPrice(ev.price)}`, [line("Lookout/Spotter", phrase("lookout_shes_going_under", "She's going under")), line("Captain", phrase("captain_abandon_ship", "Abandon ship"))]);
+        naval("flagship-sunk", 95, "tbs", callsign(ev.side), `${fleet} flagship at ${fmtPrice(ev.price)}`, [lineOn("tbs", "Lookout/Spotter", phrase("spot_goingunder", "She's going under")), lineOn("tbs", "Captain", phrase(abandonClip(callsign(ev.side)), `${callsign(ev.side)}, abandon ship`))]);
       } else radio("spot_breaking", `${fleet}' ${ev.tier} worth ${usd(ev.notional)} sank at ${fmtPrice(ev.price)}`);
       break;
     case "dive":
@@ -176,7 +194,7 @@ function onEvent(ev: BattleEvent) {
       const f = engineRef.current?.flagship(side);
       const d = view.displays.get(side + ev.b);
       const damageKey = `${side}:${ev.b}`;
-      if (d && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); const detail = `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`; radio("spot_fire", detail); naval("damage", 60, "phone", callsign(ev.side), detail, [line("Damage Control", phrase("damage_fire_main_deck_frame_forty", "Fire on the main deck, frame forty"))]); }
+      if (d && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); const detail = `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`; radio("spot_fire", detail); naval("damage", 60, "phone", callsign(ev.side), detail, [line("Damage Control", phrase("dc_fire_frame40", "Fire on the main deck, frame forty"))]); }
       if (!f || f.b !== ev.b) break;
       const h = flagHits[side]?.b === ev.b ? flagHits[side]! : (flagHits[side] = { b: ev.b, dmg: 0, told: 0 });
       h.dmg += ev.filled;
@@ -187,11 +205,11 @@ function onEvent(ev: BattleEvent) {
     case "pulled":
       if (side) damageCalled.delete(`${side}:${ev.b}`);
       flagEvents.push(ev);
-      if (side && ev.notional >= 1_000_000) naval("contact-lost", 55, "phone", callsign(side), `${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [line("Sonar", phrase("sonar_contact_diving_contact_lost", "Contact diving, contact lost"))]);
+      if (side && ev.notional >= 1_000_000) naval("contact-lost", 55, "phone", callsign(side), `${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [line("Sonar", phrase("sonar_diving", "Contact diving, contact lost"))]);
       break;
     case "relocate":
       if (ev.notional >= 1_000_000) radio("spot_sonar", `${fleet}' ${usd(ev.notional)} order relocated from ${fmtPrice(ev.fromPrice)} to ${fmtPrice(ev.price)}`);
-      if (ev.notional >= 1_000_000) naval("contact-resurface", 58, "phone", callsign(ev.side), `${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, [line("Sonar", phrase("sonar_contact_resurfacing_bearing", "Contact resurfacing, bearing"), ...navyPriceParts(ev.price))]);
+      if (ev.notional >= 1_000_000) naval("contact-resurface", 58, "phone", callsign(ev.side), `${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, [line("Sonar", phrase("sonar_resurfacing_bearing", "Contact resurfacing, bearing"), ...navyPriceParts(ev.price))]);
       if (canNarrateRelocate(Date.now(), lastRelocateTape)) { lastRelocateTape = Date.now(); pushTape("RELOCATE", `${fleet}' ${usd(ev.notional)} surfaced ${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, "sub", ev.notional); }
       break;
     case "hidden":
@@ -208,7 +226,7 @@ function onEvent(ev: BattleEvent) {
       pushTape("AIR STRIKE", `AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, "liq", ev.notional);
       callout(`AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)}`, "liq");
       radio("spot_aircraft", `${usd(ev.notional)} ${what.toLowerCase()} liquidation struck at ${fmtPrice(ev.price)}`);
-      naval("liquidation", 85, "tbs", ev.liquidated === "longs" ? "Bull Fleet" : "Bear Fleet", `${what} ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [line("Lookout/Spotter", phrase("lookout_bombers_overhead", "Bombers overhead"))]);
+      naval("liquidation", 85, "tbs", ev.liquidated === "longs" ? "Bull Fleet" : "Bear Fleet", `${what} ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [line("Lookout/Spotter", phrase("spot_bombers", "Bombers overhead"))]);
       break;
     }
     case "phase":
@@ -222,8 +240,8 @@ function onEvent(ev: BattleEvent) {
         const key = phaseLine[ev.phase];
         if (key) radio(key);
       }
-      if (ev.phase === "P5") naval("cascade", 90, "1mc", undefined, "Liquidation cascade", [line("1MC", phrase("1mc_brace_for_impact", "Brace for impact")), line("Damage Control", phrase("damage_flooding_counter_flood", "Flooding! Counter-flood"))]);
-      if (ev.phase === "P7") naval("battle-end", 88, "tbs", undefined, "Battle end", [line("Captain", phrase("captain_cease_fire_secure_gq", "Cease fire. Secure from general quarters"))]);
+      if (ev.phase === "P5") naval("cascade", 90, "1mc", undefined, "Liquidation cascade", [lineOn("1mc", "1MC", phrase("mc1_brace", "Brace for impact! Brace for impact!")), lineOn("phone", "Damage Control", phrase("dc_flooding", "Flooding! Counter-flood starboard!"))]);
+      if (ev.phase === "P7") naval("battle-end", 88, "tbs", "Bull Fleet", "Battle end", [line("Captain", phrase("bull_cap_ceasefire", "Cease fire. Secure from general quarters"))]);
       if (ev.phase === "P5") triggerClip("Liquidation cascade");
       break;
   }
