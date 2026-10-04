@@ -60,9 +60,19 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-bull: var(--bull);
+  --color-bn-bg: var(--bn-bg);
+  --color-bn-hover: var(--bn-hover);
+  --color-bn-line: var(--bn-line);
+  --color-bn-text: var(--bn-text);
+  --color-bn-muted: var(--bn-muted);
   --color-bull-foreground: var(--bull-foreground);
   --color-bear: var(--bear);
   --color-bear-foreground: var(--bear-foreground);
+  --bn-bg: #181a20;
+  --bn-hover: #2b3139;
+  --bn-line: #2b3139;
+  --bn-text: #eaecef;
+  --bn-muted: #848e9c;
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
@@ -76,7 +86,7 @@
 
 :root {
   --radius: 0.5rem;
-  /* naval night: ink-teal sea, brass bulls, signal-red bears */
+  /* naval night: ink-teal sea, Binance green buyers, Binance red sellers */
   --background: oklch(0.17 0.03 230);
   --foreground: oklch(0.95 0.015 90);
   --card: oklch(0.2 0.03 230 / 0.72);
@@ -96,9 +106,9 @@
   --border: oklch(0.9 0.04 85 / 0.16);
   --input: oklch(0.9 0.04 85 / 0.2);
   --ring: oklch(0.8 0.14 82);
-  --bull: oklch(0.82 0.15 82);
-  --bull-foreground: oklch(0.2 0.04 70);
-  --bear: oklch(0.63 0.21 25);
+  --bull: #0ecb81;
+  --bull-foreground: #04150e;
+  --bear: #f6465d;
   --bear-foreground: oklch(0.98 0.01 25);
   --warn: oklch(0.86 0.17 95);
   --danger: oklch(0.64 0.23 25);
@@ -237,3 +247,5 @@
 @keyframes lesson-pulse { 0%,100% { box-shadow: 0 0 0 1px var(--primary); } 50% { box-shadow: 0 0 36px 10px var(--primary); } }
 @media (prefers-reduced-motion: reduce) { .cinema-grade::after, .lesson-spotlight { animation: none; } }
 .lesson-ring { box-shadow: 0 0 0 9999px color-mix(in oklab, var(--background) 45%, transparent), 0 0 24px var(--primary); animation: lesson-pulse 1s ease-out infinite; }
+
+.bn-book { background: var(--bn-bg); color: var(--bn-text); }

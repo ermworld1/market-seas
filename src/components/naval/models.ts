@@ -120,24 +120,9 @@ export function preloadModels() {
   for (const url of Object.values(MODELS)) useGLTF.preload(url);
 }
 
+/** Saturated Binance side colours on the hull itself (Buyers green, Sellers red). */
 export function makeFleetMaterial(side: "buyers" | "sellers", trim = false) {
-  if (trim)
-    return side === "buyers"
-      ? new THREE.MeshStandardMaterial({ color: new THREE.Color(0.5, 0.36, 0.12), metalness: 0.6, roughness: 0.4, emissive: new THREE.Color(0.1, 0.35, 0.3), emissiveIntensity: 0.4 })
-      : new THREE.MeshStandardMaterial({ color: new THREE.Color(0.22, 0.24, 0.27), metalness: 0.7, roughness: 0.45, emissive: new THREE.Color(0.45, 0.2, 0.02), emissiveIntensity: 0.35 });
-  return side === "buyers"
-    ? new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0.62, 0.42, 0.1),
-        metalness: 0.6,
-        roughness: 0.4,
-        emissive: new THREE.Color(0.35, 0.18, 0.02),
-        emissiveIntensity: 0.35,
-      })
-    : new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0.16, 0.17, 0.19),
-        metalness: 0.7,
-        roughness: 0.45,
-        emissive: new THREE.Color(0.5, 0.03, 0.02),
-        emissiveIntensity: 0.3,
-      });
+  const base = new THREE.Color(side === "buyers" ? "#0ecb81" : "#f6465d").convertSRGBToLinear();
+  const color = trim ? base.clone().lerp(new THREE.Color(1, 1, 1), 0.25) : base.clone().multiplyScalar(0.85);
+  return new THREE.MeshStandardMaterial({ color, metalness: 0.35, roughness: 0.5, emissive: base, emissiveIntensity: trim ? 0.32 : 0.22 });
 }

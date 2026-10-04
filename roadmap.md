@@ -24,3 +24,11 @@
 - [x] How to read panel by default (desktop) + phone chip; raw Binance book with grouping and 15s REST sync check
 - [x] Layered randomized gunfire, ambience bed, siren, radio chatter, more radio triggers, thin tracer streaks, P5 director lock
 - [x] 5-min live runs at 1440 and 390: 0 book mismatches, trades rx = viz, active fire gap < 0.1s, P5 held
+
+## v8
+- [ ] A real CC0/commercial sfx files per category + LICENSES.md
+- [ ] B "?" opens How it works panel (+ Replay tour)
+- [ ] C Binance-style order book widget
+- [ ] D green/red sides everywhere
+- [ ] E unit legend/guide/tour from one shared config + real renders
+- [ ] F full QA checklist

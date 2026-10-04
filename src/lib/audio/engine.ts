@@ -1,9 +1,10 @@
 import type { Phase } from "@/lib/battle/phase";
+import { BANK, CAT_FOLDER, bankUrls, type BankFolder } from "./bank";
 
 /**
  * Web Audio engine: one master gain, per-category buses, stereo panning by
- * screen x, max 8 simultaneous one-shots with priority. Every category has a
- * sample slot (/sfx/<category>.mp3); missing files fall back to procedural synths.
+ * screen x, max 8 simultaneous one-shots with priority. Recorded CC0 files
+ * live in /sfx/<folder>/<n>.mp3 (see bank.ts); missing files fall back to procedural synths.
  */
 export type SfxCat = "mg" | "gun" | "torpedo" | "broadside" | "fighter" | "dive" | "fled" | "surface" | "sink" | "reinforce" | "liquidation" | "cascade" | "hit";
 export const SFX: SfxCat[] = ["mg", "gun", "torpedo", "broadside", "fighter", "dive", "fled", "surface", "sink", "reinforce", "liquidation", "cascade", "hit"];
@@ -52,6 +53,7 @@ class AudioEngine {
   private reverb: ConvolverNode | null = null;
   private ambTimer: ReturnType<typeof setInterval> | null = null;
   private siren: { stop: () => void } | null = null;
+  private battleBed: { s: AudioBufferSourceNode; g: GainNode } | null = null;
   private pending: { key: string; text: string; at: number } | null = null;
   private radioChecked = false;
   private lastVoiceAt = -1e9;
@@ -129,7 +131,8 @@ class AudioEngine {
         this.samples.set(key, null);
       }
     };
-    await Promise.all([...SFX.map((c) => load(c, `/sfx/${c}.mp3`)), ...LAYERS.map((l) => load("music:" + l, `/music/${l}.mp3`))]);
+    await Promise.all([
+      ...(Object.keys(BANK) as BankFolder[]).flatMap((f) => bankUrls(f).map((u, i) => load(`${f}/${i + 1}`, u))), ...LAYERS.map((l) => load("music:" + l, `/music/${l}.mp3`))]);
     // swap procedural layers for stems when present
     for (const l of LAYERS) {
       const buf = this.samples.get("music:" + l);
@@ -186,8 +189,10 @@ class AudioEngine {
       this.voices[low]!.stop();
       this.voices.splice(low, 1);
     }
-    let v = Math.floor(Math.random() * VARIANTS);
-    if (v === this.lastVariant[cat]) v = (v + 1 + Math.floor(Math.random() * (VARIANTS - 1))) % VARIANTS;
+    const bufs = this.bank(CAT_FOLDER[cat]);
+    const nv = bufs.length || VARIANTS;
+    let v = Math.floor(Math.random() * nv);
+    if (nv > 1 && v === this.lastVariant[cat]) v = (v + 1 + Math.floor(Math.random() * (nv - 1))) % nv;
     this.lastVariant[cat] = v;
     const seen = (this.variants[cat] ??= []);
     if (!seen.includes(v)) seen.push(v);
@@ -208,9 +213,12 @@ class AudioEngine {
       pan.connect(send).connect(this.reverb);
     }
     const nodes: AudioScheduledSourceNode[] = [];
-    const buf = this.samples.get(cat);
+    const buf = bufs[v] ?? null;
     let dur: number;
     if (buf) {
+      this.recorded[cat] = (this.recorded[cat] ?? 0) + 1;
+      if (cat === "mg") this.oneShot("casing", now + buf.duration / pitch + 0.08, out, nodes, 0.35);
+      if (cat === "liquidation") this.synth("liquidation", out, now, nodes, 1, v, pitch); // keep the dive whistle
       const s = ctx.createBufferSource();
       s.buffer = buf;
       s.playbackRate.value = pitch;
@@ -233,6 +241,34 @@ class AudioEngine {
   }
 
   /** Shots from merged volleys are still counted (the frame already plays several bursts). */
+  /** recorded files counted per category (sample vs synth). */
+  recorded: Record<string, number> = {};
+  private bank(f: BankFolder | undefined): AudioBuffer[] {
+    if (!f) return [];
+    const out: AudioBuffer[] = [];
+    for (let i = 1; i <= BANK[f]; i++) { const b = this.samples.get(`${f}/${i}`); if (b) out.push(b); }
+    return out;
+  }
+  /** Plays a random file from a folder into a node; returns false when the folder has no files. */
+  private oneShot(f: BankFolder, t: number, out: AudioNode, nodes: AudioScheduledSourceNode[], gain = 1, rate = 1): boolean {
+    const bufs = this.bank(f);
+    if (!bufs.length || !this.ctx) return false;
+    const s = this.ctx.createBufferSource();
+    s.buffer = bufs[Math.floor(Math.random() * bufs.length)]!;
+    s.playbackRate.value = rate * (0.92 + Math.random() * 0.16);
+    const g = this.ctx.createGain(); g.gain.value = gain;
+    s.connect(g).connect(out); s.start(t); nodes.push(s);
+    return true;
+  }
+  /** Looping bed from a folder; returns a stopper or null when missing. */
+  private bed(f: BankFolder, out: AudioNode, gain: number) {
+    const b = this.bank(f)[0];
+    if (!b || !this.ctx) return null;
+    const s = this.ctx.createBufferSource(); s.buffer = b; s.loop = true;
+    const g = this.ctx.createGain(); g.gain.value = gain;
+    s.connect(g).connect(out); s.start();
+    return { s, g };
+  }
   mergeShots(n: number) {
     this.byCat["mg"] = (this.byCat["mg"] ?? 0) + 1;
     this.merged += n;
@@ -541,10 +577,13 @@ class AudioEngine {
     const ctx = this.ctx!;
     const amb = this.buses["amb"]!;
     const keep: AudioScheduledSourceNode[] = [];
-    // sea wind + waves bed (always present)
+    // recorded beds when available: sea + distant battle (its gain follows intensity)
+    const recWaves = this.bed("waves", amb, 0.5);
+    this.battleBed = this.bed("battle", amb, 0.05);
+    // sea wind + waves bed (procedural fallback, kept quiet under the recording)
     const waves = this.noiseSrc(ctx.currentTime, 1e6, keep);
     const wg = ctx.createGain();
-    wg.gain.value = 0.16;
+    wg.gain.value = recWaves ? 0.05 : 0.16;
     const lfo = ctx.createOscillator();
     lfo.frequency.value = 0.09;
     const lg = ctx.createGain();
@@ -570,32 +609,38 @@ class AudioEngine {
       const k = this.intensity;
       const step = 0.2;
       const n: AudioScheduledSourceNode[] = [];
+      if (this.battleBed) this.battleBed.g.gain.setTargetAtTime(0.05 + 0.4 * k, t, 1.5);
       // far-off AA flak pops
       if (Math.random() < step * (0.6 + 4 * k)) {
         this.ambience.pops++;
         const g = c.createStereoPanner(); g.pan.value = Math.random() * 2 - 1; g.connect(amb);
-        this.chain(this.noiseSrc(t, 0.12, n), g, this.filt("bandpass", 500 + Math.random() * 700, 1.2), this.filt("lowpass", 1400), this.env(t, 0.002, 0.18 + 0.2 * k, 0.12));
+        const far = this.filt("lowpass", 1600 + Math.random() * 1500); far.connect(g);
+        if (!this.oneShot("flak", t, far, n, 0.25 + 0.3 * k)) this.chain(this.noiseSrc(t, 0.12, n), g, this.filt("bandpass", 500 + Math.random() * 700, 1.2), this.filt("lowpass", 1400), this.env(t, 0.002, 0.18 + 0.2 * k, 0.12));
         if (this.reverb) g.connect(this.reverb);
       }
       // distant explosions
       if (Math.random() < step * (0.12 + 0.7 * k)) {
         this.ambience.booms++;
         const g = c.createStereoPanner(); g.pan.value = Math.random() * 2 - 1; g.connect(amb);
-        this.boom(t, g, n, 35 + Math.random() * 25, 1.6, 220 + Math.random() * 200, 0.35 + 0.3 * k);
+        const far = this.filt("lowpass", 500 + Math.random() * 400); far.connect(g);
+        if (!this.oneShot("explosion", t, far, n, 0.35 + 0.35 * k, 0.8)) this.boom(t, g, n, 35 + Math.random() * 25, 1.6, 220 + Math.random() * 200, 0.35 + 0.3 * k);
         if (this.reverb) g.connect(this.reverb);
       }
       // ship horns (rare)
       if (Math.random() < step / 35) {
         this.ambience.horns++;
         const f = 80 + Math.random() * 40;
-        for (const m of [1, 1.5]) this.chain(this.osc("sawtooth", f * m, f * m * 0.99, t, 2.2, n), amb, this.filt("lowpass", 380), this.env(t, 0.25, 0.07, 2.2));
+        const hp = c.createStereoPanner(); hp.pan.value = Math.random() * 1.6 - 0.8; hp.connect(amb);
+        const hf = this.filt("lowpass", 1200); hf.connect(hp);
+        if (!this.oneShot("horn", t, hf, n, 0.3)) for (const m of [1, 1.5]) this.chain(this.osc("sawtooth", f * m, f * m * 0.99, t, 2.2, n), amb, this.filt("lowpass", 380), this.env(t, 0.25, 0.07, 2.2));
       }
       // radio chatter: short filtered murmurs and beeps
       if (t >= nextChatter && t >= this.voBusyUntil) {
         this.ambience.chatter++;
         nextChatter = t + 3 + Math.random() * 5;
         const ch = this.buses["chatter"]!;
-        if (Math.random() < 0.35) this.chain(this.osc("sine", 1000 + Math.random() * 400, 1000, t, 0.08, n), ch, this.env(t, 0.003, 0.05, 0.08));
+        if (Math.random() < 0.3 && this.oneShot("radio", t, ch, n, 0.18)) { /* recorded static/beeps */ }
+        else if (Math.random() < 0.35) this.chain(this.osc("sine", 1000 + Math.random() * 400, 1000, t, 0.08, n), ch, this.env(t, 0.003, 0.05, 0.08));
         else {
           const d = 0.6 + Math.random() * 0.8;
           const src = this.noiseSrc(t, d, n);
@@ -618,6 +663,12 @@ class AudioEngine {
     if (!ctx) return;
     if (!on) { this.siren?.stop(); this.siren = null; return; }
     if (this.siren) return;
+    const rec = this.bed("siren", this.buses["alarms"]!, 0.0001);
+    if (rec) {
+      rec.g.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + 1.5);
+      this.siren = { stop: () => { rec.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.6); rec.s.stop(ctx.currentTime + 3); } };
+      return;
+    }
     const o = ctx.createOscillator();
     o.type = "sawtooth";
     o.frequency.value = 600;

@@ -33,7 +33,7 @@ export function DebugPanel() {
       <div>AudioContext <span id="debug-actx">{audio.state}</span> · enabled {String(audio.enabled)} · max fire gap {(fireStats.maxGap / 1000).toFixed(2)}s</div>
       <div id="debug-gap">gap active {(fireStats.maxGapActive / 1000).toFixed(2)}s · market gap {(fireStats.maxRecvGap / 1000).toFixed(2)}s · max lag {(fireStats.maxLag / 1000).toFixed(2)}s</div>
       <pre id="debug-sfx" className="whitespace-pre-wrap">sfx {JSON.stringify(audio.byCat)}</pre>
-      <pre id="debug-var" className="whitespace-pre-wrap">variants {JSON.stringify(Object.fromEntries(Object.entries(audio.variants).map(([k, v]) => [k, v.length])))} · merged {audio.merged}</pre>
+      <pre id="debug-var" className="whitespace-pre-wrap">variants {JSON.stringify(Object.fromEntries(Object.entries(audio.variants).map(([k, v]) => [k, v.length])))} · recorded {JSON.stringify(audio.recorded)} · merged {audio.merged}</pre>
       <div id="debug-amb">ambience {JSON.stringify(audio.ambience)} · intensity {audio.intensity.toFixed(2)}</div>
       <div id="debug-vo">voice {audio.voPlayed.length}: {audio.voPlayed.join(", ")}</div>
       <pre id="debug-counts" className="mt-1 whitespace-pre-wrap">{JSON.stringify(e?.counts ?? {}, null, 0)}</pre>

@@ -1,3 +1,5 @@
+import { AIRCRAFT, RULES_FACTS, SHIPS, WEAPONS } from "@/lib/battle/units";
+import { HowItWorks, UnitList } from "./Units";
 import { useShallow } from "zustand/react/shallow";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, Crosshair, Download, HelpCircle, Map, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
@@ -113,10 +115,10 @@ function Header({ now }: { now: number }) {
     <header className="hud-panel pointer-events-auto p-2 md:p-2.5" data-tour="header">
       <div className="flex items-center gap-2 md:gap-4">
         <div className="flex min-w-0 shrink items-center gap-2">
-          <h1 className="font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>
+          <h1 className="whitespace-nowrap font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>
           <span className={cn("hud-num flex items-center gap-1 text-[11px]", latTone)} title="Milliseconds since the last market message">
             <span className={cn("inline-block h-2 w-2 rounded-full", status === "live" ? "live-dot bg-ok" : "bg-muted-foreground")} />
-            {status === "live" ? `LIVE · data ${lat}ms` : status === "connecting" ? "connecting" : "offline"}
+            {status === "live" ? <>LIVE<span className="hidden md:inline"> · data {lat}ms</span></> : status === "connecting" ? "connecting" : "offline"}
           </span>
           {hud.partial && <span className="rounded bg-warn/20 px-1 text-[10px] font-semibold uppercase text-warn">partial book</span>}
         </div>
@@ -134,7 +136,7 @@ function Header({ now }: { now: number }) {
               <span className="text-bull">Buyers {scoreboard?.buyers ?? 0}</span> – <span className="text-bear">{scoreboard?.sellers ?? 0} Sellers</span>
             </div>
           </div>
-          <button onClick={() => useBattle.setState({ tourOpen: true })} aria-label="Open the tour" className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
+          <button onClick={() => useBattle.setState({ helpOpen: true })} aria-label="How it works" className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
             <HelpCircle className="h-4 w-4" />
           </button>
           <button onClick={() => { const next = presentation === "cinema" ? "map" : "cinema"; useBattle.setState({ presentation: next }); view.presentation = next; savePrefs(); }} aria-label={`Switch to ${presentation === "cinema" ? "map" : "cinema"} view`} className="flex items-center gap-1 rounded bg-secondary px-2 py-1.5 text-[10px] font-semibold uppercase text-foreground hover:bg-accent">
@@ -285,27 +287,17 @@ const GUIDE = [
   "Every shot is a real trade. The taker fires; the ship at that price is hit and loses the amount filled. A ship that is fully filled sinks and the front line moves.",
   "A big order that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
   "Bombers are liquidations (sampled by Binance: max 1 per second).",
-  "Each battle lasts 5 minutes. Sink the enemy flagship and push the line to win.",
+  `Each battle lasts ${RULES_FACTS.battleMinutes} minutes. Sink the enemy flagship and push the line to win.`,
 ];
 const DETAILS = [
-  "Ships group the full order book into price buckets of 0.01% of the price, within ±1%.",
-  "Tiers by rolling percentile of bucket size: patrol <40%, destroyer 40–70%, frigate 70–90%, cruiser top 10%, battleship = largest bucket per side.",
-  "Shot weapons by trade-size percentile: tracers <60%, deck gun 60–90%, torpedo 90–99%, broadside top 1%. Tracers = number of fills. Fighters: taker orders above the 97th percentile.",
+  `Ships group the full order book into price buckets of ${RULES_FACTS.bucket} of the price, within ±${RULES_FACTS.range}.`,
+  `Tiers by rolling percentile of bucket size: ${SHIPS.map((u) => `${u.name} ${u.rule}`).join("; ")}.`,
+  `Weapons by trade-size rank: ${WEAPONS.map((u) => `${u.name} ${u.rule}`).join("; ")}. Fighter: ${AIRCRAFT[0]!.rule}.`,
   "Inferred events (repair, relocate, hidden) are guesses from book changes; Binance does not publish order identities.",
   "Data: Binance USD-M public streams (diff depth 100ms + REST snapshot, aggTrade, forceOrder, markPrice) and open interest polled every 30s.",
   "Longs/shorts in the banner come from open interest change with price direction, never from the order book.",
 ];
 
-const UNIT_LEGEND: { img: string; name: string; range: string }[] = [
-  { img: "patrol", name: "Patrol boat", range: "smallest 40% of resting orders" },
-  { img: "frigate", name: "Destroyer", range: "40–70%" },
-  { img: "frigate", name: "Frigate", range: "70–90%" },
-  { img: "cruiser", name: "Cruiser", range: "top 10%" },
-  { img: "battleship", name: "Battleship / flagship", range: "largest order per side" },
-  { img: "bomber", name: "Bomber", range: "a real liquidation" },
-  { img: "transport", name: "Convoy", range: "open interest change" },
-  { img: "tanker", name: "Oil tanker", range: "funding rate at the fleet rear" },
-];
 export function HowToRead() {
   const [more, setMore] = useState(false);
   useEffect(() => setMore(localStorage.getItem("nms-more") === "1"), []);
@@ -332,15 +324,8 @@ export function HowToRead() {
         </ul>
       )}
       <h3 className="mt-3 font-display text-xs font-semibold uppercase tracking-widest text-primary">Units</h3>
-      <ul className="mt-1 grid gap-1">
-        {UNIT_LEGEND.map((u) => (
-          <li key={u.name} className="flex items-center gap-2 text-[11px]">
-            <img src={`/legend/${u.img}.png`} alt="" width={80} height={32} className={cn("h-8 w-20 shrink-0 object-contain", u.name === "Destroyer" && "scale-75")} />
-            <span><strong className="text-foreground">{u.name}</strong> <span className="text-muted-foreground">· {u.range}</span></span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-[11px] text-muted-foreground">Gold ships are Buyers (left), steel/red ships are Sellers (right). Weapons by trade size: tracers, deck gun, torpedo, broadside. Full list in the Guide tab.</p>
+      <UnitList items={[...SHIPS, ...WEAPONS, ...AIRCRAFT]} compact />
+      <p className="mt-2 text-[11px] text-muted-foreground"><span className="text-bull">Green ships are Buyers</span> (left), <span className="text-bear">red ships are Sellers</span> (right). Every event is in the Guide tab and the "?" panel.</p>
     </section>
   );
 }
@@ -394,26 +379,18 @@ function Ticker() {
   );
 }
 
-const LEGEND: { tier: string; w: number; range: string }[] = [
-  { tier: "Patrol", w: 10, range: "<40%" },
-  { tier: "Destroyer", w: 13, range: "40–70%" },
-  { tier: "Frigate", w: 16, range: "70–90%" },
-  { tier: "Cruiser", w: 22, range: "top 10%" },
-  { tier: "Battleship", w: 30, range: "largest" },
-];
 function LegendStrip() {
   return (
     <div className="pointer-events-auto flex items-center gap-3 overflow-x-auto px-1 text-[10px] text-foreground/80" data-tour="legend">
-      {LEGEND.map((l) => (
-        <span key={l.tier} className="flex shrink-0 items-center gap-1">
-          <svg width={l.w} height={8} viewBox={`0 0 ${l.w} 8`} aria-hidden>
-            <path d={`M0 4 L3 0 H${l.w - 1} L${l.w} 4 L${l.w - 1} 8 H3 Z`} className="fill-primary/80" />
-          </svg>
-          <span className="font-semibold">{l.tier}</span>
-          <span className="text-muted-foreground">{l.range}</span>
+      {SHIPS.map((u) => (
+        <span key={u.id} className="flex shrink-0 items-center gap-1">
+          <img src={`/legend/${u.icon}-bid.png`} alt="" width={32} height={14} className="h-3.5 w-8 object-contain" />
+          <img src={`/legend/${u.icon}-ask.png`} alt="" width={32} height={14} className="h-3.5 w-8 object-contain" />
+          <span className="font-semibold">{u.name}</span>
+          <span className="text-muted-foreground">{u.rule.replace("smallest ", "<").replace(" of price buckets", "")}</span>
         </span>
       ))}
-      <span className="shrink-0 text-muted-foreground">Buyers left · Sellers right · Bomber = liquidation · Sub = pulled big order</span>
+      <span className="shrink-0 text-muted-foreground"><span className="text-bull">Buyers left</span> · <span className="text-bear">Sellers right</span> · Bomber = liquidation · Sub = pulled big order</span>
     </div>
   );
 }
@@ -691,6 +668,7 @@ export function Hud() {
       <ClipToast />
       <Toast />
       <Guard name="tour"><Tour /></Guard>
+      <Guard name="help"><HowItWorks /></Guard>
       <Guard name="enter"><EnterGate /></Guard>
       <Guard name="debug"><DebugPanel /></Guard>
     </div>

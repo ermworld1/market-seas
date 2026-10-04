@@ -46,7 +46,7 @@ export function Tour() {
   }, [open]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "?" && !(e.target instanceof HTMLInputElement)) useBattle.setState({ tourOpen: true });
+      if (e.key === "?" && !(e.target instanceof HTMLInputElement)) useBattle.setState({ helpOpen: true });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
