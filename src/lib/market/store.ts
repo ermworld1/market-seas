@@ -75,6 +75,7 @@ interface BattleStore {
   statusDetail?: string | undefined;
   hud: HudSnapshot;
   round: Round | null;
+  flagRound: Round | null;
   xp: number;
   streak: number;
   best: number;
@@ -125,6 +126,7 @@ export const useBattle = create<BattleStore>(() => ({
   status: "connecting",
   hud: EMPTY_HUD,
   round: null,
+  flagRound: null,
   xp: 0,
   streak: 0,
   best: 0,
