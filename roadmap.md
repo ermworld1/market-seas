@@ -62,4 +62,6 @@
 - [x] Add staged three-second fleet advance on load and Cinema/Map switches without dropping trade fire
 - [x] Update How to read, Guide, and tour copy for price/time-on-station axes
 - [x] Add three processed voice channels, clip-chain number readouts, prioritized event chains, and naval ship/weapon layers
-- [ ] Verify opening screenshots and forced-audio chain logs — blocked until the supplied role/digit/unit voice files arrive
+- [ ] Install, normalize, and audit supplied naval role/digit/unit voice files
+- [ ] Wire exact supplied clips and fleet-specific Captain lines into live chains
+- [ ] Verify three real-price readouts in a forced-unlocked 60-second chain log
