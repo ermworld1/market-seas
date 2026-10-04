@@ -150,11 +150,17 @@ export function connectFront(
       .then((r: any) => engine.setOI(+r.openInterest, Date.now()))
       .catch(() => {});
   pollOI();
+  // every 15 s cross-check the local book against a fresh Binance REST snapshot
+  const checkTimer = setInterval(() => {
+    if (disposed || partialSocket) return;
+    getJSON(`/fapi/v1/depth?symbol=${engine.symbol}&limit=50`).then((s) => engine.verifyBook(s, Date.now())).catch(() => {});
+  }, 15_000);
   const oiTimer = setInterval(pollOI, 30_000);
 
   return () => {
     disposed = true;
     clearInterval(oiTimer);
+    clearInterval(checkTimer);
     clearInterval(snapTimer);
     ctrl.abort();
     closers.forEach((close) => close());

@@ -36,6 +36,14 @@ const beamGeo = new THREE.CylinderGeometry(0.04, 0.8, 22, 12, 1, true).translate
 const beamMat = new THREE.MeshBasicMaterial({ color: "#fff3cf", transparent: true, opacity: 0.03, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
+const axis = new THREE.Vector3();
+const toCam = new THREE.Vector3();
+const side = new THREE.Vector3();
+const up = new THREE.Vector3();
+const camPos = new THREE.Vector3();
+const mat4 = new THREE.Matrix4();
+let lastHitSound = 0;
+let mgThisFrame = 0;
 const COLORS = {
   mg: new THREE.Color(1.5, 1.1, 0.35),
   gun: new THREE.Color(2.0, 0.95, 0.25),
@@ -85,8 +93,21 @@ export function Effects() {
   const planeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#3d4236", metalness: 0.5, roughness: 0.55 }), []);
   const fighterMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7d8790", metalness: 0.6, roughness: 0.4, flatShading: true }), []);
   const projMesh = useRef<THREE.InstancedMesh>(null);
-  const projGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 5).rotateX(Math.PI / 2), []);
-  const projMat = useMemo(() => new THREE.MeshBasicMaterial({ toneMapped: false }), []);
+  // camera-facing streak: a unit quad in the XZ plane (length along Z), tapered by a soft alpha texture
+  const projGeo = useMemo(() => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), []);
+  const projMat = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 8; c.height = 64;
+    const g = c.getContext("2d")!;
+    const grad = g.createLinearGradient(0, 0, 0, 64);
+    grad.addColorStop(0, "rgba(255,255,255,0)"); grad.addColorStop(0.75, "rgba(255,255,255,1)"); grad.addColorStop(1, "rgba(255,255,255,0.6)");
+    g.fillStyle = grad; g.fillRect(0, 0, 8, 64);
+    const side = g.createLinearGradient(0, 0, 8, 0);
+    side.addColorStop(0, "rgba(0,0,0,1)"); side.addColorStop(0.5, "rgba(0,0,0,0)"); side.addColorStop(1, "rgba(0,0,0,1)");
+    g.globalCompositeOperation = "destination-out"; g.fillStyle = side; g.fillRect(0, 0, 8, 64);
+    const tex = new THREE.CanvasTexture(c);
+    return new THREE.MeshBasicMaterial({ toneMapped: false, map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  }, []);
   const projs = useMemo<Proj[]>(
     () => Array.from({ length: MAX_PROJ }, () => ({ on: false, fx: 0, fy: 0, fz: 0, tx: 0, ty: 0, tz: 0, t: 0, dur: 1, arc: 0, size: 0.05, len: 0.3, color: COLORS.mg, weapon: "mg" as const, target: null })),
     [],
@@ -151,6 +172,8 @@ export function Effects() {
     const d = p.target;
     if (d && !d.departing && Math.random() < 0.9) {
       d.hitFlash = Math.min(1, d.hitFlash + 0.08 + power * 0.3);
+      const tnow = performance.now();
+      if (tnow - lastHitSound > 160 && Math.random() < 0.5) { lastHitSound = tnow; audio.play("hit", { x: panX(p.tx - view.frontX, REAR), gain: 0.5 + power * 0.4 }); }
       flash(p.tx, p.ty + 0.1, p.tz, 0.5 * power + 0.25);
       if (power > 0.5)
         for (let i = 0; i < 5 * power; i++)
@@ -186,7 +209,7 @@ export function Effects() {
     const base = { target };
     if (ev.notional >= 250_000 || ev.weapon === "broadside") view.track = { side: sSide, fx: mx, fz: mz, tx, tz, t0: view.time, dur: ev.weapon === "torpedo" ? 0.45 : 0.35 };
     if (ev.weapon === "broadside") { fx.slowmo = Math.max(fx.slowmo, 0.5); fx.slowScale = 0.4; }
-    const pan = { x: panX(mx - view.frontX, REAR) };
+    const pan = { x: panX(mx - view.frontX, REAR), dist: Math.min(1, Math.abs(mx - view.cameraX) / (REAR * 1.2)) };
     // one tracer per underlying fill (capped at 24)
     const n = tracersFor(ev.fills);
     for (let i = 0; i < n; i++)
@@ -195,11 +218,19 @@ export function Effects() {
     // near miss: trade printed in a bucket with no ship → splash where it landed
     if (!view.displays.get(ev.target + ev.b)) splash(xForPrice(ev.target, ev.price), zForBucket(ev.b), 0.35);
     const now = performance.now();
+    const wall = Date.now();
     if (fireStats.last) fireStats.maxGap = Math.max(fireStats.maxGap, now - fireStats.last);
+    if (fireStats.lastWall) fireStats.maxGapActive = Math.max(fireStats.maxGapActive, wall - Math.max(fireStats.lastWall, ev.t));
+    if (fireStats.recvLast) fireStats.maxRecvGap = Math.max(fireStats.maxRecvGap, ev.t - fireStats.recvLast);
+    fireStats.recvLast = Math.max(fireStats.recvLast, ev.t);
+    fireStats.maxLag = Math.max(fireStats.maxLag, wall - ev.t);
     fireStats.last = now;
+    fireStats.lastWall = wall;
     if (ev.weapon === "mg") {
       flash(mx, my, mz, 0.3, "#ffe08a"); // muzzle flash on the taker fleet
-      audio.play("mg", { ...pan, shots: n });
+      // dense frames merge into volleys: every trade still fires its tracers; the sound merges shots
+      if (mgThisFrame++ < 4) audio.play("mg", { ...pan, shots: n });
+      else audio.mergeShots(n);
     } else if (ev.weapon === "gun") {
       flash(mx, my, mz, 0.55);
       for (let i = 0; i < 2; i++) spawn({ ...base, weapon: "gun", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.4, ty, tz, dur: 0.32 + i * 0.05, arc: 1.4, size: 0.06, len: 0.3 });
@@ -235,6 +266,9 @@ export function Effects() {
     const cam = state.camera as THREE.PerspectiveCamera;
     const scale = cam.isPerspectiveCamera ? (0.2 * state.size.height) / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))) : 600;
     for (const pool of [pools.glow, pools.smoke]) (pool.points.material as THREE.ShaderMaterial).uniforms["uScale"]!.value = scale;
+    if (cam.isPerspectiveCamera) camPos.copy(cam.position);
+    else camPos.copy(cam.position).sub(state.camera.getWorldDirection(axis).multiplyScalar(1000)); // ortho: view from infinity
+    mgThisFrame = 0;
     const e = engineRef.current;
     for (const ev of view.frameEvents) {
       if (ev.type === "fire") {
@@ -268,6 +302,7 @@ export function Effects() {
       }
     }
 
+    view.planeActive = !!lastPlane.current?.on;
     // planes
     planes.forEach((p, i) => {
       const m = planeRefs.current[i];
@@ -320,11 +355,20 @@ export function Effects() {
       const u2 = Math.min(1, u + 0.02);
       const h2 = p.arc * 4 * u2 * (1 - u2);
       tmpB.set(p.fx + (p.tx - p.fx) * u2, p.fy + (p.ty - p.fy) * u2 + h2, p.fz + (p.tz - p.fz) * u2);
-      dummy.position.copy(tmpA);
-      dummy.lookAt(tmpB);
-      dummy.scale.set(p.size, p.size, p.len);
-      dummy.updateMatrix();
-      m.setMatrixAt(n, dummy.matrix);
+      // billboard around the flight axis; width/length shrink near the camera so close tracers stay thin streaks
+      axis.subVectors(tmpB, tmpA);
+      if (axis.lengthSq() < 1e-10) axis.set(1, 0, 0);
+      axis.normalize();
+      toCam.subVectors(camPos, tmpA);
+      const dist = toCam.length();
+      side.crossVectors(axis, toCam).normalize();
+      up.crossVectors(side, axis);
+      const near = Math.min(1, dist / 14);
+      const w = Math.max(0.006, p.size * 1.4 * near);
+      const len = p.len * (0.35 + 0.65 * near);
+      mat4.makeBasis(side.multiplyScalar(w), up, axis.multiplyScalar(len));
+      mat4.setPosition(tmpA);
+      m.setMatrixAt(n, mat4);
       m.setColorAt(n, p.color);
       n++;
     }

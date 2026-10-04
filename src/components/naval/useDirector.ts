@@ -23,6 +23,12 @@ export const RADIO: Record<string, string[]> = {
   P6fall: ["Fall back! Fall back!"],
   P7: ["Cease fire. Damage report."],
   dive: ["Dive, dive, dive!"],
+  flaghit: ["All guns, fire at will! The flagship is hit!"],
+  fighter: ["Fighter inbound, strafing the line!"],
+  capital: ["Capital ship on the surface!"],
+  start: ["Contact! New battle, all stations report."],
+  warn: ["Thirty seconds! Push forward!"],
+  end: ["Cease fire. Damage report."],
   surface: ["Sub surfacing, starboard side!"],
   flagsunk: ["Flagship is going down!"],
   liq: ["Bombers overhead! Take cover!"],
@@ -54,6 +60,13 @@ function radio(key: string) {
   useBattle.setState({ radio: { id: nextId(), text } });
   if (key !== "P1") void audio.voice(key, text); // P1 is subtitle-only
 }
+/** cumulative damage per flagship, announced each time another 25 % of its peak size is traded */
+const flagHits: Record<string, { b: number; dmg: number; told: number }> = {};
+/** First sound enable: radio check with subtitle. */
+export function radioCheck() {
+  useBattle.setState({ radio: { id: nextId(), text: "Contact! Enemy ships on the move." } });
+  audio.radioCheck();
+}
 
 export function triggerClip(title: string) {
   const now = Date.now();
@@ -84,6 +97,7 @@ function onEvent(ev: BattleEvent) {
       if (ev.notional >= 1_000_000) callout(`${usd(ev.notional)} ${ev.taker.toUpperCase()} · BROADSIDE`, ev.taker === "buy" ? "buy" : "sell");
       break;
     case "fighter":
+      radio("fighter");
       pushTape("FIGHTER", `FIGHTER strafing run · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
       break;
     case "sink":
@@ -106,7 +120,17 @@ function onEvent(ev: BattleEvent) {
       pushTape(label, `${label} ${usd(ev.notional)} at ${fmtPrice(ev.price)} · lived ${(ev.lived / 1000).toFixed(1)}s${ev.neverHit ? " · never hit" : ""}`, "sub", ev.notional);
       flagEvents.push(ev);
       if (ev.tier === "battleship") callout(`${fleet.toUpperCase()}' FLAGSHIP ${ev.type === "dive" ? "DIVED" : "FLED"}`, "info");
-      if (ev.tier === "battleship" || ev.tier === "cruiser") radio("dive");
+      if (ev.tier === "battleship" || ev.tier === "cruiser") radio(ev.type === "fled" ? "capital" : "dive");
+      break;
+    }
+    case "damage": {
+      if (!side) break;
+      const f = engineRef.current?.flagship(side);
+      if (!f || f.b !== ev.b) break;
+      const h = flagHits[side]?.b === ev.b ? flagHits[side]! : (flagHits[side] = { b: ev.b, dmg: 0, told: 0 });
+      h.dmg += ev.filled;
+      const step = Math.floor(h.dmg / Math.max(f.peak, 1e-9) / 0.25);
+      if (step > h.told) { h.told = step; radio("flaghit"); callout(`${fleet.toUpperCase()}' FLAGSHIP HIT · ${Math.min(100, step * 25)}% HP LOST`, side === "bid" ? "sell" : "buy"); }
       break;
     }
     case "pulled":
@@ -179,6 +203,7 @@ export function useDirector() {
     let off: (() => void) | undefined;
     let bound: unknown = null;
     let battle = { id: 0, end: 0, startMark: 0, watchedFrom: 0 };
+    let warned = true;
     const iv = setInterval(() => {
       const e = engineRef.current;
       if (!e) return;
@@ -187,8 +212,8 @@ export function useDirector() {
         bound = e;
         off = e.onEvent((ev) => {
           try {
-            const shot = selectShot(ev, performance.now(), lastCut);
-            if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; view.cuts[shot.kind] = (view.cuts[shot.kind] ?? 0) + 1; }
+            const shot = selectShot(ev, performance.now(), lastCut, view.shot);
+            if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; }
             const bookEvent = ["reinforce", "dive", "fled", "relocate", "hidden", "repair"].includes(ev.type);
             if (!bookEvent || tapeEligible(ev, e.mark, e.bucketSampler.quantile(0.9))) onEvent(ev);
             const kind = lessonForEvent(ev);
@@ -239,11 +264,18 @@ export function useDirector() {
           if (r && r.kind === "winner" && r.battleId === battle.id)
             settle(r, winner === "draw" ? null : winner, winner === "draw" ? "Battle drawn" : `${winner === "buyers" ? "Buyers" : "Sellers"} won the battle`);
         }
+        if (battle.id) radio("end");
         battle = { id: w.id, end: w.end, startMark: e.mark, watchedFrom: now };
+        setTimeout(() => radio("start"), 2500);
+        warned = false;
         const r: Round = { id: nextId(), kind: "winner", startedAt: now, endsAt: w.end, battleId: w.id, lockAt: Math.min(w.end, w.start + PICK_WINDOW_MS) };
         useBattle.setState({ round: r });
       }
 
+      if (!warned && battle.end && battle.end - now <= 30_000) { warned = true; radio("warn"); }
+      // war ambience density from the real trade rate and phase
+      const recent = e.recentTrades.filter((t) => now - t.time < 5000).length;
+      audio.setIntensity(recent / 40 + (e.phase.current === "P5" ? 0.6 : e.phase.current === "P4" || e.phase.current === "P3" ? 0.25 : 0));
       // flagship SUNK / DIVE / HOLD rounds
       const fr = st.flagRound;
       if (st.status !== "live") {
@@ -277,7 +309,8 @@ export function useDirector() {
         if (!nextTarget || f.away < Math.abs(nextTarget.price - e.ref) / e.ref) nextTarget = { side: f.side, price: f.price, depth };
       }
       useBattle.setState({
-        ladder: { bids: makeLadder(e.book.bids, "bid", e.mark), asks: makeLadder(e.book.asks, "ask", e.mark) },
+        ladder: { bids: makeLadder(e.book.bids, "bid", e.mark, st.bookGroup), asks: makeLadder(e.book.asks, "ask", e.mark, st.bookGroup) },
+        bookSync: e.bookCheck.lastAt ? { ok: e.bookCheck.lastOk && e.book.synced, at: e.bookCheck.lastAt } : null,
         recentTrades: e.recentTrades.slice(0, 80),
         hud: {
           mark: e.mark,

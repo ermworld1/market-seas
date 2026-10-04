@@ -72,6 +72,7 @@ export const view = {
   /** director cuts per shot kind since load (debug) */
   cuts: {} as Record<string, number>,
   tapeTotal: 0,
+  planeActive: false,
   mid: 0,
   storm: 0,
   war: false,
@@ -124,4 +125,9 @@ export function addFloater(a: Anchor, text: string, tone: Floater["tone"]) {
 }
 
 /** Longest gap between visible shots (ms) — exposed in ?debug=1. */
-export const fireStats = { last: 0, maxGap: 0 };
+/**
+ * maxGap: longest silence between visible+audible shots overall (includes quiet market);
+ * maxGapActive: same, but only counting gaps while a received trade was waiting to be drawn;
+ * maxLag: longest delay from trade receipt to its shot on screen.
+ */
+export const fireStats = { last: 0, lastWall: 0, maxGap: 0, maxGapActive: 0, maxLag: 0, recvLast: 0, maxRecvGap: 0 };
