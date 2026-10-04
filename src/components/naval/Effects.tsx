@@ -54,11 +54,11 @@ const COLORS = {
   bomb: new THREE.Color(0.08, 0.08, 0.08),
   cannon: new THREE.Color(1.8, 1.4, 0.6),
 };
-/** tracers glow in the firing side's colour (torpedoes / bombs stay dark) */
+/** Restrained side tint on hot tracer metal; never a neon aura. */
 const TINT: Record<BookSide, Record<string, THREE.Color>> = { bid: {}, ask: {} };
 for (const side of ["bid", "ask"] as const) {
-  const sc = new THREE.Color(SIDE_HEX[side]).multiplyScalar(2.2);
-  for (const [w, c] of Object.entries(COLORS)) TINT[side][w] = w === "torpedo" || w === "bomb" ? c : c.clone().lerp(sc, 0.6);
+  const sc = new THREE.Color(SIDE_HEX[side]);
+  for (const [w, c] of Object.entries(COLORS)) TINT[side][w] = w === "torpedo" || w === "bomb" ? c : c.clone().lerp(sc, 0.18);
 }
 const POWER: Record<Proj["weapon"], number> = { mg: 0.15, cannon: 0.25, gun: 0.55, torpedo: 1.1, broadside: 1.4, bomb: 1.6 };
 
@@ -100,7 +100,7 @@ export function Effects() {
   const fighterGeo = useMemo(() => makeFighterGeometry(), []);
   // aircraft wear the colour of the side that sends them (the opposite of the side they attack)
   const airMats = useMemo(() => {
-    const m = (hex: string) => new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).convertSRGBToLinear().multiplyScalar(0.8), emissive: new THREE.Color(hex).convertSRGBToLinear(), emissiveIntensity: 0.3, metalness: 0.4, roughness: 0.5, flatShading: true });
+    const m = (hex: string) => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), metalness: 0.55, roughness: 0.62, flatShading: true, sheen: 0.15, sheenColor: new THREE.Color(hex) });
     return { bid: m(SIDE_HEX.bid), ask: m(SIDE_HEX.ask) };
   }, []);
   const planeMat = airMats.ask;
@@ -186,7 +186,7 @@ export function Effects() {
     if (d && !d.departing && Math.random() < 0.9) {
       d.hitFlash = Math.min(1, d.hitFlash + 0.08 + power * 0.3);
       const tnow = performance.now();
-      if (tnow - lastHitSound > 160 && Math.random() < 0.5) { lastHitSound = tnow; audio.play("hit", { x: panX(p.tx - view.frontX, REAR), gain: 0.5 + power * 0.4 }); }
+      if (tnow - lastHitSound > 120) { lastHitSound = tnow; audio.play("hit", { x: panX(p.tx - view.frontX, REAR), gain: 0.5 + power * 0.4 }); }
       flash(p.tx, p.ty + 0.1, p.tz, 0.5 * power + 0.25);
       if (power > 0.5)
         for (let i = 0; i < 5 * power; i++)
@@ -202,7 +202,7 @@ export function Effects() {
         for (let i = 0; i < 10; i++) pools.smoke.emit({ x: p.tx + (Math.random() - 0.5) * 0.3, y: 0.1, z: p.tz + (Math.random() - 0.5) * 0.3, vy: 5 + Math.random() * 4, life: 1.4, size: 0.4, grow: 1.6, color: "#f2f8fb", alpha: 0.85, gravity: 6 });
         boom.current = { x: p.tx, z: p.tz, k: 1 };
       }
-    } else if (power > 0.2 || Math.random() < 0.35) splash(p.tx, p.tz, power * 0.7);
+    } else if (power > 0.2 || Math.random() < 0.35) { audio.play("miss", { x: panX(p.tx - view.frontX, REAR), gain: 0.35 + power * 0.25 }); splash(p.tx, p.tz, power * 0.7); }
   };
 
   const fire = (ev: Extract<BattleEvent, { type: "fire" }>) => {

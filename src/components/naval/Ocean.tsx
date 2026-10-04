@@ -74,9 +74,9 @@ export function Ocean() {
       textureHeight: view.mobile ? 192 : 384,
       waterNormals: normals,
       sunDirection: sun.clone(),
-      sunColor: 0xfff1d6,
-      waterColor: 0x0a2a33,
-      distortionScale: 2.5,
+      sunColor: 0xffe2b6,
+      waterColor: 0x071a24,
+      distortionScale: 3.1,
       fog: true,
       alpha: 1,
     });
@@ -130,12 +130,12 @@ export function Ocean() {
     return l;
   }, []);
 
-  const fog = useMemo(() => new THREE.Fog("#a9bcc6", 45, 260), []);
+  const fog = useMemo(() => new THREE.Fog("#718590", 34, 230), []);
   const sunLight = useRef<THREE.DirectionalLight>(null);
   const hemi = useRef<THREE.HemisphereLight>(null);
   const storm = useRef(0);
   const flashT = useRef(0);
-  const calmFog = useMemo(() => new THREE.Color("#a9bcc6"), []);
+  const calmFog = useMemo(() => new THREE.Color("#718590"), []);
   const stormFog = useMemo(() => new THREE.Color("#3a4248"), []);
   const warFog = useMemo(() => new THREE.Color("#4a2e2a"), []);
 
@@ -172,7 +172,7 @@ export function Ocean() {
     u.time.value += dt * (0.45 + s * 1.1);
     u.distortionScale.value = 2.2 + s * 5.5;
     u.size.value = 2.2 - s * 1.0;
-    u.waterColor.value.setRGB(0.04 - s * 0.02, 0.16 - s * 0.07, 0.2 - s * 0.08);
+    u.waterColor.value.setRGB(0.018, 0.075 - s * 0.025, 0.105 - s * 0.035);
 
     const su = sku(sky);
     su.turbidity.value = 4 + s * 14;
