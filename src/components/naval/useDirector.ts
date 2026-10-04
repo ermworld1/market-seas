@@ -12,7 +12,7 @@ import { canNarrateRelocate, lessonForEvent, lessonText, selectShot, tapeEligibl
 import { makeLadder } from "./LivePanels";
 import { settleMine, submitPrediction } from "@/lib/market/community.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { line, navyPriceParts, navySizeParts, phrase, words, type FleetCallsign, type NavalRole, type VoiceChain, type VoiceChannel } from "@/lib/audio/navalVoice";
+import { line, navyPriceParts, navySizeParts, phrase, type FleetCallsign, type VoiceChain, type VoiceChannel } from "@/lib/audio/navalVoice";
 
 export const RADIO: Record<string, string[]> = {
   P1: ["All quiet on the line. Hold position."],
