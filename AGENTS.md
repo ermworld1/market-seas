@@ -25,7 +25,7 @@
 - Analytics stay in localStorage (device-local /stats) — no backend.
 - The 3D scene reads `engineRef` and the mutable `view` object inside `useFrame`; React state (zustand) is only for the HUD, throttled to 250 ms — avoids 60 Hz re-renders.
 - `Fleet` drains engine events once per frame into `view.frameEvents` and must mount before `Effects` — both consume the same frame's events.
-- GLBs are merged and normalized (bow stays -X, keel just below y=0); Cinema draws original-detail near ships while Map/distant ships use meshoptimizer LOD, each through instanced meshes — preserves silhouettes without abandoning mobile budgets.
+- Textured GLBs preserve authored UVs/PBR material groups; each primitive is normalized once and instanced per model/LOD, while every loaded material is cloned with emissive forced off — preserves real paint without sacrificing fleet draw-call budgets.
 - Fire events are never dropped: the projectile pool recycles the oldest shot when full.
 - Particles use pooled point-sprite buffers (`ParticlePool`) and projectiles a single InstancedMesh — no per-effect React components.
 - The `/` route is `ssr: false` and lazy-loads the battle — WebGL, WebSocket and localStorage are browser-only.
