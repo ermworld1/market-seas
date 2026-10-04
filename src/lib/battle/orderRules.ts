@@ -63,7 +63,7 @@ export class SideTracker {
   private pending: Pending[] = [];
   constructor(readonly side: BookSide) {}
 
-  tick(next: Map<number, Bucket>, filled: Map<number, number>, now: number, mark: number, tierFn: TierFn): OrderEvent[] {
+  tick(next: Map<number, Bucket>, filled: Map<number, number>, now: number, mark: number, tierFn: TierFn, big = 0): OrderEvent[] {
     const side = this.side;
     const out: OrderEvent[] = [];
     const list = [...next.entries()];
@@ -103,7 +103,7 @@ export class SideTracker {
         };
         this.ships.set(b, t);
         if (f > 0) out.push({ ...base, type: "hidden", extra: f, notional: f * k.price });
-        const reloc = this.matchPending(k.qty, b);
+        const reloc = k.notional >= big ? this.matchPending(k.qty, b) : null;
         if (reloc) out.push({ ...base, type: "relocate", from: reloc.b, fromPrice: reloc.price, qty: k.qty, notional: k.notional });
         else out.push({ ...base, type: "reinforce", qty: k.qty, notional: k.notional, fresh: true });
         continue;
@@ -127,11 +127,11 @@ export class SideTracker {
         const extra = dec - f;
         if (extra > Math.max(1e-9, f * CANCEL_TOL)) {
           out.push({ ...base, type: "cancel", qty: extra, notional: extra * k.price });
-          this.pending.push({ t: now, b, price: k.price, qty: extra });
+          if (extra * k.price >= big) this.pending.push({ t: now, b, price: k.price, qty: extra });
         }
       } else if (delta > 0) {
         s.peak = Math.max(s.peak, k.qty);
-        const reloc = this.matchPending(delta, b);
+        const reloc = delta * k.price >= big ? this.matchPending(delta, b) : null;
         if (reloc) out.push({ ...base, type: "relocate", from: reloc.b, fromPrice: reloc.price, qty: delta, notional: delta * k.price });
         else out.push({ ...base, type: "reinforce", qty: delta, notional: delta * k.price, fresh: false });
         if (s.lastHitAt && now - s.lastHitAt <= REPAIR_WINDOW) {

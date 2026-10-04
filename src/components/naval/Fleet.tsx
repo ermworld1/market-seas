@@ -122,9 +122,9 @@ export function Fleet() {
             audio.play("surface", pan);
             break;
           case "reinforce":
-            if (d && ev.notional >= 250_000) {
+            if (d && ev.notional >= 1_500_000) {
               addFloater({ x: d.x, y: 0.4, z: d.z + sign * 0.2 }, `+${usd(ev.notional)}`, ev.side === "bid" ? "buy" : "sell");
-              if (ev.notional >= 1e6) audio.play("reinforce", pan);
+              if (ev.notional >= 5e6) audio.play("reinforce", pan);
             }
             break;
           case "repair":
@@ -164,7 +164,7 @@ export function Fleet() {
       const now = Date.now();
       const kMove = 1 - Math.exp(-4 * dt);
       const kScale = 1 - Math.exp(-3 * dt);
-      const mobileK = view.mobile ? 0.8 : 1;
+      const mobileK = view.mobile ? 1.4 : 1;
       const stormBob = 1 + view.storm * 3;
       const repairs: { x: number; y: number; z: number }[] = [];
       let near: Display | null = null;
