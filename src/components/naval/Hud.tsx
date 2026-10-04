@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Crosshair, Download, HelpCircle, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
+import { Bell, BellOff, Crosshair, Download, HelpCircle, Map, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
 import { savePrefs, useBattle, type TapeLine } from "@/lib/market/store";
 import { fmtPrice, questionText, usd, type Round } from "@/lib/market/predictions";
 import { PHASE_NAME, intensityOf } from "@/lib/battle/phase";
@@ -13,6 +13,9 @@ import { Labels } from "./Labels";
 import { Tour } from "./Tour";
 import { DebugPanel } from "./DebugPanel";
 import { Guard } from "./Guard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GuidePanel, OrderBookPanel, RecentTradesPanel, TapePanel } from "./LivePanels";
+import { CommunityPanel } from "./CommunityPanel";
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(0);
@@ -99,7 +102,7 @@ function SoundControl() {
 }
 
 function Header({ now }: { now: number }) {
-  const { status, hud, scoreboard } = useBattle();
+  const { status, hud, scoreboard, presentation, alertsOn } = useBattle();
   const lat = hud.latency;
   const latTone = status !== "live" ? "text-muted-foreground" : lat > 10_000 ? "text-danger" : lat > 2000 ? "text-warn" : "text-ok";
   const intensity = intensityOf(hud.phase);
@@ -132,13 +135,19 @@ function Header({ now }: { now: number }) {
           <button onClick={() => useBattle.setState({ tourOpen: true })} aria-label="Open the tour" className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
             <HelpCircle className="h-4 w-4" />
           </button>
+          <button onClick={() => { const next = presentation === "cinema" ? "map" : "cinema"; useBattle.setState({ presentation: next }); view.presentation = next; savePrefs(); }} aria-label={`Switch to ${presentation === "cinema" ? "map" : "cinema"} view`} className="flex items-center gap-1 rounded bg-secondary px-2 py-1.5 text-[10px] font-semibold uppercase text-foreground hover:bg-accent">
+            <Map className="h-4 w-4" /> {presentation}
+          </button>
+          <button onClick={async () => { const on = !alertsOn; if (on && "Notification" in window) await Notification.requestPermission(); useBattle.setState({ alertsOn: on }); savePrefs(); }} aria-label={alertsOn ? "Disable alerts" : "Enable alerts"} className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
+            {alertsOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+          </button>
           <SoundControl />
         </div>
       </div>
       <div className="mt-2 md:hidden">
         <TugOfWar />
       </div>
-      <div className="mt-1.5 grid grid-cols-4 gap-x-3 gap-y-1 md:grid-cols-9">
+      <div className={cn("mt-1.5 grid grid-cols-4 gap-x-3 gap-y-1 md:grid-cols-9", presentation === "cinema" && "hidden")}>
         <Stat label="Last / mark">
           {hud.last ? fmtPrice(hud.last) : "—"}
           <span className="ml-1 text-muted-foreground">{hud.mark ? fmtPrice(hud.mark) : ""}</span>
@@ -162,6 +171,19 @@ function Header({ now }: { now: number }) {
       </div>
     </header>
   );
+}
+
+const DATA_TABS = [["book", "Book"], ["trades", "Trades"], ["tape", "Tape"], ["guide", "Guide"], ["rankings", "Ranks"]] as const;
+function DataPanels() {
+  const tab = useBattle((s) => s.panelTab);
+  return <Tabs value={tab} onValueChange={(v) => useBattle.setState({ panelTab: v as typeof tab })} className="hud-panel flex h-full min-h-0 flex-col p-1.5">
+    <TabsList className="grid h-8 shrink-0 grid-cols-5 rounded bg-secondary/70 p-0.5">{DATA_TABS.map(([id, label]) => <TabsTrigger key={id} value={id} className="px-1 text-[10px] uppercase">{label}</TabsTrigger>)}</TabsList>
+    <TabsContent value="book" className="min-h-0 flex-1 overflow-hidden"><OrderBookPanel /></TabsContent>
+    <TabsContent value="trades" className="min-h-0 flex-1 overflow-hidden"><RecentTradesPanel /></TabsContent>
+    <TabsContent value="tape" className="min-h-0 flex-1 overflow-hidden"><TapePanel /></TabsContent>
+    <TabsContent value="guide" className="min-h-0 flex-1 overflow-hidden"><GuidePanel /></TabsContent>
+    <TabsContent value="rankings" className="min-h-0 flex-1 overflow-hidden"><CommunityPanel /></TabsContent>
+  </Tabs>;
 }
 
 function Filters() {
@@ -535,7 +557,7 @@ function EnterGate() {
 }
 
 export function Hud() {
-  const { status, statusDetail, hud } = useBattle();
+  const { status, statusDetail, hud, presentation, lesson } = useBattle();
   const now = useNow(500);
   const [drawer, setDrawer] = useState(false);
   const war = hud.phase === "P5";
@@ -546,9 +568,9 @@ export function Hud() {
        <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <Header now={now} />
         <div className="flex items-center justify-between gap-1.5">
-          <Filters />
+          {presentation === "map" && <Filters />}
           <button onClick={() => setDrawer((v) => !v)} className="pointer-events-auto rounded bg-secondary px-2 py-1 text-[11px] font-semibold uppercase lg:hidden">
-            {drawer ? "Close guide" : "Guide & tape"}
+            {drawer ? "Close data" : "Live data"}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-1.5 lg:pr-0">
@@ -560,13 +582,11 @@ export function Hud() {
 
       {/* desktop sidebar */}
       <aside className="pointer-events-auto absolute bottom-[34px] right-2 top-2 z-10 hidden w-[336px] flex-col gap-2 lg:flex">
-        <Guard name="guide"><Guide /></Guard>
-        <div className="flex min-h-0 flex-1 flex-col"><ActionTape /></div>
+        <Guard name="live-data"><DataPanels /></Guard>
       </aside>
       {drawer && (
-        <div className="pointer-events-auto absolute inset-x-1.5 bottom-[34px] top-[40%] z-20 flex flex-col gap-2 overflow-y-auto lg:hidden">
-          <Guide />
-          <ActionTape compact />
+        <div className="pointer-events-auto absolute inset-x-1.5 bottom-[34px] top-[45%] z-20 flex flex-col lg:hidden">
+          <DataPanels />
         </div>
       )}
 
@@ -605,14 +625,15 @@ export function Hud() {
 
       <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <div className="flex flex-col gap-1.5 md:flex-row md:items-end md:justify-between">
-          <div className="w-full md:w-[360px]">
+           <div className={cn("w-full md:w-[360px]", presentation === "cinema" && "hidden")}>
             <Guard name="predictions"><Predictions now={now} /></Guard>
           </div>
         </div>
-        <LegendStrip />
+        {presentation === "map" && <LegendStrip />}
         <p className="truncate px-1 text-[9px] leading-tight text-foreground/70 md:text-[10px]">Live Binance Futures public market data · Not financial advice · Not affiliated with Binance</p>
       </div>
       <Ticker />
+      {lesson && <div key={lesson.id} className="lesson-spotlight pointer-events-auto absolute left-1/2 top-1/2 z-30 w-[min(90vw,520px)] -translate-x-1/2 rounded border border-primary bg-background/90 p-3 text-center text-sm"><button className="absolute right-1 top-1 p-1 text-muted-foreground" aria-label="Skip lesson" onClick={() => useBattle.setState({ lesson: null })}><X className="h-4 w-4" /></button>{lesson.text}</div>}
 
       <ResultCard />
       <ClipToast />

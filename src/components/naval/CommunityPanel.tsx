@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getLeaderboards, getMyProfile, saveProfile } from "@/lib/market/community.functions";
 import { Button } from "@/components/ui/button";
 
-type Board = Awaited<ReturnType<ReturnType<typeof useServerFn<typeof getLeaderboards>>>>;
+type Board = { leaders: { nickname: string; side: string; xp: number; accuracy: number }[]; sides: { side: string; accuracy: number; settled: number }[] };
 export function CommunityPanel() {
   const boardFn = useServerFn(getLeaderboards); const profileFn = useServerFn(getMyProfile); const saveFn = useServerFn(saveProfile);
   const [user, setUser] = useState(false); const [period, setPeriod] = useState<"today" | "week" | "season">("today"); const [board, setBoard] = useState<Board | null>(null); const [nickname, setNickname] = useState(""); const [side, setSide] = useState<"buyers" | "sellers">("buyers");

@@ -8,6 +8,8 @@ import { audio } from "@/lib/audio/engine";
 import { track } from "@/lib/analytics";
 import { recordClip } from "@/lib/clips";
 import { view } from "./layout";
+import { canNarrateRelocate, lessonForEvent, selectShot, tapeEligible } from "@/lib/market/presentation";
+import { makeLadder } from "./LivePanels";
 
 export const RADIO: Record<string, string[]> = {
   P1: ["All quiet on the line. Hold position."],
@@ -27,14 +29,16 @@ export const RADIO: Record<string, string[]> = {
 const pageStart = Date.now();
 let firstKill = false;
 let lastClip = 0;
+let lastRelocateTape = 0;
+let lastCut = 0;
 const flagState: Record<BookSide, { b: number; since: number; gone: null | { status: FlagSnap["status"]; t: number; snap: FlagSnap } }> = {
   bid: { b: NaN, since: 0, gone: null },
   ask: { b: NaN, since: 0, gone: null },
 };
 const flagEvents: { type: string; b: number; side: string }[] = [];
 
-function pushTape(kind: string, text: string, tone: TapeLine["tone"], notional = 0) {
-  const line: TapeLine = { id: nextId(), t: Date.now(), kind, text, tone, notional };
+function pushTape(kind: string, text: string, tone: TapeLine["tone"], notional = 0, ids?: { first: number; last: number }) {
+  const line: TapeLine = { id: nextId(), t: Date.now(), kind, text, tone, notional, ...(ids ? { firstAggId: ids.first, lastAggId: ids.last } : {}) };
   useBattle.setState((s) => ({ tape: [line, ...s.tape].slice(0, 120) }));
 }
 function callout(text: string, tone: "buy" | "sell" | "liq" | "info", slow = false) {
@@ -73,8 +77,7 @@ function onEvent(ev: BattleEvent) {
   const fleet = side ? FLEET_NAME[side] : "";
   switch (ev.type) {
     case "order":
-      if (ev.notional >= 50_000)
-        pushTape("SHOT", `SHOT taker ${ev.taker} ${usd(ev.notional)} · ${ev.fills} fills · avg ${fmtPrice(ev.avg)}`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
+      if (ev.notional >= 250_000) pushTape("SHOT", `${ev.taker === "buy" ? "Sellers'" : "Buyers'"} line hit by ${usd(ev.notional)} ${ev.taker} · ${ev.fills} rounds · #a ${ev.firstAggId}${ev.lastAggId === ev.firstAggId ? "" : `–${ev.lastAggId}`}`, ev.taker === "buy" ? "buy" : "sell", ev.notional, { first: ev.firstAggId, last: ev.lastAggId });
       if (ev.notional >= 1_000_000) callout(`${usd(ev.notional)} ${ev.taker.toUpperCase()} · BROADSIDE`, ev.taker === "buy" ? "buy" : "sell");
       break;
     case "fighter":
@@ -108,7 +111,7 @@ function onEvent(ev: BattleEvent) {
       break;
     case "relocate":
       if (ev.notional >= 1_000_000) radio("surface");
-      pushTape("RELOCATE", `RELOCATE (inferred) ${usd(ev.notional)} ${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, "sub", ev.notional);
+      if (canNarrateRelocate(Date.now(), lastRelocateTape)) { lastRelocateTape = Date.now(); pushTape("RELOCATE", `${fleet}' ${usd(ev.notional)} surfaced ${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, "sub", ev.notional); }
       break;
     case "hidden":
       pushTape("HIDDEN", `HIDDEN (inferred, possible iceberg) ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, "sub", ev.notional);
@@ -181,7 +184,17 @@ export function useDirector() {
         bound = e;
         off = e.onEvent((ev) => {
           try {
-            onEvent(ev);
+            const shot = selectShot(ev, performance.now(), lastCut);
+            if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; }
+            const bookEvent = ["reinforce", "dive", "fled", "relocate", "hidden", "repair"].includes(ev.type);
+            if (!bookEvent || tapeEligible(ev, e.mark, e.bucketSampler.quantile(0.9))) onEvent(ev);
+            const kind = lessonForEvent(ev);
+            if (kind && Date.now() - pageStart <= 180_000 && localStorage.getItem(`nms-lesson-${kind}`) !== "1") {
+              localStorage.setItem(`nms-lesson-${kind}`, "1"); fx.slowmo = 1;
+              const number = "notional" in ev ? `${usd(ev.notional)} ` : "real ";
+              const text = kind === "shot" && "price" in ev ? `A real ${number}${"taker" in ev ? ev.taker : ""} order just struck the ${"target" in ev && ev.target === "bid" ? "Buyers" : "Sellers"} line at ${fmtPrice(ev.price)}.` : `${kind[0]?.toUpperCase()}${kind.slice(1)}: this happened because of real Binance market data (${number.trim()}).`;
+              useBattle.setState({ lesson: { id: nextId(), kind, text } }); setTimeout(() => useBattle.getState().lesson?.kind === kind && useBattle.setState({ lesson: null }), 5000);
+            }
           } catch (err) {
             console.error("[director]", err);
           }
@@ -258,6 +271,8 @@ export function useDirector() {
         if (!nextTarget || f.away < Math.abs(nextTarget.price - e.ref) / e.ref) nextTarget = { side: f.side, price: f.price, depth };
       }
       useBattle.setState({
+        ladder: { bids: makeLadder(e.book.bids, "bid", e.mark), asks: makeLadder(e.book.asks, "ask", e.mark) },
+        recentTrades: e.recentTrades.slice(0, 80),
         hud: {
           mark: e.mark,
           last: e.mid,
@@ -286,6 +301,12 @@ export function useDirector() {
           battle: { id: battle.id, end: battle.end, startMark: battle.startMark },
         },
       });
+      const alerts = useBattle.getState().alertsOn && typeof Notification !== "undefined" && Notification.permission === "granted";
+      if (alerts) {
+        const near = [fb, fa].find((f) => f && f.status === "on station" && f.away <= 0.0005);
+        const key = near ? `flag-${near.side}-${near.b}` : e.phase.current === "P5" ? `cascade-${battle.id}` : battle.end - now <= 30_000 && battle.end - now > 29_500 ? `ending-${battle.id}` : "";
+        if (key && sessionStorage.getItem(`nms-alert-${key}`) !== "1") { sessionStorage.setItem(`nms-alert-${key}`, "1"); new Notification("No Man's Sea", { body: near ? `${near.side === "bid" ? "Buyers'" : "Sellers'"} flagship is within 0.05% of price.` : e.phase.current === "P5" ? "A liquidation cascade has started." : "Battle ends in 30 seconds." }); }
+      }
     }, 250);
     return () => {
       clearInterval(iv);
