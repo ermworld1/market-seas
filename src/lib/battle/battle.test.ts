@@ -8,6 +8,9 @@ import { TapePipeline } from "./tape";
 import { MarketEngine } from "@/lib/market/engine";
 import { regimeOf, tracersFor, fillsOf } from "@/lib/market/rules";
 import type { Bucket } from "./buckets";
+import { canNarrateRelocate, fighterEligible, lessonForEvent, nextQuality, selectShot, tapeEligible } from "@/lib/market/presentation";
+import { validatePredictionWindow } from "@/lib/market/community.functions";
+import { PICK_WINDOW_MS } from "@/lib/market/predictions";
 
 const diff = (U: number, u: number, pu: number, b: [string, string][] = [], a: [string, string][] = []) => ({ U, u, pu, b, a });
 
@@ -99,6 +102,12 @@ describe("order-change rules", () => {
     t.tick(new Map(), new Map(), 5000, 100, tiers(true));
     expect(types(t.tick(new Map([B(20, 10)]), new Map(), 5400, 100, tiers(true)))).toEqual(["reinforce"]);
   });
+  it("requires a relocation to move at least two buckets", () => {
+    const t = new SideTracker("ask");
+    t.tick(new Map([B(10, 10)]), new Map(), 0, 100, tiers(true));
+    t.tick(new Map(), new Map(), 5000, 100, tiers(true));
+    expect(types(t.tick(new Map([B(11, 10)]), new Map(), 5200, 100, tiers(true)))).toEqual(["reinforce"]);
+  });
   it("hidden when filled exceeds displayed size", () => {
     const t = new SideTracker("ask");
     t.tick(new Map([B(1, 5)]), new Map(), 0, 100, tiers());
@@ -145,6 +154,43 @@ describe("engine fire", () => {
     e.handleMark({ p: "100000", r: "0.0001", T: 0 }, 0);
     for (let i = 0; i < 50; i++) e.handleTrade({ p: "100000", q: "0.001", m: i % 2 === 0, f: 1, l: 1 }, i);
     expect(e.drain().filter((x) => x.type === "fire").length).toBe(50);
+  });
+});
+
+describe("presentation thresholds", () => {
+  const reinforce = { type: "reinforce", t: 0, side: "bid", b: 1000, price: 100, qty: 10, notional: 1000, fresh: true } as const;
+  it("requires $500K and the 97th percentile for fighters", () => {
+    expect(fighterEligible(499_999, 400_000, 100)).toBe(false);
+    expect(fighterEligible(500_000, 490_000, 100)).toBe(true);
+    expect(fighterEligible(600_000, 700_000, 100)).toBe(false);
+  });
+  it("filters tape events by type, distance and p90", () => {
+    expect(tapeEligible(reinforce, 100, 900)).toBe(true);
+    expect(tapeEligible({ ...reinforce, price: 101 }, 100, 900)).toBe(false);
+    expect(tapeEligible({ ...reinforce, notional: 800 }, 100, 900)).toBe(false);
+    expect(canNarrateRelocate(10_000, 0)).toBe(true);
+    expect(canNarrateRelocate(9_999, 0)).toBe(false);
+  });
+  it("triggers lessons and chooses cinematic shots", () => {
+    const fire = { type: "fire", t: 0, taker: "buy", target: "ask", b: 1, price: 100, qty: 3000, notional: 300_000, fills: 1, weapon: "torpedo", id: 1, aggId: 2 } as const;
+    expect(lessonForEvent(fire)).toBe("shot");
+    expect(selectShot(fire, 3000, 0)?.kind).toBe("trade");
+    expect(selectShot(fire, 1000, 0)).toBe(null);
+  });
+  it("degrades and recovers visual quality", () => {
+    expect(nextQuality("high", 24, 30, 0)).toBe("medium");
+    expect(nextQuality("low", 15, 0, 180)).toBe("medium");
+  });
+});
+
+describe("server prediction locking", () => {
+  it("accepts only the current battle before its winner lock", () => {
+    const now = 310_000;
+    const w = battleWindow(now);
+    const valid = { roundKey: "winner:1", roundKind: "winner" as const, battleId: w.id, choice: "buyers" as const, startsAt: now, endsAt: w.end };
+    expect(validatePredictionWindow(valid, now)).toBe(true);
+    expect(validatePredictionWindow({ ...valid, battleId: 0 }, now)).toBe(false);
+    expect(validatePredictionWindow(valid, w.start + PICK_WINDOW_MS + 1)).toBe(false);
   });
 });
 
