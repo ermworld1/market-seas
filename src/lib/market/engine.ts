@@ -8,7 +8,7 @@ import { RollingPercentile } from "./percentile";
 import { assignTiers, countInWindow, fillsOf, liquidatedSide, realizedVolBps, tradeDirection, weaponFor } from "./rules";
 import type { BattleEvent, BookSide, ConvoyState } from "./types";
 import { SYMBOL } from "./types";
-import { fighterEligible, FIGHTER_PERCENTILE } from "./presentation";
+import { fighterEligible, fighterFormationSize, FIGHTER_WAVE_COOLDOWN } from "./presentation";
 
 export const OI_THRESHOLD_PCT = 0.3;
 const ORDER_WINDOW = 300;
@@ -73,6 +73,8 @@ export class MarketEngine {
   private oiBase: { t: number; oi: number } | null = null;
   private tradeId = 0;
   private listeners = new Set<(e: BattleEvent) => void>();
+  private fighterQueue: { taker: "buy" | "sell"; target: BookSide; notional: number; buckets: Set<number>; orders: number }[] = [];
+  private lastFighterWave = -Infinity;
 
   drain(): BattleEvent[] {
     const e = this.events;
@@ -243,14 +245,32 @@ export class MarketEngine {
       const p = this.tape.take(o.key);
       if (!p || !this.tape.accept(o.key, now, 1000)) continue;
       this.orderTimes.push(now);
-      const big = fighterEligible(p.trade, this.orderSampler.quantile(FIGHTER_PERCENTILE), this.orderSampler.size);
+      const big = fighterEligible(p.trade, o.buckets.size);
       this.orderSampler.push(p.trade);
       const sides = o.taker === "buy" ? 1 : -1;
       const buckets = [...o.buckets].sort((a, b) => (a - b) * sides);
       this.phase.order(now, p.trade);
       this.emit({ type: "order", t: now, taker: o.taker, notional: p.trade, qty: p.sz, fills: p.fills, avg: p.trade / Math.max(p.sz, 1e-12), buckets, firstAggId: o.firstAggId, lastAggId: o.lastAggId });
-      if (big) this.emit({ type: "fighter", t: now, taker: o.taker, target: o.taker === "buy" ? "ask" : "bid", notional: p.trade, buckets });
+      if (big) {
+        const target = o.taker === "buy" ? "ask" : "bid";
+        const queued = this.fighterQueue.find((wave) => wave.taker === o.taker);
+        if (queued) {
+          queued.notional += p.trade;
+          queued.orders++;
+          for (const bucket of buckets) queued.buckets.add(bucket);
+        } else this.fighterQueue.push({ taker: o.taker, target, notional: p.trade, buckets: new Set(buckets), orders: 1 });
+      }
     }
+    if (this.fighterQueue.length && now - this.lastFighterWave >= FIGHTER_WAVE_COOLDOWN) this.releaseFighter(now);
+  }
+
+  private releaseFighter(now: number) {
+    const q = this.fighterQueue[0];
+    if (!q || now - this.lastFighterWave < FIGHTER_WAVE_COOLDOWN) return;
+    const formation = fighterFormationSize(q.notional) as 2 | 3 | 4;
+    this.emit({ type: "fighter", t: now, taker: q.taker, target: q.target, notional: q.notional, buckets: [...q.buckets], formation, queuedOrders: q.orders });
+    this.lastFighterWave = now;
+    this.fighterQueue.shift();
   }
 
   /** Called every ~250 ms by the app clock: phase machine + order flush. */

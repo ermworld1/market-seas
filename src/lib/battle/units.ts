@@ -4,7 +4,7 @@
  * straight from the rule constants so the copy cannot drift from the code.
  */
 import { LEVEL_Q, TRADE_Q } from "@/lib/market/rules";
-import { FIGHTER_MIN_NOTIONAL, FIGHTER_PERCENTILE, TAPE_MAX_DISTANCE } from "@/lib/market/presentation";
+import { FIGHTER_MIN_NOTIONAL, FIGHTER_SWEEP_LEVELS, TAPE_MAX_DISTANCE } from "@/lib/market/presentation";
 import { FLED_FRAC, RELOCATE_TOL, RELOCATE_WINDOW, REPAIR_MIN, REPAIR_WINDOW } from "./orderRules";
 import { BUCKET_FRAC, RANGE_FRAC } from "./buckets";
 import { T } from "./phase";
@@ -46,7 +46,7 @@ export const WEAPONS: UnitDef[] = [
 ];
 
 export const AIRCRAFT: UnitDef[] = [
-  { id: "fighter", name: "Fighter", icon: "fighter", sided: true, rule: `one taker order ≥ ${usdK(FIGHTER_MIN_NOTIONAL)} and ≥ the ${Math.round(FIGHTER_PERCENTILE * 100)}th percentile`, text: "Strafes along the price row that the order swept." },
+  { id: "fighter", name: "Fighter", icon: "fighter", sided: true, rule: `one taker order ≥ ${usdK(FIGHTER_MIN_NOTIONAL)} or sweeping ≥ ${FIGHTER_SWEEP_LEVELS} price levels`, text: "Two to four fighters strafe every swept price row." },
   { id: "bomber", name: "Bomber", icon: "bomber", sided: true, rule: "a real Binance liquidation (Binance sends max 1 per second)", text: "Dives onto the rear of the liquidated side." },
 ];
 

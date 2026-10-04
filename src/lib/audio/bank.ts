@@ -30,6 +30,7 @@ export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
   sink: "explosion",
   liquidation: "explosion",
   fighter: "aircraft",
+  flak: "flak",
 };
 
 export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => `/sfx/${f}/${i + 1}.mp3`);

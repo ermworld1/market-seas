@@ -194,6 +194,15 @@
   .war-vignette { animation: none; }
 }
 
+.unit-preview.is-playing img { animation: unit-preview-bob 1.8s ease-in-out infinite; }
+.unit-preview-fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.unit-preview-fx::before { content: ""; position: absolute; left: 18%; top: 38%; width: 34%; height: 2px; background: var(--primary); transform: rotate(-5deg); animation: unit-preview-fire .7s linear infinite; }
+.unit-preview-fx.torpedo::before { top: 66%; height: 3px; background: color-mix(in srgb, var(--foreground) 75%, transparent); }
+.unit-preview-fx.bomber::before, .unit-preview-fx.fighter::before { left: 8%; top: 28%; width: 22px; height: 4px; background: var(--foreground); animation: unit-preview-flight 1.6s ease-in-out infinite; }
+@keyframes unit-preview-bob { 0%,100% { transform: translateY(0) rotate(.25deg); } 50% { transform: translateY(-2px) rotate(-.25deg); } }
+@keyframes unit-preview-fire { 0% { transform: translateX(0) rotate(-5deg); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateX(70px) rotate(-5deg); opacity: 0; } }
+@keyframes unit-preview-flight { 0% { transform: translate(-10px,10px) rotate(-8deg); opacity: 0; } 20% { opacity: 1; } 70% { transform: translate(70px,15px) rotate(-8deg); opacity: 1; } 100% { transform: translate(100px,-25px) rotate(-28deg); opacity: 0; } }
+
 .live-dot { animation: live-pulse 1.4s ease-in-out infinite; }
 @keyframes live-pulse { 50% { opacity: 0.35; } }
 .floater {

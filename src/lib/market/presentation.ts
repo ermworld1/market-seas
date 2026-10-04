@@ -1,12 +1,17 @@
 import type { BattleEvent } from "./types";
 
-export const FIGHTER_MIN_NOTIONAL = 500_000;
-export const FIGHTER_PERCENTILE = 0.97;
+export const FIGHTER_MIN_NOTIONAL = 200_000;
+export const FIGHTER_SWEEP_LEVELS = 3;
+export const FIGHTER_WAVE_COOLDOWN = 3_000;
 export const TAPE_MAX_DISTANCE = 0.002;
 export const RELOCATE_TAPE_COOLDOWN = 10_000;
 
-export function fighterEligible(notional: number, percentile97: number, samples: number) {
-  return samples >= 30 && notional >= FIGHTER_MIN_NOTIONAL && notional >= percentile97;
+export function fighterEligible(notional: number, levels: number) {
+  return notional >= FIGHTER_MIN_NOTIONAL || levels >= FIGHTER_SWEEP_LEVELS;
+}
+
+export function fighterFormationSize(notional: number) {
+  return notional >= 1_000_000 ? 4 : notional >= 500_000 ? 3 : 2;
 }
 
 export function tapeEligible(ev: BattleEvent, mark: number, p90: number) {
@@ -48,6 +53,7 @@ export function selectShot(ev: BattleEvent, now: number, lastCut: number, active
   if (ev.type === "sink" && ev.tier === "battleship") return { kind: "flagship", at: now, until: now + 5_000, side: ev.side, bucket: ev.b };
   if (ev.type === "liquidation") return { kind: "bomber", at: now, until: now + 2_200, side: ev.liquidated === "longs" ? "bid" : "ask" };
   if (ev.type === "fighter") {
+    if (ev.notional < 500_000) return null;
     const bucket = ev.buckets[0];
     return bucket === undefined ? { kind: "fighter", at: now, until: now + 2_500, side: ev.target } : { kind: "fighter", at: now, until: now + 2_500, side: ev.target, bucket };
   }

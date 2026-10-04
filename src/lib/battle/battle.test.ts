@@ -159,10 +159,10 @@ describe("engine fire", () => {
 
 describe("presentation thresholds", () => {
   const reinforce = { type: "reinforce", t: 0, side: "bid", b: 1000, price: 100, qty: 10, notional: 1000, fresh: true } as const;
-  it("requires $500K and the 97th percentile for fighters", () => {
-    expect(fighterEligible(499_999, 400_000, 100)).toBe(false);
-    expect(fighterEligible(500_000, 490_000, 100)).toBe(true);
-    expect(fighterEligible(600_000, 700_000, 100)).toBe(false);
+  it("launches fighters for $200K orders or three swept levels", () => {
+    expect(fighterEligible(199_999, 2)).toBe(false);
+    expect(fighterEligible(200_000, 1)).toBe(true);
+    expect(fighterEligible(80_000, 3)).toBe(true);
   });
   it("filters tape events by type, distance and p90", () => {
     expect(tapeEligible(reinforce, 100, 900)).toBe(true);
@@ -287,7 +287,7 @@ describe("lesson sentences", () => {
     const base = { t: 0, side: "ask" as const, b: 1, price: 85320, tier: "cruiser" as const };
     expect(lessonText({ ...base, type: "sink", notional: 1_800_000 } as never)).toBe("The Sellers' $1.8M order at 85,320 was fully traded, so that ship sank and the price line moved.");
     expect(lessonText({ ...base, type: "dive", notional: 900_000, lived: 1, neverHit: true } as never)).toContain("$900K order at 85,320 was cancelled");
-    expect(lessonText({ type: "fighter", t: 0, taker: "sell", target: "bid", notional: 640_000, buckets: [1, 2, 3] })).toContain("sold $640K in a single order across 3 price levels");
+    expect(lessonText({ type: "fighter", t: 0, taker: "sell", target: "bid", notional: 640_000, buckets: [1, 2, 3], formation: 3, queuedOrders: 1 })).toContain("sold $640K in a single order across 3 price levels");
     expect(lessonText({ type: "liquidation", t: 0, liquidated: "longs", price: 85000, qty: 1, notional: 120_000 })).toContain("force-closed $120K of longs at 85,000");
     expect(lessonText({ ...base, side: "bid", type: "reinforce", qty: 10, notional: 2_100_000, fresh: true } as never)).toContain("added $2.1M of buy orders at 85,320");
   });

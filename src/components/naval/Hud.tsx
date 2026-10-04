@@ -1,5 +1,5 @@
 import { AIRCRAFT, RULES_FACTS, SHIPS, WEAPONS } from "@/lib/battle/units";
-import { HowItWorks, UnitList } from "./Units";
+import { HowItWorks, UnitIcon, UnitList } from "./Units";
 import { useShallow } from "zustand/react/shallow";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, Crosshair, Download, HelpCircle, Map, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
@@ -389,8 +389,8 @@ function LegendStrip() {
     <div className="pointer-events-auto flex items-center gap-3 overflow-x-auto px-1 text-[10px] text-foreground/80" data-tour="legend">
       {SHIPS.map((u) => (
         <span key={u.id} className="flex shrink-0 items-center gap-1">
-          <img src={`/legend/${u.icon}-bid.png`} alt="" width={32} height={14} className="h-3.5 w-8 object-contain" />
-          <img src={`/legend/${u.icon}-ask.png`} alt="" width={32} height={14} className="h-3.5 w-8 object-contain" />
+          <UnitIcon u={u} side="bid" />
+          <UnitIcon u={u} side="ask" />
           <span className="font-semibold">{u.name}</span>
           <span className="text-muted-foreground">{u.rule.replace("smallest ", "<").replace(" of price buckets", "")}</span>
         </span>

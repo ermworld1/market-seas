@@ -32,7 +32,7 @@ export type BattleEvent =
       aggId: number;
     }
   | { type: "order"; t: number; taker: "buy" | "sell"; notional: number; qty: number; fills: number; avg: number; buckets: number[]; firstAggId: number; lastAggId: number }
-  | { type: "fighter"; t: number; taker: "buy" | "sell"; target: BookSide; notional: number; buckets: number[] }
+  | { type: "fighter"; t: number; taker: "buy" | "sell"; target: BookSide; notional: number; buckets: number[]; formation: 2 | 3 | 4; queuedOrders: number }
   | { type: "liquidation"; t: number; liquidated: "longs" | "shorts"; price: number; qty: number; notional: number }
   | { type: "phase"; t: number; phase: Phase | "P0"; oneShot: boolean; detail?: "push" | "fall back" };
 
