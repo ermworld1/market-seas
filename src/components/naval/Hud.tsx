@@ -107,8 +107,8 @@ function Header({ now }: { now: number }) {
   return (
     <header className="hud-panel pointer-events-auto p-2 md:p-2.5" data-tour="header">
       <div className="flex items-center gap-2 md:gap-4">
-        <div className="flex shrink-0 items-center gap-2">
-          <h1 className="font-display text-base font-bold uppercase leading-none tracking-[0.16em] text-primary md:text-lg">No Man's Sea</h1>
+        <div className="flex min-w-0 shrink items-center gap-2">
+          <h1 className="font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>
           <span className={cn("hud-num flex items-center gap-1 text-[11px]", latTone)} title="Milliseconds since the last market message">
             <span className={cn("inline-block h-2 w-2 rounded-full", status === "live" ? "live-dot bg-ok" : "bg-muted-foreground")} />
             {status === "live" ? `LIVE · data ${lat}ms` : status === "connecting" ? "connecting" : "offline"}
@@ -235,7 +235,7 @@ function Banners() {
         {regime && <span className="regime-banner">{regime}</span>}
         <span className="phase-chip">{PHASE_NAME[hud.phase]}</span>
         {nt && (
-          <span className="hud-num rounded bg-background/70 px-2 py-0.5 text-[11px] text-foreground">
+          <span className="hud-num rounded bg-background/70 px-2 py-0.5 text-[10px] text-foreground md:text-[11px]">
             NEXT TARGET {nt.side === "ask" ? "Sellers'" : "Buyers'"} flagship {fmtPrice(nt.price)} · {usd(nt.depth)} to eat
           </span>
         )}

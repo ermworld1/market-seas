@@ -164,7 +164,7 @@ export function Fleet() {
       const now = Date.now();
       const kMove = 1 - Math.exp(-4 * dt);
       const kScale = 1 - Math.exp(-3 * dt);
-      const mobileK = view.mobile ? 0.8 : 1;
+      const mobileK = view.mobile ? 1.4 : 1;
       const stormBob = 1 + view.storm * 3;
       const repairs: { x: number; y: number; z: number }[] = [];
       let near: Display | null = null;
