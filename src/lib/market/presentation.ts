@@ -40,7 +40,10 @@ export function selectShot(ev: BattleEvent, now: number, lastCut: number): ShotR
   if (ev.type === "phase" && ev.phase === "P5") return { kind: "cascade", at: now, until: now + 6_000 };
   if (ev.type === "sink" && ev.tier === "battleship") return { kind: "flagship", at: now, until: now + 5_000, side: ev.side, bucket: ev.b };
   if (ev.type === "liquidation") return { kind: "bomber", at: now, until: now + 2_200, side: ev.liquidated === "longs" ? "bid" : "ask" };
-  if (ev.type === "fighter") return { kind: "fighter", at: now, until: now + 2_500, side: ev.target, bucket: ev.buckets[0] };
+  if (ev.type === "fighter") {
+    const bucket = ev.buckets[0];
+    return bucket === undefined ? { kind: "fighter", at: now, until: now + 2_500, side: ev.target } : { kind: "fighter", at: now, until: now + 2_500, side: ev.target, bucket };
+  }
   if (ev.type === "fire" && ev.weapon === "broadside") return { kind: "broadside", at: now, until: now + 3_200, side: ev.target, bucket: ev.b };
   if (ev.type === "fire" && ev.notional >= 250_000) return { kind: "trade", at: now, until: now + 2_800, side: ev.target, bucket: ev.b };
   return null;
