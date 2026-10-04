@@ -44,6 +44,7 @@ class AudioEngine {
   dropped = 0;
   byCat: Record<string, number> = {};
   voPlayed: string[] = [];
+  voByCharacter: Record<string, number> = { captain: 0, admiral: 0, spotter: 0 };
   voBusyUntil = 0;
   /** distinct procedural variants played per category */
   variants: Record<string, number[]> = {};
@@ -306,12 +307,14 @@ class AudioEngine {
     }
     this.pending = null;
     const file = VO_FILES[key];
+    const character = key.startsWith("cap_") ? "captain" : key.startsWith("adm_") ? "admiral" : "spotter";
     this.lastVoiceAt = now;
     if (file) {
       const buf = await this.loadVo(file);
       if (buf) {
         this.radioBuffer(buf);
         this.voPlayed.push(key);
+        this.voByCharacter[character] = (this.voByCharacter[character] ?? 0) + 1;
         return true;
       }
     }
@@ -333,6 +336,7 @@ class AudioEngine {
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
     this.voPlayed.push(key + " (tts)");
+    this.voByCharacter[character] = (this.voByCharacter[character] ?? 0) + 1;
     return true;
   }
   /** Play once on the first torpedo after 30 s without any voice. */

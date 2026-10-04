@@ -70,7 +70,7 @@ function radio(key: string, detail?: string) {
   const lines = RADIO[key];
   if (!lines) return;
   const text = lines[Math.floor(Math.random() * lines.length)]!;
-  useBattle.setState({ radio: { id: nextId(), text, speaker: speakerFor(key), detail } });
+  useBattle.setState({ radio: { id: nextId(), text, speaker: speakerFor(key), ...(detail ? { detail } : {}) } });
   if (key !== "P1") void audio.voice(key, text); // P1 is subtitle-only
 }
 /** cumulative damage per flagship, announced each time another 25 % of its peak size is traded */

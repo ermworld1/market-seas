@@ -100,7 +100,7 @@ export function Effects() {
   const fighterGeo = useMemo(() => makeFighterGeometry(), []);
   // aircraft wear the colour of the side that sends them (the opposite of the side they attack)
   const airMats = useMemo(() => {
-    const m = (hex: string) => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), metalness: 0.55, roughness: 0.62, flatShading: true, sheen: 0.15, sheenColor: new THREE.Color(hex) });
+    const m = (_hex: string) => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), metalness: 0.55, roughness: 0.62, flatShading: true });
     return { bid: m(SIDE_HEX.bid), ask: m(SIDE_HEX.ask) };
   }, []);
   const planeMat = airMats.ask;
