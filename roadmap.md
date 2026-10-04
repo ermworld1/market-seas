@@ -1,9 +1,9 @@
 # Roadmap
 
-- [x] Implement the live Binance combined stream, OI polling, event detection, and unit tests.
-- [x] Build the responsive HUD and local XP prediction rounds.
-- [x] Build the Water/Sky battlefield, fleets, battle effects, tankers, convoys, bombers, and volatility weather.
-- [x] Download and validate the seven supplied GLBs plus water normal texture.
-- [x] Merge each GLB geometry once and render fleet ships by model/side with InstancedMesh.
-- [x] Cap mobile fleets at 12 visible levels per side and verify waterline and opposing bow direction.
-- [x] Verify live BTCUSDT at 1440 desktop and 390 phone, measure frame rate, and fix failures.
+- [x] v1: live battle, fleets, effects, HUD, predictions, GLB models.
+- [x] v2 Phase A: BTC only, Buyers/Sellers, ortho camera, label fix, full book sync, buckets, tiers, order-change rules + tests.
+- [x] v2 Phase B: fill-count tracers, sweeps, fighters, phase machine, 5-min battles, boss HP, tug-of-war, regime banner, callouts, new predictions.
+- [x] v2 Phase C: header/filters, guide, action tape, ticker, legend, tour, guards, ?debug=1, /stats.
+- [x] v2 Phase D: Web Audio engine + procedural sfx/music/radio with slots, auto-clips.
+- [x] v2 verification at 1440 and 390 with live BTCUSDT.
+- [ ] Real-device frame-rate check (needs a real phone/laptop GPU).
