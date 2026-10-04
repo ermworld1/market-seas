@@ -32,6 +32,18 @@ export const RADIO: Record<string, string[]> = {
   surface: ["Sub surfacing, starboard side!"],
   flagsunk: ["Flagship is going down!"],
   liq: ["Bombers overhead! Take cover!"],
+  cap_commence: ["Main battery, commence firing!"],
+  cap_holdline: ["Hold the line! Do not give them an inch!"],
+  cap_stations: ["Battle stations! All hands to battle stations!"],
+  adm_openfire: ["All ships, open fire! Sink them!"],
+  adm_break: ["Break their line! Full speed ahead!"],
+  adm_withdraw: ["Withdraw! Lay smoke and fall back!"],
+  spot_hit: ["Direct hit! Direct hit!"],
+  spot_splash: ["Splash! Short. Add two hundred!"],
+  spot_aircraft: ["Enemy aircraft, two o'clock high!"],
+  spot_sonar: ["Sonar contact! She's diving!"],
+  spot_fire: ["Fire on the main deck! Damage control, move!"],
+  spot_breaking: ["She's breaking apart! She's going under!"],
 };
 
 const pageStart = Date.now();
@@ -44,6 +56,7 @@ const flagState: Record<BookSide, { b: number; since: number; gone: null | { sta
   ask: { b: NaN, since: 0, gone: null },
 };
 const flagEvents: { type: string; b: number; side: string }[] = [];
+const damageCalled = new Set<string>();
 
 function pushTape(kind: string, text: string, tone: TapeLine["tone"], notional = 0, ids?: { first: number; last: number }) {
   const line: TapeLine = { id: nextId(), t: Date.now(), kind, text, tone, notional, ...(ids ? { firstAggId: ids.first, lastAggId: ids.last } : {}) };
@@ -53,18 +66,19 @@ function pushTape(kind: string, text: string, tone: TapeLine["tone"], notional =
 function callout(text: string, tone: "buy" | "sell" | "liq" | "info", slow = false) {
   useBattle.setState({ callout: { id: nextId(), text, tone, slow } });
 }
-function radio(key: string) {
+const speakerFor = (key: string): "captain" | "admiral" | "spotter" => key.startsWith("cap_") ? "captain" : key.startsWith("adm_") ? "admiral" : "spotter";
+function radio(key: string, detail?: string) {
   const lines = RADIO[key];
   if (!lines) return;
   const text = lines[Math.floor(Math.random() * lines.length)]!;
-  useBattle.setState({ radio: { id: nextId(), text } });
+  useBattle.setState({ radio: { id: nextId(), text, speaker: speakerFor(key), ...(detail ? { detail } : {}) } });
   if (key !== "P1") void audio.voice(key, text); // P1 is subtitle-only
 }
 /** cumulative damage per flagship, announced each time another 25 % of its peak size is traded */
 const flagHits: Record<string, { b: number; dmg: number; told: number }> = {};
 /** First sound enable: radio check with subtitle. */
 export function radioCheck() {
-  useBattle.setState({ radio: { id: nextId(), text: "Contact! Enemy ships on the move." } });
+  useBattle.setState({ radio: { id: nextId(), text: RADIO["cap_stations"]![0]!, speaker: "captain", detail: "Radio circuit open · live BTCUSDT battle" } });
   audio.radioCheck();
 }
 
@@ -92,12 +106,20 @@ function onEvent(ev: BattleEvent) {
   const side = "side" in ev ? ev.side : null;
   const fleet = side ? FLEET_NAME[side] : "";
   switch (ev.type) {
+    case "fire": {
+      if (ev.notional < 250_000) break;
+      const target = view.displays.get(ev.target + ev.b);
+      const sideName = ev.target === "bid" ? "Buyers'" : "Sellers'";
+      const detail = `${usd(ev.notional)} ${ev.taker} order ${target ? `hit the ${sideName} ${target.tier}` : "splashed between levels"} at ${fmtPrice(ev.price)}`;
+      radio(target ? "spot_hit" : "spot_splash", detail);
+      break;
+    }
     case "order":
       if (ev.notional >= 250_000) pushTape("SHOT", `${ev.taker === "buy" ? "Sellers'" : "Buyers'"} line hit by ${usd(ev.notional)} ${ev.taker} · ${ev.fills} rounds · #a ${ev.firstAggId}${ev.lastAggId === ev.firstAggId ? "" : `–${ev.lastAggId}`}`, ev.taker === "buy" ? "buy" : "sell", ev.notional, { first: ev.firstAggId, last: ev.lastAggId });
       if (ev.notional >= 1_000_000) callout(`${usd(ev.notional)} ${ev.taker.toUpperCase()} · BROADSIDE`, ev.taker === "buy" ? "buy" : "sell");
       break;
     case "fighter":
-      radio("fighter");
+      radio("spot_aircraft", `${usd(ev.notional)} ${ev.taker} order launched a fighter across ${ev.buckets.length} price levels`);
       pushTape("FIGHTER", `FIGHTER strafing run · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
       break;
     case "sink":
@@ -110,9 +132,9 @@ function onEvent(ev: BattleEvent) {
       if (ev.tier === "battleship") {
         fx.slowmo = 2; fx.slowScale = 0.3;
         callout(`${fleet.toUpperCase()}' FLAGSHIP SUNK`, side === "bid" ? "sell" : "buy", true);
-        radio("flagsunk");
+        radio("spot_breaking", `${fleet}' flagship at ${fmtPrice(ev.price)} was fully traded`);
         triggerClip(`${fleet}' flagship sunk`);
-      }
+      } else radio("spot_breaking", `${fleet}' ${ev.tier} worth ${usd(ev.notional)} sank at ${fmtPrice(ev.price)}`);
       break;
     case "dive":
     case "fled": {
@@ -120,12 +142,15 @@ function onEvent(ev: BattleEvent) {
       pushTape(label, `${label} ${usd(ev.notional)} at ${fmtPrice(ev.price)} · lived ${(ev.lived / 1000).toFixed(1)}s${ev.neverHit ? " · never hit" : ""}`, "sub", ev.notional);
       flagEvents.push(ev);
       if (ev.tier === "battleship") callout(`${fleet.toUpperCase()}' FLAGSHIP ${ev.type === "dive" ? "DIVED" : "FLED"}`, "info");
-      if (ev.tier === "battleship" || ev.tier === "cruiser") radio(ev.type === "fled" ? "capital" : "dive");
+      if (ev.tier === "battleship" || ev.tier === "cruiser") radio("spot_sonar", `${fleet}' ${ev.tier} ${ev.type === "fled" ? "withdrew" : "dived"} at ${fmtPrice(ev.price)}`);
       break;
     }
     case "damage": {
       if (!side) break;
       const f = engineRef.current?.flagship(side);
+      const d = view.displays.get(side + ev.b);
+      const damageKey = `${side}:${ev.b}`;
+      if (d && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); radio("spot_fire", `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`); }
       if (!f || f.b !== ev.b) break;
       const h = flagHits[side]?.b === ev.b ? flagHits[side]! : (flagHits[side] = { b: ev.b, dmg: 0, told: 0 });
       h.dmg += ev.filled;
@@ -134,10 +159,11 @@ function onEvent(ev: BattleEvent) {
       break;
     }
     case "pulled":
+      if (side) damageCalled.delete(`${side}:${ev.b}`);
       flagEvents.push(ev);
       break;
     case "relocate":
-      if (ev.notional >= 1_000_000) radio("surface");
+      if (ev.notional >= 1_000_000) radio("spot_sonar", `${fleet}' ${usd(ev.notional)} order relocated from ${fmtPrice(ev.fromPrice)} to ${fmtPrice(ev.price)}`);
       if (canNarrateRelocate(Date.now(), lastRelocateTape)) { lastRelocateTape = Date.now(); pushTape("RELOCATE", `${fleet}' ${usd(ev.notional)} surfaced ${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, "sub", ev.notional); }
       break;
     case "hidden":
@@ -153,13 +179,20 @@ function onEvent(ev: BattleEvent) {
       const what = ev.liquidated === "longs" ? "LONG" : "SHORT";
       pushTape("AIR STRIKE", `AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, "liq", ev.notional);
       callout(`AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)}`, "liq");
-      radio("liq");
+      radio("spot_aircraft", `${usd(ev.notional)} ${what.toLowerCase()} liquidation struck at ${fmtPrice(ev.price)}`);
       break;
     }
     case "phase":
       audio.setPhase(ev.phase);
-      if (ev.phase === "P6") radio(ev.detail === "fall back" ? "P6fall" : "P6push");
-      else radio(ev.phase);
+      if (ev.phase === "P6") {
+        const buyersPushing = (engineRef.current?.priceChange5m ?? 0) > 0;
+        radio(buyersPushing ? (ev.detail === "fall back" ? "adm_withdraw" : Math.random() < 0.5 ? "cap_commence" : "cap_holdline") : (ev.detail === "fall back" ? "cap_holdline" : Math.random() < 0.5 ? "adm_openfire" : "adm_break"));
+      }
+      else {
+        const phaseLine: Partial<Record<string, string>> = { P2: "cap_stations", P3: "adm_openfire", P4: "cap_commence", P5: "cap_holdline", P7: "adm_withdraw" };
+        const key = phaseLine[ev.phase];
+        if (key) radio(key);
+      }
       if (ev.phase === "P5") triggerClip("Liquidation cascade");
       break;
   }
@@ -269,7 +302,8 @@ export function useDirector() {
         }
         if (battle.id) radio("end");
         battle = { id: w.id, end: w.end, startMark: e.mark, watchedFrom: now };
-        setTimeout(() => radio("start"), 2500);
+        audio.play("klaxon");
+        setTimeout(() => { audio.play("bosun"); radio("cap_stations", `Battle opened at BTC ${fmtPrice(e.mark)}`); }, 900);
         warned = false;
         const r: Round = { id: nextId(), kind: "winner", startedAt: now, endsAt: w.end, battleId: w.id, lockAt: Math.min(w.end, w.start + PICK_WINDOW_MS) };
         useBattle.setState({ round: r });

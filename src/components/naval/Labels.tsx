@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Wrench } from "lucide-react";
 import { useBattle } from "@/lib/market/store";
 import { fmtPrice } from "@/lib/market/predictions";
 import { screen } from "./screen";
@@ -46,7 +47,7 @@ export function Labels() {
           el.style.display = "none";
           return;
         }
-        place(el, f, -f.age * 26);
+        place(el, f, -f.age * 26 - i * 16);
         el.style.opacity = String(Math.max(0, 1 - f.age / 1.8));
         if (el.textContent !== f.text) el.textContent = f.text;
         el.dataset["tone"] = f.tone;
@@ -90,10 +91,11 @@ export function Labels() {
           ref={(el) => {
             reps.current[i] = el;
           }}
-          className="ship-tag absolute left-0 top-0 text-ok"
+          className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-full border border-ok/70 bg-background/75 text-ok"
           style={{ display: "none" }}
+          title="Repair inferred from repeated refills"
         >
-          repair (inferred)
+          <Wrench className="h-3 w-3" />
         </div>
       ))}
       {Array.from({ length: FLOATERS }, (_, i) => (

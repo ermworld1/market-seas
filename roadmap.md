@@ -32,3 +32,9 @@
 - [x] D green/red sides everywhere
 - [x] E unit legend/guide/tour from one shared config + real renders
 - [x] F full QA checklist (remaining: battle result card not caught by automation; real device)
+
+## v9 realism and sound
+- [x] Realistic non-emissive warship finishes, formations, wakes, foam, smoke, and restrained labels
+- [x] WWII naval weapon and ship ambience sound design
+- [x] Captain, Admiral, and Spotter recorded radio system and panel
+- [x] Five-minute live desktop and phone verification (sandbox software renderer; physical-device sound/FPS remains unverified)

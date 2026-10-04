@@ -273,8 +273,13 @@ function Banners() {
         </div>
       )}
       {rad && (
-        <div key={rad.id} className="radio-sub">
-          <span className="text-primary">RADIO ›</span> {rad.text}
+        <div key={rad.id} className="radio-panel" role="status">
+          <div className="radio-portrait" aria-hidden><span /></div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2"><span className={cn("radio-name", rad.speaker === "captain" ? "text-bull" : rad.speaker === "admiral" ? "text-bear" : "text-primary")}>{rad.speaker === "captain" ? "CAPTAIN · BUYERS" : rad.speaker === "admiral" ? "ADMIRAL · SELLERS" : "SPOTTER"}</span><span className="radio-wave" aria-hidden>{Array.from({ length: 9 }, (_, i) => <i key={i} />)}</span></div>
+            <div className="radio-line">{rad.text}</div>
+            {rad.detail && <div className="radio-detail">{rad.detail}</div>}
+          </div>
         </div>
       )}
     </>

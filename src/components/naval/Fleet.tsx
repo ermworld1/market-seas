@@ -17,24 +17,11 @@ const col = new THREE.Color();
 const WHITE = new THREE.Color(1, 1, 1);
 const FOG = new THREE.Color(0.55, 0.6, 0.64);
 const SIDE_COL = { bid: new THREE.Color("#0ecb81"), ask: new THREE.Color("#f6465d") };
-
-/** Soft radial glow under each ship: side colour readable from far away. */
-function glowTexture() {
-  const c = document.createElement("canvas");
-  c.width = c.height = 64;
-  const g = c.getContext("2d")!;
-  const r = g.createRadialGradient(32, 32, 4, 32, 32, 32);
-  r.addColorStop(0, "rgba(255,255,255,0.9)");
-  r.addColorStop(0.45, "rgba(255,255,255,0.35)");
-  r.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = r;
-  g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
-const haloGeo = new THREE.PlaneGeometry(1, 0.55).rotateX(-Math.PI / 2);
+const stripeGeo = new THREE.BoxGeometry(0.92, 0.055, 0.15).translate(0, 0.015, 0);
+const deckGeo = new THREE.BoxGeometry(0.38, 0.025, 0.12).translate(-0.08, 0.18, 0);
 const flagGeo = new THREE.PlaneGeometry(0.16, 0.1).translate(0.08, 0, 0);
 const poleGeo = new THREE.BoxGeometry(0.012, 0.22, 0.012).translate(0, -0.06, 0);
-const HALO_CAP = CAP * 5;
+const MARK_CAP = CAP * 5;
 
 function textTexture(text: string, color: string) {
   const c = document.createElement("canvas");
@@ -100,13 +87,21 @@ export function Fleet() {
   );
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
   const marks = useMemo(() => {
-    const tex = glowTexture();
-    const halo = (side: BookSide) => new THREE.MeshBasicMaterial({ map: tex, color: SIDE_COL[side], transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-    const flag = (side: BookSide) => new THREE.MeshBasicMaterial({ color: SIDE_COL[side].clone().multiplyScalar(1.4), side: THREE.DoubleSide, fog: false, toneMapped: false });
-    return { tex, halo: { bid: halo("bid"), ask: halo("ask") }, flag: { bid: flag("bid"), ask: flag("ask") }, pole: new THREE.MeshBasicMaterial({ color: "#20252b" }) };
+    const paint = (side: BookSide) => new THREE.MeshStandardMaterial({ color: SIDE_COL[side], metalness: 0.35, roughness: 0.64, side: THREE.DoubleSide });
+    const flag = (side: BookSide) => new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: SIDE_COL[side] }, uTime: { value: 0 } },
+      vertexShader: `uniform float uTime; varying float vShade; void main(){ vec3 p=position; float k=(p.x+0.08)/0.16; p.z += sin(uTime*5.0+k*5.5)*0.018*k; vShade=.72+.28*sin(uTime*5.0+k*5.5); gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
+      fragmentShader: `uniform vec3 uColor; varying float vShade; void main(){ gl_FragColor=vec4(uColor*vShade,1.0); }`,
+      side: THREE.DoubleSide,
+    });
+    return {
+      paint: { bid: paint("bid"), ask: paint("ask") },
+      flag: { bid: flag("bid"), ask: flag("ask") },
+      pole: new THREE.MeshStandardMaterial({ color: "#20252b", metalness: 0.75, roughness: 0.4 }),
+    };
   }, []);
-  useEffect(() => () => { marks.tex.dispose(); [marks.halo.bid, marks.halo.ask, marks.flag.bid, marks.flag.ask, marks.pole].forEach((m) => m.dispose()); }, [marks]);
-  const halos = useRef<Record<string, THREE.InstancedMesh | null>>({});
+  useEffect(() => () => { [marks.paint.bid, marks.paint.ask, marks.flag.bid, marks.flag.ask, marks.pole].forEach((m) => m.dispose()); }, [marks]);
+  const markings = useRef<Record<string, THREE.InstancedMesh | null>>({});
   const meshes = useRef<Record<string, THREE.InstancedMesh | null>>({});
 
   useEffect(() => {
@@ -120,6 +115,8 @@ export function Fleet() {
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? fx.slowScale : 1);
+    marks.flag.bid.uniforms["uTime"]!.value = view.time;
+    marks.flag.ask.uniforms["uTime"]!.value = view.time;
     view.frameMs += (raw * 1000 - view.frameMs) * 0.05;
     view.time += dt;
     fx.slowmo = Math.max(0, fx.slowmo - Math.min(raw, 0.05));
@@ -187,7 +184,7 @@ export function Fleet() {
             break;
           case "reinforce":
             if (d) d.damage *= 0.4;
-            if (d && ev.notional >= 1_500_000) {
+            if (d && ev.notional >= e.bucketSampler.quantile(0.9)) {
               addFloater({ x: d.x + sign * 0.2, y: 0.4, z: d.z }, `+${usd(ev.notional)}`, ev.side === "bid" ? "buy" : "sell");
               if (ev.notional >= 5e6) audio.play("reinforce", pan);
             }
@@ -249,8 +246,8 @@ export function Fleet() {
           d.x += dx;
           // wake behind moving ships (and a faint bow wash on big ones)
           const speed = Math.abs(dx) / Math.max(dt, 1e-3);
-          if (smoke && (speed > 0.15 ? Math.random() < dt * 40 : Math.random() < dt * 0.6 * d.s))
-            smoke.emit({ x: d.x + sign * 0.5 * d.s, y: 0.02, z: d.z + (Math.random() - 0.5) * 0.15 * d.s, vz: (Math.random() - 0.5) * 0.3, life: 1.4, size: 0.12 + 0.1 * d.s, grow: 2.2, color: d.side === "bid" ? "#bff5dd" : "#ffd0d6", alpha: 0.55 });
+          if (smoke && (speed > 0.15 ? Math.random() < dt * 40 : Math.random() < dt * 2.2 * d.s))
+            smoke.emit({ x: d.x + sign * 0.5 * d.s, y: 0.02, z: d.z + (Math.random() - 0.5) * 0.15 * d.s, vx: sign * (0.15 + speed * 0.08), vz: (Math.random() - 0.5) * 0.3, life: 2.4, size: 0.12 + 0.1 * d.s, grow: 3.2, color: "#e1ecee", alpha: 0.68 });
           d.s += (ts - d.s) * kScale;
           // damage persists until the order is refilled (reinforce/repair) or sunk
           d.roll += (d.damage * 0.3 + Math.sin(view.time * 0.9 + d.x) * 0.03 * stormBob - d.roll) * kMove;
@@ -313,7 +310,6 @@ export function Fleet() {
         d.hitFlash *= Math.exp(-6 * dt);
         if (hidden) continue;
 
-        const trim = d.tier === "destroyer";
         const mkey = d.side + d.tier;
         const m = meshes.current[mkey];
         const n = counts[mkey] ?? 0;
@@ -325,24 +321,26 @@ export function Fleet() {
         dummy.updateMatrix();
         m.setMatrixAt(n, dummy.matrix);
         const selected = view.selectedBucket?.side === d.side && view.selectedBucket.b === d.b;
-        col.copy(WHITE).lerp(FOG, d.fade).multiplyScalar((selected ? 1.65 : 1) * (1 - d.damage * 0.45 + d.hitFlash * 1.5));
+        col.copy(WHITE).lerp(FOG, d.fade).multiplyScalar((selected ? 1.12 : 1) * (1 - d.damage * 0.38 + d.hitFlash * 0.45));
         m.setColorAt(n, col);
         counts[mkey] = n + 1;
         const hk = d.side as string;
         const hn = counts["h" + hk] ?? 0;
-        const hm = halos.current["h" + hk];
-        const fm = halos.current["f" + hk];
-        const pm = halos.current["p" + hk];
-        if (hm && fm && pm && hn < HALO_CAP) {
+        const sm = markings.current["s" + hk];
+        const dm = markings.current["d" + hk];
+        const fm = markings.current["f" + hk];
+        const pm = markings.current["p" + hk];
+        if (sm && dm && fm && pm && hn < MARK_CAP) {
           const sz = Math.max(0.001, d.s) * (1 - d.fade * 0.6);
-          dummy.quaternion.identity();
-          dummy.position.set(d.x, 0.03, d.z);
-          dummy.scale.set(sz * 2.1 + 0.25, 1, sz * 2.1 + 0.25);
+          dummy.rotation.copy(euler);
+          dummy.position.set(d.x, d.y, d.z);
+          dummy.scale.setScalar(sz);
           dummy.updateMatrix();
-          hm.setMatrixAt(hn, dummy.matrix);
-          const fs = (0.25 + d.s * 0.55) * (view.presentation === "map" ? 1.6 : 1) * (1 - d.fade);
+          sm.setMatrixAt(hn, dummy.matrix);
+          dm.setMatrixAt(hn, dummy.matrix);
+          const fs = (0.22 + d.s * 0.48) * (1 - d.fade);
           dummy.position.set(d.x, d.y + 0.34 * d.s + 0.16, d.z);
-          dummy.rotation.set(0, d.side === "bid" ? 0 : Math.PI, Math.sin(view.time * 6 + d.b) * 0.08);
+          dummy.rotation.set(0, d.side === "bid" ? 0 : Math.PI, Math.sin(view.time * 5 + d.b) * 0.16);
           dummy.scale.setScalar(Math.max(0.001, fs));
           dummy.updateMatrix();
           fm.setMatrixAt(hn, dummy.matrix);
@@ -371,8 +369,8 @@ export function Fleet() {
         if (m.instanceColor) m.instanceColor.needsUpdate = true;
       }
     for (const side of SIDES)
-      for (const p of ["h", "f", "p"]) {
-        const m = halos.current[p + side];
+      for (const p of ["s", "d", "f", "p"]) {
+        const m = markings.current[p + side];
         if (!m) continue;
         m.count = counts["h" + side] ?? 0;
         m.instanceMatrix.needsUpdate = true;
@@ -395,9 +393,10 @@ export function Fleet() {
       )}
       {SIDES.map((side) => (
         <group key={"mk" + side}>
-          <instancedMesh ref={(m) => { halos.current["h" + side] = m; }} args={[haloGeo, marks.halo[side], HALO_CAP]} frustumCulled={false} renderOrder={1} />
-          <instancedMesh ref={(m) => { halos.current["f" + side] = m; }} args={[flagGeo, marks.flag[side], HALO_CAP]} frustumCulled={false} />
-          <instancedMesh ref={(m) => { halos.current["p" + side] = m; }} args={[poleGeo, marks.pole, HALO_CAP]} frustumCulled={false} />
+          <instancedMesh ref={(m) => { markings.current["s" + side] = m; }} args={[stripeGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
+          <instancedMesh ref={(m) => { markings.current["d" + side] = m; }} args={[deckGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
+          <instancedMesh ref={(m) => { markings.current["f" + side] = m; }} args={[flagGeo, marks.flag[side], MARK_CAP]} frustumCulled={false} />
+          <instancedMesh ref={(m) => { markings.current["p" + side] = m; }} args={[poleGeo, marks.pole, MARK_CAP]} frustumCulled={false} />
         </group>
       ))}
       <WaterLabels />
