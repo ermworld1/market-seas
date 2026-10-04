@@ -32,8 +32,8 @@ interface Plane {
 }
 
 const dummy = new THREE.Object3D();
-const beamGeo = new THREE.CylinderGeometry(0.05, 1.6, 22, 12, 1, true).translate(0, 11, 0);
-const beamMat = new THREE.MeshBasicMaterial({ color: "#fff3cf", transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+const beamGeo = new THREE.CylinderGeometry(0.04, 0.8, 22, 12, 1, true).translate(0, 11, 0);
+const beamMat = new THREE.MeshBasicMaterial({ color: "#fff3cf", transparent: true, opacity: 0.03, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const COLORS = {
