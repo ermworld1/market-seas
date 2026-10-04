@@ -257,7 +257,7 @@ export function Effects() {
         }
       } else if (p.t >= p.next && u > 0.1 && u < 0.85) {
         p.next = p.t + 0.05;
-        spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + (Math.random() - 0.5) * 0.4, ty: 0.1, tz: z + sideSign(p.side) * 1.2, dur: 0.18, size: 0.035, len: 0.5, target: targetFor(p.side, Infinity) && null });
+        spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + (Math.random() - 0.5) * 0.4, ty: 0.1, tz: z + sideSign(p.side) * 1.2, dur: 0.18, size: 0.035, len: 0.5, target: null });
       }
       if (u >= 1) p.on = false;
     });
