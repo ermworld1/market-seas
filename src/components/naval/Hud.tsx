@@ -449,6 +449,33 @@ function ResultCard() {
   }, [result]);
   if (!open) return null;
   const move = ((open.endMark - open.startMark) / open.startMark) * 100;
+  const downloadCard = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1200;
+    canvas.height = 630;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.fillStyle = "#0d222b";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#e8bc4a";
+    context.font = "bold 76px sans-serif";
+    context.fillText("NO MAN'S SEA", 70, 110);
+    context.fillStyle = "#f3f0df";
+    context.font = "bold 110px sans-serif";
+    context.fillText(open.winner === "draw" ? "DRAW" : `${open.winner.toUpperCase()} WIN`, 70, 285);
+    context.font = "36px monospace";
+    context.fillText(`BTC ${fmtPrice(open.startMark)} → ${fmtPrice(open.endMark)} (${move >= 0 ? "+" : ""}${move.toFixed(3)}%)`, 70, 380);
+    context.font = "28px sans-serif";
+    context.fillText("Live Binance Futures data · XP only · No prizes", 70, 540);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `no-mans-sea-${open.id}.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    });
+  };
   return (
     <div className="pointer-events-auto absolute left-1/2 top-1/3 z-30 w-[min(92vw,360px)] -translate-x-1/2" role="dialog" aria-label="Battle result">
       <div className="hud-panel p-4 text-center">
@@ -462,7 +489,7 @@ function ResultCard() {
         <p className="mt-2 text-sm">
           Today: <span className="text-bull">Buyers {scoreboard?.buyers ?? 0}</span> – <span className="text-bear">{scoreboard?.sellers ?? 0} Sellers</span>
         </p>
-        <button onClick={() => setOpen(null)} className="mt-3 rounded bg-secondary px-3 py-1 text-xs uppercase">Close</button>
+        <div className="mt-3 flex justify-center gap-2"><button onClick={downloadCard} className="inline-flex items-center gap-1 rounded bg-primary px-3 py-1 text-xs uppercase text-primary-foreground"><Download className="h-3 w-3" /> Share card</button><button onClick={() => setOpen(null)} className="rounded bg-secondary px-3 py-1 text-xs uppercase">Close</button></div>
       </div>
     </div>
   );
