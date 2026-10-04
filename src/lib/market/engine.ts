@@ -73,7 +73,7 @@ export class MarketEngine {
   private oiBase: { t: number; oi: number } | null = null;
   private tradeId = 0;
   private listeners = new Set<(e: BattleEvent) => void>();
-  private fighterQueue: { taker: "buy" | "sell"; target: BookSide; notional: number; buckets: Set<number>; orders: number } | null = null;
+  private fighterQueue: { taker: "buy" | "sell"; target: BookSide; notional: number; buckets: Set<number>; orders: number }[] = [];
   private lastFighterWave = -Infinity;
 
   drain(): BattleEvent[] {
@@ -253,28 +253,24 @@ export class MarketEngine {
       this.emit({ type: "order", t: now, taker: o.taker, notional: p.trade, qty: p.sz, fills: p.fills, avg: p.trade / Math.max(p.sz, 1e-12), buckets, firstAggId: o.firstAggId, lastAggId: o.lastAggId });
       if (big) {
         const target = o.taker === "buy" ? "ask" : "bid";
-        if (this.fighterQueue && this.fighterQueue.taker === o.taker) {
-          this.fighterQueue.notional += p.trade;
-          this.fighterQueue.orders++;
-          for (const bucket of buckets) this.fighterQueue.buckets.add(bucket);
-        } else if (!this.fighterQueue) {
-          this.fighterQueue = { taker: o.taker, target, notional: p.trade, buckets: new Set(buckets), orders: 1 };
-        } else {
-          this.releaseFighter(now);
-          this.fighterQueue = { taker: o.taker, target, notional: p.trade, buckets: new Set(buckets), orders: 1 };
-        }
+        const queued = this.fighterQueue.find((wave) => wave.taker === o.taker);
+        if (queued) {
+          queued.notional += p.trade;
+          queued.orders++;
+          for (const bucket of buckets) queued.buckets.add(bucket);
+        } else this.fighterQueue.push({ taker: o.taker, target, notional: p.trade, buckets: new Set(buckets), orders: 1 });
       }
     }
-    if (this.fighterQueue && now - this.lastFighterWave >= FIGHTER_WAVE_COOLDOWN) this.releaseFighter(now);
+    if (this.fighterQueue.length && now - this.lastFighterWave >= FIGHTER_WAVE_COOLDOWN) this.releaseFighter(now);
   }
 
   private releaseFighter(now: number) {
-    const q = this.fighterQueue;
+    const q = this.fighterQueue[0];
     if (!q || now - this.lastFighterWave < FIGHTER_WAVE_COOLDOWN) return;
     const formation = fighterFormationSize(q.notional) as 2 | 3 | 4;
     this.emit({ type: "fighter", t: now, taker: q.taker, target: q.target, notional: q.notional, buckets: [...q.buckets], formation, queuedOrders: q.orders });
     this.lastFighterWave = now;
-    this.fighterQueue = null;
+    this.fighterQueue.shift();
   }
 
   /** Called every ~250 ms by the app clock: phase machine + order flush. */

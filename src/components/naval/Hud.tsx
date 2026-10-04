@@ -1,5 +1,5 @@
 import { AIRCRAFT, RULES_FACTS, SHIPS, WEAPONS } from "@/lib/battle/units";
-import { HowItWorks, UnitList } from "./Units";
+import { HowItWorks, UnitIcon, UnitList } from "./Units";
 import { useShallow } from "zustand/react/shallow";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, Crosshair, Download, HelpCircle, Map, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";

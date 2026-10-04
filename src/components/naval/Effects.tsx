@@ -348,7 +348,7 @@ export function Effects() {
         p.next = p.t + 0.05;
         spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + sideSign(p.side) * 1.2, ty: 0.1, tz: z + (Math.random() - 0.5) * 0.4, dur: 0.18, size: 0.035, len: 0.5, target: null });
         if (Math.random() < 0.45) splash(x + sideSign(p.side) * 1.2, z, 0.22);
-        if (smoke && (u < 0.3 || pull > 0)) smoke.emit({ x, y: m.position.y, z, life: 1.2, size: 0.05, grow: 1.1, color: "#eef4f5", alpha: 0.42 });
+        if (u < 0.3 || pull > 0) pools.smoke.emit({ x, y: m.position.y, z, life: 1.2, size: 0.05, grow: 1.1, color: "#eef4f5", alpha: 0.42 });
       }
       if (u >= 1) p.on = false;
     });

@@ -237,7 +237,7 @@ class AudioEngine {
       s.start(now);
       nodes.push(s);
       dur = buf.duration / pitch;
-      if (["mg", "gun", "torpedo", "broadside", "hit"].includes(cat)) dur = Math.max(dur, this.synth(cat, out, now, nodes, opts.shots ?? 4, v % VARIANTS, pitch));
+      if (["mg", "gun", "torpedo", "broadside", "hit", "fighter", "flak"].includes(cat)) dur = Math.max(dur, this.synth(cat, out, now, nodes, opts.shots ?? 4, v % VARIANTS, pitch));
     } else dur = this.synth(cat, out, now, nodes, opts.shots ?? 4, v, pitch);
     this.played++;
     this.byCat[cat] = (this.byCat[cat] ?? 0) + 1;
