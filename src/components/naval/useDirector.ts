@@ -67,9 +67,10 @@ function callout(text: string, tone: "buy" | "sell" | "liq" | "info", slow = fal
   useBattle.setState({ callout: { id: nextId(), text, tone, slow } });
 }
 const speakerFor = (key: string): "captain" | "admiral" | "spotter" => key.startsWith("cap_") ? "captain" : key.startsWith("adm_") ? "admiral" : "spotter";
-function radio(key: string, detail?: string) {
+function radio(key: string, detail?: string, afterQuietSeconds = 0) {
   const lines = RADIO[key];
   if (!lines) return;
+  if (afterQuietSeconds && !audio.hasVoiceBeenQuiet(afterQuietSeconds)) return;
   const text = lines[Math.floor(Math.random() * lines.length)]!;
   useBattle.setState({ radio: { id: nextId(), text, speaker: speakerFor(key), ...(detail ? { detail } : {}) } });
   if (key !== "P1") void audio.voice(key, text); // P1 is subtitle-only
@@ -119,8 +120,8 @@ function onEvent(ev: BattleEvent) {
       if (ev.notional >= 1_000_000) callout(`${usd(ev.notional)} ${ev.taker.toUpperCase()} · BROADSIDE`, ev.taker === "buy" ? "buy" : "sell");
       break;
     case "fighter":
-      radio("spot_aircraft", `${usd(ev.notional)} ${ev.taker} order launched a fighter across ${ev.buckets.length} price levels`);
-      pushTape("FIGHTER", `FIGHTER strafing run · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
+      radio("spot_aircraft", `${ev.formation} aircraft launched by ${usd(ev.notional)} of ${ev.taker} orders across ${ev.buckets.length} price levels`, 30);
+      pushTape("FIGHTER", `${ev.formation}-FIGHTER wave · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows${ev.queuedOrders > 1 ? ` · ${ev.queuedOrders} orders queued` : ""}`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
       break;
     case "sink":
       pushTape("SUNK", `SUNK ${fleet} ${ev.tier} ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, side === "bid" ? "buy" : "sell", ev.notional);

@@ -46,3 +46,8 @@
 - [x] Near high-detail GLBs, realistic naval materials, soft shadows/reflections/contact foam
 - [x] Daylight searchlights removed; consistent tier/side rendering without black hulls
 - [ ] Close tier/side, wide Cinema, and Map screenshot verification
+
+## v11 live unit cards and fighter waves
+- [x] Runtime scene-rendered Buyers/Sellers unit cards with live dollar thresholds and interactive previews
+- [x] $200K / three-level fighter trigger, queued three-second waves, finger-four flight, strafe splashes, pull-up, contrails and flak
+- [ ] Five-minute live fighter-rate/audio-count verification and wave screenshots at 1440/390

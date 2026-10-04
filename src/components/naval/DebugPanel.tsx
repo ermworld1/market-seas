@@ -24,7 +24,7 @@ export function DebugPanel() {
       <div className="font-bold">DEBUG</div>
       <div>phase {e?.phase.current} · frame {view.frameMs.toFixed(1)}ms</div>
       <div>view {view.presentation} · shot {view.shot?.kind ?? "wide"} · quality {view.quality}</div>
-      <div id="debug-cuts">cuts {JSON.stringify(view.cuts)} · tape {view.tapeTotal}</div>
+      <div id="debug-cuts">cuts {JSON.stringify(view.cuts)} · fighter waves {view.fighterWaves} · tape {view.tapeTotal}</div>
       <div>tris {info?.triangles ?? "?"} · calls {info?.calls ?? "?"}</div>
       <div>trades rx {e?.tradesReceived ?? 0} · viz {e?.tradesVisualized ?? 0} · tracers {e?.tracersSpawned ?? 0}</div>
       <div>book {e?.book.bids.size ?? 0}/{e?.book.asks.size ?? 0} lvls · {e?.partial ? "partial" : "full"} · u={e?.book.lastU}</div>

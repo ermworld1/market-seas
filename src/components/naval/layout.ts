@@ -75,6 +75,7 @@ export const view = {
   cuts: {} as Record<string, number>,
   tapeTotal: 0,
   planeActive: false,
+  fighterWaves: 0,
   mid: 0,
   storm: 0,
   war: false,

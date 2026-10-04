@@ -6,12 +6,12 @@ import { BANK, CAT_FOLDER, bankUrls, type BankFolder } from "./bank";
  * screen x, max 8 simultaneous one-shots with priority. Recorded CC0 files
  * live in /sfx/<folder>/<n>.mp3 (see bank.ts); missing files fall back to procedural synths.
  */
-export type SfxCat = "mg" | "gun" | "gun5" | "miss" | "torpedo" | "broadside" | "fighter" | "dive" | "fled" | "surface" | "sink" | "reinforce" | "liquidation" | "cascade" | "hit" | "klaxon" | "bosun";
-export const SFX: SfxCat[] = ["mg", "gun", "gun5", "miss", "torpedo", "broadside", "fighter", "dive", "fled", "surface", "sink", "reinforce", "liquidation", "cascade", "hit", "klaxon", "bosun"];
-const PRIORITY: Record<SfxCat, number> = { mg: 1, reinforce: 2, hit: 2, miss: 2, gun: 3, gun5: 5, surface: 4, torpedo: 6, dive: 6, fighter: 6, fled: 7, sink: 7, liquidation: 8, broadside: 8, cascade: 9, klaxon: 9, bosun: 5 };
+export type SfxCat = "mg" | "gun" | "gun5" | "miss" | "torpedo" | "broadside" | "fighter" | "flak" | "dive" | "fled" | "surface" | "sink" | "reinforce" | "liquidation" | "cascade" | "hit" | "klaxon" | "bosun";
+export const SFX: SfxCat[] = ["mg", "gun", "gun5", "miss", "torpedo", "broadside", "fighter", "flak", "dive", "fled", "surface", "sink", "reinforce", "liquidation", "cascade", "hit", "klaxon", "bosun"];
+const PRIORITY: Record<SfxCat, number> = { mg: 1, reinforce: 2, hit: 2, miss: 2, gun: 3, gun5: 5, surface: 4, torpedo: 6, dive: 6, fighter: 7, flak: 5, fled: 7, sink: 7, liquidation: 8, broadside: 8, cascade: 9, klaxon: 9, bosun: 5 };
 const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
   mg: "weapons", hit: "weapons", miss: "weapons", gun: "weapons", gun5: "weapons", torpedo: "weapons", broadside: "weapons",
-  fighter: "air", liquidation: "air",
+  fighter: "air", flak: "air", liquidation: "air",
   dive: "alarms", fled: "alarms", cascade: "alarms", klaxon: "alarms", bosun: "alarms",
   surface: "ships", sink: "ships", reinforce: "ships",
 };
@@ -329,6 +329,9 @@ class AudioEngine {
     this.lastTorpedoVoice = now;
     void this.voice("torpedo", "Torpedo in the water!");
   }
+  hasVoiceBeenQuiet(seconds: number) {
+    return !!this.ctx && this.ctx.currentTime - this.lastVoiceAt >= seconds;
+  }
   private voLoads = new Map<string, Promise<AudioBuffer | null>>();
   /** One shared load per file, so concurrent lines never fall back to TTS while a file is still loading. */
   private loadVo(file: string) {
@@ -543,7 +546,18 @@ class AudioEngine {
         this.chain(o, out, this.filt("lowpass", 1100 + v * 150), g);
         this.chain(this.noiseSrc(t, 1.6, n), out, this.filt("bandpass", 800 + v * 100, 0.6), this.env(t, 0.7, 0.25, 1.6));
         for (let i = 0; i < 8 + v; i++) this.chain(this.noiseSrc(t + 0.5 + i * 0.05, 0.04, n), out, this.filt("bandpass", 1300 + v * 200, 1), this.env(t + 0.5 + i * 0.05, 0.002, 0.3, 0.04));
-        return 1.7;
+        // Low pass-by rumble, dive scream and a heavy wing-gun burst under the recording.
+        this.chain(this.osc("sine", 58 * P, 34, t + 0.25, 2.1, n), out, this.env(t + 0.25, 0.25, 0.55, 2.1));
+        this.chain(this.osc("sawtooth", 2100 * P, 720, t + 0.12, 1.1, n), out, this.filt("bandpass", 1600, 2.8), this.env(t + 0.12, 0.08, 0.18, 1.1));
+        for (let i = 0; i < 14; i++) this.chain(this.noiseSrc(t + 0.62 + i * 0.045, 0.035, n), out, this.filt("bandpass", 1500 + (i % 3) * 500, 1.2), this.env(t + 0.62 + i * 0.045, 0.001, 0.34, 0.035));
+        return 2.5;
+      }
+      case "flak": {
+        for (let i = 0; i < 3 + (v % 3); i++) {
+          const ti = t + i * 0.09;
+          this.chain(this.noiseSrc(ti, 0.055, n), out, this.filt("highpass", 1800 + v * 180), this.env(ti, 0.001, 0.45, 0.055));
+        }
+        return 0.7;
       }
       case "dive":
       case "fled": {

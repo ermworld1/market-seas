@@ -32,3 +32,4 @@
 - Nothing is rendered from simulated data: background layers stay hidden until real data arrives.
 - Community profiles and predictions use authenticated server functions; public rankings expose aggregate scores only.
 - Cinema direction and quality adaptation consume existing real events and mutable scene state; they never create market events.
+- Unit cards are rendered and cached at runtime from the battle's shared GLBs and materials so guides cannot visually drift from the scene.

@@ -30,6 +30,8 @@ interface Plane {
   side: BookSide;
   next: number;
   kind: "bomber" | "fighter";
+  bank?: number;
+  formation?: number;
 }
 
 const dummy = new THREE.Object3D();
@@ -287,8 +289,16 @@ export function Effects() {
         const x0 = a?.x ?? view.frontX;
         // strafe horizontally through the swept price buckets
         const dir = sideSign(ev.target);
-        launch("fighter", { dur: 1.6, ax: view.frontX - dir * 2, az: z0 - 1.2, bx: x1 + dir * 5, bz: z0 + 1.2, alt: 1.6, side: ev.target });
-        audio.play("fighter", { x: panX(x0 - view.frontX, REAR) });
+        const attacker = ev.target === "ask" ? "bid" : "ask";
+        const rear = view.frontX + sideSign(attacker) * REAR;
+        const targetX = x1 + dir * 4;
+        for (let i = 0; i < ev.formation; i++) {
+          const row = Math.floor(i / 2);
+          const wing = i === 0 ? 0 : i % 2 ? -1 : 1;
+          launch("fighter", { dur: 3.1 + row * 0.12, ax: rear - sideSign(attacker) * row * 0.8, az: z0 + wing * (0.75 + row * 0.35), bx: targetX, bz: z0 + wing * 0.28, alt: 0.65 + row * 0.12, side: ev.target, formation: i });
+        }
+        view.fighterWaves++;
+        audio.play("fighter", { x: panX(rear - view.frontX, REAR), gain: 1.15 });
       } else if (ev.type === "liquidation") {
         const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
         const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);
@@ -317,12 +327,13 @@ export function Effects() {
       }
       p.t += dt;
       const u = Math.min(1, p.t / p.dur);
+      const pull = p.kind === "fighter" ? Math.max(0, (u - 0.72) / 0.28) : 0;
       const x = p.ax + (p.bx - p.ax) * u;
-      const z = p.az + (p.bz - p.az) * u;
+      const z = p.az + (p.bz - p.az) * u + pull * pull * (p.formation && p.formation % 2 ? -2 : 2);
       m.visible = true;
-      m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1, z);
+      m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1 + pull * pull * 4.5, z);
       if (p === lastPlane.current) { const a = planeAnchor.current; a.x = x; a.y = m.position.y; a.z = z; view.plane = a; const L = Math.hypot(p.bx - p.ax, p.bz - p.az) || 1; planeDirV.x = (p.bx - p.ax) / L; planeDirV.z = (p.bz - p.az) / L; view.planeDir = planeDirV; }
-      m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.3 : 0);
+      m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.12 + pull * (p.formation && p.formation % 2 ? -0.8 : 0.8) : 0);
       if (p.kind === "bomber") {
         if (Math.abs(z) < view.halfW + 1 && p.t >= p.next) {
           p.next = p.t + 0.2;
@@ -336,6 +347,8 @@ export function Effects() {
       } else if (p.t >= p.next && u > 0.1 && u < 0.85) {
         p.next = p.t + 0.05;
         spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + sideSign(p.side) * 1.2, ty: 0.1, tz: z + (Math.random() - 0.5) * 0.4, dur: 0.18, size: 0.035, len: 0.5, target: null });
+        if (Math.random() < 0.45) splash(x + sideSign(p.side) * 1.2, z, 0.22);
+        if (smoke && (u < 0.3 || pull > 0)) smoke.emit({ x, y: m.position.y, z, life: 1.2, size: 0.05, grow: 1.1, color: "#eef4f5", alpha: 0.42 });
       }
       if (u >= 1) p.on = false;
     });
@@ -394,6 +407,7 @@ export function Effects() {
         const fx0 = view.frontX + (Math.random() - 0.5) * REAR * 1.6, fy0 = 3 + Math.random() * 6, fz0 = (Math.random() - 0.5) * view.halfW * 2;
         pools.glow.emit({ x: fx0, y: fy0, z: fz0, life: 0.12, size: 0.9, grow: 0.4, color: "#ffd890", alpha: 1 });
         pools.smoke.emit({ x: fx0, y: fy0, z: fz0, vy: 0.1, life: 2.6, size: 0.7, grow: 1.8, color: "#141414", alpha: 0.8, drag: 0.8 });
+        if (Math.random() < 0.28) audio.play("flak", { x: panX(fx0 - view.frontX, REAR), gain: 0.55 });
       }
     }
     pools.glow.update(dt);
