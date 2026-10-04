@@ -81,11 +81,11 @@ export function Ocean() {
       alpha: 1,
     });
     w.rotation.x = -Math.PI / 2;
-    // reflection pass is the most expensive render: refresh every frame on high, every 2nd/3rd on medium/low
+    // reflection pass is the most expensive render: refresh every frame on high, every 3rd/8th on medium/low
     const reflect = w.onBeforeRender.bind(w);
     let frame = 0;
     w.onBeforeRender = (...args: Parameters<typeof reflect>) => {
-      const every = view.quality === "high" ? 1 : view.quality === "medium" ? 2 : 3;
+      const every = view.quality === "high" ? 1 : view.quality === "medium" ? 3 : 8;
       if (frame++ % every === 0) reflect(...args);
     };
     wu(w).size.value = 2.2;
