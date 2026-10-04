@@ -39,3 +39,10 @@
 - [x] Captain, Admiral, and Spotter recorded radio system and panel
 - [x] Five-minute live desktop and phone verification (sandbox software renderer; physical-device sound/FPS remains unverified)
 - [x] v9 clarification: zero emissive, outlines, halos, rim lights, or side-coloured unit effects in Cinema and Map; verified close and wide screenshots at 1440 and 390
+
+## v10 ship clarity
+- [ ] Oblique readable Cinema camera and measured tier pixel targets at 1440/390
+- [ ] Cinema aggregation to at most 30 ships per side with natural formations
+- [ ] Near high-detail GLBs, realistic naval materials, soft shadows/reflections/contact foam
+- [ ] Daylight searchlights removed; consistent tier/side rendering without black hulls
+- [ ] Close tier/side, wide Cinema, and Map screenshot verification
