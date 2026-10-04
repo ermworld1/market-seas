@@ -1,6 +1,7 @@
 import type { BattleEvent, BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import type { ParticlePool } from "./particles";
+import type { QualityTier, ShotRequest } from "@/lib/market/presentation";
 
 /** World layout: Buyers/bids are -X (left), Sellers/asks are +X (right). */
 export const GAP = 0.9; // half-width of the no-man's sea
@@ -55,6 +56,10 @@ export const view = {
   origin: 0,
   cameraX: 0,
   zoomScale: 1,
+  presentation: "cinema" as "cinema" | "map",
+  shot: null as ShotRequest | null,
+  quality: "high" as QualityTier,
+  selectedBucket: null as null | { side: BookSide; b: number },
   mid: 0,
   storm: 0,
   war: false,

@@ -5,9 +5,10 @@ import { PhaseMachine } from "@/lib/battle/phase";
 import { TapePipeline } from "@/lib/battle/tape";
 import { createWalls } from "@/lib/battle/walls";
 import { RollingPercentile } from "./percentile";
-import { FIGHTER_Q, assignTiers, countInWindow, fillsOf, liquidatedSide, realizedVolBps, tradeDirection, weaponFor } from "./rules";
+import { assignTiers, countInWindow, fillsOf, liquidatedSide, realizedVolBps, tradeDirection, weaponFor } from "./rules";
 import type { BattleEvent, BookSide, ConvoyState } from "./types";
 import { SYMBOL } from "./types";
+import { fighterEligible, FIGHTER_PERCENTILE } from "./presentation";
 
 export const OI_THRESHOLD_PCT = 0.3;
 const ORDER_WINDOW = 300;
@@ -17,7 +18,11 @@ interface OpenOrder {
   first: number;
   taker: "buy" | "sell";
   buckets: Set<number>;
+  firstAggId: number;
+  lastAggId: number;
 }
+
+export interface RecentTrade { aggId: number; time: number; price: number; qty: number; notional: number; taker: "buy" | "sell" }
 
 /**
  * Pure market-state machine: feed it Binance payloads, it keeps the full
@@ -57,6 +62,7 @@ export class MarketEngine {
   ghostTimes: number[] = [];
   orderTimes: number[] = [];
   flow: { t: number; buy: number; sell: number }[] = [];
+  recentTrades: RecentTrade[] = [];
 
   private events: BattleEvent[] = [];
   private filled = { bid: new Map<number, number>(), ask: new Map<number, number>() };
@@ -180,7 +186,7 @@ export class MarketEngine {
   }
 
   // ───────────────── trades ─────────────────
-  handleTrade(d: { p: string; q: string; m: boolean; T?: number; f?: number; l?: number }, now: number) {
+  handleTrade(d: { a?: number; p: string; q: string; m: boolean; T?: number; f?: number; l?: number }, now: number) {
     this.lastMsgAt = now;
     this.tradesReceived++;
     const price = +d.p;
@@ -189,6 +195,9 @@ export class MarketEngine {
     const fills = fillsOf(d.f, d.l);
     this.tradeSampler.push(notional);
     const dir = tradeDirection(d.m);
+    const aggId = d.a ?? ++this.tradeId;
+    this.recentTrades.unshift({ aggId, time: d.T ?? now, price, qty, notional, taker: dir.taker });
+    if (this.recentTrades.length > 120) this.recentTrades.length = 120;
     const w = this.ensureWidth();
     const b = w ? bucketOf(price, w) : 0;
     const f = this.filled[dir.target];
@@ -199,15 +208,17 @@ export class MarketEngine {
     const key = this.tape.aggregate({ a: dir.taker === "buy" ? "taker-buy" : "taker-sell", orderSide: dir.taker === "buy" ? 1 : -1, hash: undefined, trade: notional, sz: qty, fills, at });
     let o = this.open.get(key);
     if (!o) {
-      o = { key, first: now, taker: dir.taker, buckets: new Set() };
+      o = { key, first: now, taker: dir.taker, buckets: new Set(), firstAggId: aggId, lastAggId: aggId };
       this.open.set(key, o);
     }
+    o.firstAggId = Math.min(o.firstAggId, aggId);
+    o.lastAggId = Math.max(o.lastAggId, aggId);
     o.buckets.add(b);
     const last = this.flow[this.flow.length - 1];
     const sec = Math.floor(now / 1000);
     if (last && last.t === sec) last[dir.taker] += notional;
     else this.flow.push({ t: sec, buy: dir.taker === "buy" ? notional : 0, sell: dir.taker === "sell" ? notional : 0 });
-    this.emit({ type: "fire", t: now, taker: dir.taker, target: dir.target, b, price, qty, notional, fills, weapon: weaponFor(notional, this.tradeSampler), id: ++this.tradeId });
+    this.emit({ type: "fire", t: now, taker: dir.taker, target: dir.target, b, price, qty, notional, fills, weapon: weaponFor(notional, this.tradeSampler), id: ++this.tradeId, aggId });
     if (now - this.lastTickAt > 250) this.flush(now);
   }
 
@@ -219,12 +230,12 @@ export class MarketEngine {
       const p = this.tape.take(o.key);
       if (!p || !this.tape.accept(o.key, now, 1000)) continue;
       this.orderTimes.push(now);
-      const big = this.orderSampler.size >= 30 && p.trade >= this.orderSampler.quantile(FIGHTER_Q);
+      const big = fighterEligible(p.trade, this.orderSampler.quantile(FIGHTER_PERCENTILE), this.orderSampler.size);
       this.orderSampler.push(p.trade);
       const sides = o.taker === "buy" ? 1 : -1;
       const buckets = [...o.buckets].sort((a, b) => (a - b) * sides);
       this.phase.order(now, p.trade);
-      this.emit({ type: "order", t: now, taker: o.taker, notional: p.trade, qty: p.sz, fills: p.fills, avg: p.trade / Math.max(p.sz, 1e-12), buckets });
+      this.emit({ type: "order", t: now, taker: o.taker, notional: p.trade, qty: p.sz, fills: p.fills, avg: p.trade / Math.max(p.sz, 1e-12), buckets, firstAggId: o.firstAggId, lastAggId: o.lastAggId });
       if (big) this.emit({ type: "fighter", t: now, taker: o.taker, target: o.taker === "buy" ? "ask" : "bid", notional: p.trade, buckets });
     }
   }

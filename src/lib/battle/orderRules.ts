@@ -149,7 +149,7 @@ export class SideTracker {
   }
 
   private matchPending(qty: number, b: number): Pending | null {
-    const i = this.pending.findIndex((p) => p.b !== b && Math.abs(qty - p.qty) <= p.qty * RELOCATE_TOL);
+    const i = this.pending.findIndex((p) => Math.abs(p.b - b) >= 2 && Math.abs(qty - p.qty) <= p.qty * RELOCATE_TOL);
     if (i < 0) return null;
     return this.pending.splice(i, 1)[0]!;
   }
