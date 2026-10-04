@@ -20,7 +20,10 @@ export const phrase = (clip: string, spoken: string): VoicePart => ({ clip, word
 /** Navy ranges are read as individual digits, preserving a meaningful decimal point when present. */
 export function navyPriceParts(price: number): VoicePart[] {
   const rounded = Math.abs(price - Math.round(price)) < 0.05 ? String(Math.round(price)) : price.toFixed(1);
-  return [...rounded].map((digit) => ({ clip: `digit_${DIGIT[digit]}`, word: DIGIT[digit] }));
+  return [...rounded].map((digit) => {
+    const word = DIGIT[digit] ?? digit;
+    return { clip: `digit_${word}`, word };
+  });
 }
 
 /** Size readout: one decimal for thousands/millions, with digit clips plus the unit word. */
@@ -28,7 +31,10 @@ export function navySizeParts(notional: number): VoicePart[] {
   const unit = notional >= 1_000_000 ? "million" : "thousand";
   const scaled = notional / (unit === "million" ? 1_000_000 : 1_000);
   const spoken = scaled >= 10 ? String(Math.round(scaled)) : scaled.toFixed(1).replace(/\.0$/, "");
-  return [...spoken].map((digit) => ({ clip: `digit_${DIGIT[digit]}`, word: DIGIT[digit] })).concat({ clip: `unit_${unit}`, word: unit });
+  return [...spoken].map((digit) => {
+    const word = DIGIT[digit] ?? digit;
+    return { clip: `digit_${word}`, word };
+  }).concat({ clip: `unit_${unit}`, word: unit });
 }
 
 export function line(role: NavalRole, ...parts: VoicePart[]): VoiceLine { return { role, parts }; }

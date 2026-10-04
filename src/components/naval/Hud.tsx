@@ -330,7 +330,7 @@ export function HowToRead() {
       )}
       <h3 className="mt-3 font-display text-xs font-semibold uppercase tracking-widest text-primary">Units</h3>
       <UnitList items={[...SHIPS, ...WEAPONS, ...AIRCRAFT]} compact />
-      <p className="mt-2 text-[11px] text-muted-foreground"><span className="text-bull">Green ships are Buyers</span> (left), <span className="text-bear">red ships are Sellers</span> (right). Every event is in the Guide tab and the "?" panel.</p>
+      <p className="mt-2 text-[11px] text-muted-foreground"><span className="text-bull">Green markings identify Buyers</span> (left), <span className="text-bear">red markings identify Sellers</span> (right). Every event is in the Guide tab and the "?" panel.</p>
     </section>
   );
 }

@@ -166,6 +166,7 @@ class AudioEngine {
   setEnabled(on: boolean) {
     this.enabled = on;
     this.applyVolume();
+    if (on) void this.runNavalQueue();
   }
   setVolume(v: number) {
     this.volume = v;

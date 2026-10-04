@@ -118,6 +118,10 @@ export function zForStation(bornAt: number, now = Date.now()) {
 export function startFleetIntro(now = performance.now()) {
   view.introStartedAt = now;
   view.introSerial++;
+  for (const display of view.displays.values()) {
+    display.x = xForPrice(display.side, display.price) + sideSign(display.side) * REAR;
+    display.introBorn = view.introSerial;
+  }
 }
 
 export function hash01(v: number) {
