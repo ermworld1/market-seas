@@ -176,7 +176,7 @@ export function Fleet() {
         if (!d.departing && d.ship) {
           const s = d.ship;
           const tz = zFor(d.side, d.price);
-          const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * mobileK * (s.tier === "destroyer" ? 1.15 / 1.15 : 1);
+          const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * mobileK;
           d.z += (tz - d.z) * kMove;
           d.s += (ts - d.s) * kScale;
           d.damage *= Math.exp(-0.05 * dt);
@@ -245,7 +245,7 @@ export function Fleet() {
         euler.set(d.pitch, d.side === "bid" ? 0 : Math.PI, d.roll);
         dummy.position.set(d.x, d.y, d.z);
         dummy.quaternion.setFromEuler(euler);
-        dummy.scale.setScalar(Math.max(0.001, d.s * (trim ? 1.15 * 0.83 : 1)));
+        dummy.scale.setScalar(Math.max(0.001, d.s));
         dummy.updateMatrix();
         m.setMatrixAt(n, dummy.matrix);
         col.copy(WHITE).lerp(FOG, d.fade).multiplyScalar(1 - d.damage * 0.45 + d.hitFlash * 1.5);
