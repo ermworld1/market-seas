@@ -3,7 +3,7 @@ export type NavalRole = "Captain" | "Gunnery Officer" | "Fire Control" | "Lookou
 export type FleetCallsign = "Bull Fleet" | "Bear Fleet";
 
 export interface VoicePart { clip: string; word: string }
-export interface VoiceLine { role: NavalRole; parts: VoicePart[] }
+export interface VoiceLine { role: NavalRole; parts: VoicePart[]; channel?: VoiceChannel }
 export interface VoiceChain {
   id: string;
   priority: number;
@@ -14,6 +14,7 @@ export interface VoiceChain {
 }
 
 const DIGIT: Record<string, string> = { "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "niner", ".": "point" };
+const DIGIT_FILE: Record<string, string> = { "0": "fc_d0", "1": "fc_d1", "2": "fc_d2", "3": "fc_d3", "4": "fc_d4", "5": "fc_d5", "6": "fc_d6", "7": "fc_d7", "8": "fc_d8", "9": "fc_d9", ".": "fc_point" };
 export const words = (...items: string[]): VoicePart[] => items.map((word) => ({ clip: word.toLowerCase().replace(/[^a-z0-9]+/g, "_"), word }));
 export const phrase = (clip: string, spoken: string): VoicePart => ({ clip, word: spoken });
 
@@ -22,7 +23,7 @@ export function navyPriceParts(price: number): VoicePart[] {
   const rounded = Math.abs(price - Math.round(price)) < 0.05 ? String(Math.round(price)) : price.toFixed(1);
   return [...rounded].map((digit) => {
     const word = DIGIT[digit] ?? digit;
-    return { clip: `digit_${word}`, word };
+    return { clip: DIGIT_FILE[digit] ?? `fc_${word}`, word };
   });
 }
 
@@ -33,9 +34,10 @@ export function navySizeParts(notional: number): VoicePart[] {
   const spoken = scaled >= 10 ? String(Math.round(scaled)) : scaled.toFixed(1).replace(/\.0$/, "");
   return [...spoken].map((digit) => {
     const word = DIGIT[digit] ?? digit;
-    return { clip: `digit_${word}`, word };
-  }).concat({ clip: `unit_${unit}`, word: unit });
+    return { clip: DIGIT_FILE[digit] ?? `fc_${word}`, word };
+  }).concat({ clip: `fc_${unit}`, word: unit });
 }
 
 export function line(role: NavalRole, ...parts: VoicePart[]): VoiceLine { return { role, parts }; }
+export function lineOn(channel: VoiceChannel, role: NavalRole, ...parts: VoicePart[]): VoiceLine { return { role, parts, channel }; }
 export const chainText = (chain: VoiceChain) => chain.lines.map((entry) => `${entry.role}: ${entry.parts.map((p) => p.word).join(" ")}`).join(" → ");

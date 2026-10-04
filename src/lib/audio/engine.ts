@@ -326,11 +326,12 @@ class AudioEngine {
     this.navalBusy = true;
     for (const entry of chain.lines) {
       let played = false;
+      const channel = entry.channel ?? chain.channel;
       for (const part of entry.parts) {
-        played = (await this.playVoicePart(part, chain.channel)) || played;
+        played = (await this.playVoicePart(part, channel)) || played;
         await new Promise((resolve) => window.setTimeout(resolve, 120 + Math.random() * 80));
       }
-      this.voiceChainLog.push({ at: Date.now(), id: chain.id, role: entry.role, channel: chain.channel, clips: entry.parts.map((part) => part.clip), text: entry.parts.map((part) => part.word).join(" "), played });
+      this.voiceChainLog.push({ at: Date.now(), id: chain.id, role: entry.role, channel, clips: entry.parts.map((part) => part.clip), text: entry.parts.map((part) => part.word).join(" "), played });
       if (this.voiceChainLog.length > 120) this.voiceChainLog.shift();
     }
     this.voPlayed.push(chain.id);
@@ -415,7 +416,9 @@ class AudioEngine {
     if (!p) {
       p = (async () => {
         try {
-          const r = await fetch(`/vo/${file}.wav`);
+          const legacy = file.startsWith("legacy:");
+          const name = legacy ? file.slice(7) : file;
+          const r = await fetch(legacy ? `/vo/${name}.wav` : `/vo/naval/${name}.mp3`);
           if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) return await this.ctx!.decodeAudioData(await r.arrayBuffer());
         } catch { /* slot empty */ }
         return null;
