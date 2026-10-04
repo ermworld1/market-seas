@@ -88,7 +88,7 @@ interface BattleStore {
   tape: TapeLine[];
   callout: Callout | null;
   radio: { id: number; text: string } | null;
-  result: { id: number; winner: Winner; startMark: number; endMark: number } | null;
+  result: { id: number; winner: Winner; startMark: number; endMark: number; pick?: string | undefined; streak?: number; biggest?: string } | null;
   scoreboard: Scoreboard | null;
   viewMode: "capital" | "all";
   filter: "all" | "1m" | "near" | "subs";

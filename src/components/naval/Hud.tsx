@@ -444,7 +444,7 @@ function ResultCard() {
   useEffect(() => {
     if (!result) return;
     setOpen(result);
-    const t = setTimeout(() => setOpen(null), 9000);
+    const t = setTimeout(() => setOpen(null), 20000);
     return () => clearTimeout(t);
   }, [result]);
   if (!open) return null;
@@ -465,6 +465,9 @@ function ResultCard() {
     context.fillText(open.winner === "draw" ? "DRAW" : `${open.winner.toUpperCase()} WIN`, 70, 285);
     context.font = "36px monospace";
     context.fillText(`BTC ${fmtPrice(open.startMark)} → ${fmtPrice(open.endMark)} (${move >= 0 ? "+" : ""}${move.toFixed(3)}%)`, 70, 380);
+    context.font = "30px sans-serif";
+    context.fillText(`Your pick: ${open.pick ? open.pick.toUpperCase() : "none"} · Streak ${open.streak ?? 0}`, 70, 440);
+    if (open.biggest) context.fillText(`Biggest event: ${open.biggest}`, 70, 490);
     context.font = "28px sans-serif";
     context.fillText("Live Binance Futures data · XP only · No prizes", 70, 540);
     canvas.toBlob((blob) => {
