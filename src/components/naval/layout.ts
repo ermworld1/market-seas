@@ -2,7 +2,7 @@ import type { BattleEvent, BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import type { ParticlePool } from "./particles";
 
-/** World layout: -Z is north (Sellers/asks), +Z is south (Buyers/bids). */
+/** World layout: Buyers/bids are -X (left), Sellers/asks are +X (right). */
 export const GAP = 0.9; // half-width of the no-man's sea
 export const DEPTH = 13; // row distance of a bucket 1% away
 export const REAR = GAP + DEPTH + 2.2;
@@ -51,7 +51,10 @@ export const view = {
   mobile: false,
   cap: 120,
   halfW: 8,
-  offsetX: 0,
+  frontX: 0,
+  origin: 0,
+  cameraX: 0,
+  zoomScale: 1,
   mid: 0,
   storm: 0,
   war: false,
@@ -72,11 +75,12 @@ export const view = {
   },
 };
 
-export const sideSign = (s: BookSide) => (s === "ask" ? -1 : 1);
+export const sideSign = (s: BookSide) => (s === "ask" ? 1 : -1);
 
-export function zFor(side: BookSide, price: number) {
+/** Horizontal price position, measured outwards from the moving mark-price front. */
+export function xForPrice(side: BookSide, price: number) {
   const d = Math.abs(price - view.mid) / Math.max(view.mid * 0.01, 1e-9);
-  return sideSign(side) * (GAP + 0.35 + Math.min(1.08, d) * DEPTH);
+  return view.frontX + sideSign(side) * (GAP + 0.35 + Math.min(1.08, d) * DEPTH);
 }
 
 export function hash01(v: number) {
@@ -84,9 +88,15 @@ export function hash01(v: number) {
   return s - Math.floor(s);
 }
 
-/** Deterministic horizontal slot per bucket so a ship keeps its lane. */
-export function xFor(b: number) {
-  return ((hash01(b * 0.731) * 2 - 1) * 0.9 + (hash01(b) - 0.5) * 0.08) * view.halfW + view.offsetX;
+/** Deterministic vertical formation slot per bucket so a ship keeps its lane. */
+export function zForBucket(b: number) {
+  return ((hash01(b * 0.731) * 2 - 1) * 0.9 + (hash01(b) - 0.5) * 0.08) * view.halfW;
+}
+
+export function updateFront(mark: number) {
+  if (!mark) return;
+  if (!view.origin || Math.abs(mark - view.origin) / view.origin > 0.012) view.origin = mark;
+  view.frontX = ((mark - view.origin) / Math.max(view.origin * 0.01, 1e-9)) * DEPTH;
 }
 
 let floaterId = 0;

@@ -7,7 +7,7 @@ import { tracersFor } from "@/lib/market/rules";
 import { audio, panX } from "@/lib/audio/engine";
 import { useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
-import { fireStats, GAP, DEPTH, type Display, sideSign, view, xFor, zFor } from "./layout";
+import { fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
 import { makeFighterGeometry } from "./fighter";
 
 const MAX_PROJ = 2400;
@@ -164,21 +164,21 @@ export function Effects() {
     const near = shooters.length ? shooters.slice(0, Math.min(8, shooters.length)) : [];
     const shooter: Display | null =
       ev.weapon === "broadside" ? (shooters.find((d) => d.tier === "battleship") ?? near[0] ?? null) : (near[shot.current++ % Math.max(1, near.length)] ?? null);
-    const mx = shooter ? shooter.x : xFor(ev.b);
+    const mx = shooter ? shooter.x - sign * 0.25 * shooter.s : view.frontX - sign * GAP;
     const my = shooter ? 0.28 * shooter.s : 0.2;
-    const mz = shooter ? shooter.z - sign * 0.25 * shooter.s : sign * GAP;
-    const tx = target ? target.x : xFor(ev.b);
+    const mz = shooter ? shooter.z : zForBucket(ev.b);
+    const tx = target ? target.x : xForPrice(ev.target, ev.price);
     const ty = target ? 0.18 * target.s : 0;
-    const tz = target ? target.z : zFor(ev.target, ev.price);
+    const tz = target ? target.z : zForBucket(ev.b);
     const base = { target };
-    const pan = { x: panX(mx, view.halfW) };
+    const pan = { x: panX(mx - view.frontX, REAR) };
     // one tracer per underlying fill (capped at 24)
     const n = tracersFor(ev.fills);
     for (let i = 0; i < n; i++)
-      spawn({ ...base, weapon: "mg", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.35, ty, tz: tz + (Math.random() - 0.5) * 0.35, dur: 0.14 + i * 0.012, arc: 0.12, size: 0.03, len: 0.45 });
+      spawn({ ...base, weapon: "mg", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.18, ty, tz: tz + (Math.random() - 0.5) * 0.35, dur: 0.14 + i * 0.012, arc: 0.12, size: 0.03, len: 0.45 });
     engineRef.current && (engineRef.current.tracersSpawned += n);
     // near miss: trade printed in a bucket with no ship → splash where it landed
-    if (!view.displays.get(ev.target + ev.b)) splash(xFor(ev.b), zFor(ev.target, ev.price), 0.35);
+    if (!view.displays.get(ev.target + ev.b)) splash(xForPrice(ev.target, ev.price), zForBucket(ev.b), 0.35);
     const now = performance.now();
     if (fireStats.last) fireStats.maxGap = Math.max(fireStats.maxGap, now - fireStats.last);
     fireStats.last = now;
@@ -223,19 +223,19 @@ export function Effects() {
       } else if (ev.type === "fighter") {
         const pts = ev.buckets.map((b) => targetFor(ev.target, b)).filter(Boolean) as Display[];
         const a = pts[0];
-        const z0 = a?.z ?? sideSign(ev.target) * (GAP + 2);
-        const z1 = pts[pts.length - 1]?.z ?? z0 + sideSign(ev.target) * 3;
-        const x0 = a?.x ?? 0;
-        // strafe along the swept row: enter from the strait, exit past the last ship
+        const z0 = a?.z ?? zForBucket(ev.buckets[0] ?? 0);
+        const last = pts[pts.length - 1];
+        const x1 = last?.x ?? view.frontX + sideSign(ev.target) * (GAP + 5);
+        const x0 = a?.x ?? view.frontX;
+        // strafe horizontally through the swept price buckets
         const dir = sideSign(ev.target);
-        launch("fighter", { dur: 1.6, ax: x0 - 1.5, az: dir * GAP * 0.5 - dir * 2, bx: x0 + 1.5, bz: z1 + dir * 6, alt: 1.6, side: ev.target });
-        void z0;
-        audio.play("fighter", { x: panX(x0, view.halfW) });
+        launch("fighter", { dur: 1.6, ax: view.frontX - dir * 2, az: z0 - 1.2, bx: x1 + dir * 5, bz: z0 + 1.2, alt: 1.6, side: ev.target });
+        audio.play("fighter", { x: panX(x0 - view.frontX, REAR) });
       } else if (ev.type === "liquidation") {
         const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
-        const z = sideSign(side) * (GAP + DEPTH * 0.75);
+        const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);
         const span = view.halfW + 14;
-        launch("bomber", { dur: 3.8, ax: span + view.offsetX, az: z, bx: -span + view.offsetX, bz: z, alt: 6, side });
+        launch("bomber", { dur: 3.8, ax: x, az: -span, bx: x, bz: span, alt: 6, side });
         audio.play("liquidation");
       } else if (ev.type === "sink") {
         const d = view.displays.get(ev.side + ev.b);
@@ -259,18 +259,18 @@ export function Effects() {
       m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1, z);
       m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.3 : 0);
       if (p.kind === "bomber") {
-        if (Math.abs(x - view.offsetX) < view.halfW + 1 && p.t >= p.next) {
+        if (Math.abs(z) < view.halfW + 1 && p.t >= p.next) {
           p.next = p.t + 0.2;
           const rear = view.visible[p.side];
           const target = rear.length ? rear[Math.max(0, rear.length - 1 - Math.floor(Math.random() * Math.min(10, rear.length)))]! : null;
-          const tx = x - 1.2;
-          const tz = p.az + (Math.random() - 0.5) * 3;
-          const hit = target && Math.abs(target.x - tx) < 3 ? target : null;
+          const tx = p.ax + (Math.random() - 0.5) * 2;
+          const tz = z - 1.2;
+          const hit = target && Math.abs(target.z - tz) < 3 ? target : null;
           spawn({ weapon: "bomb", fx: x, fy: p.alt - 0.3, fz: z, tx: hit ? hit.x : tx, ty: hit ? 0.2 * hit.s : 0, tz: hit ? hit.z : tz, dur: 0.75, size: 0.08, len: 0.25, target: hit });
         }
       } else if (p.t >= p.next && u > 0.1 && u < 0.85) {
         p.next = p.t + 0.05;
-        spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + (Math.random() - 0.5) * 0.4, ty: 0.1, tz: z + sideSign(p.side) * 1.2, dur: 0.18, size: 0.035, len: 0.5, target: null });
+        spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + sideSign(p.side) * 1.2, ty: 0.1, tz: z + (Math.random() - 0.5) * 0.4, dur: 0.18, size: 0.035, len: 0.5, target: null });
       }
       if (u >= 1) p.on = false;
     });
@@ -313,8 +313,8 @@ export function Effects() {
     lightRefs.current.forEach((l, i) => {
       if (!l) return;
       const side = i < 2 ? -1 : 1;
-      l.position.set(view.offsetX + (i % 2 ? 1 : -1) * view.halfW * 0.55, 0, side * (GAP + DEPTH + 1));
-      l.rotation.set(side * -0.5 + Math.sin(view.time * 0.23 + i * 1.7) * 0.25, 0, Math.sin(view.time * 0.31 + i * 2.3) * 0.6);
+      l.position.set(view.frontX + side * (GAP + DEPTH + 1), 0, (i % 2 ? 1 : -1) * view.halfW * 0.55);
+      l.rotation.set(Math.sin(view.time * 0.23 + i * 1.7) * 0.25, 0, side * 0.5 + Math.sin(view.time * 0.31 + i * 2.3) * 0.6);
     });
   });
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, HelpCircle, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
+import { Crosshair, Download, HelpCircle, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
 import { savePrefs, useBattle, type TapeLine } from "@/lib/market/store";
 import { fmtPrice, questionText, usd, type Round } from "@/lib/market/predictions";
 import { PHASE_NAME, intensityOf } from "@/lib/battle/phase";
@@ -255,7 +255,7 @@ function Banners() {
 }
 
 const GUIDE = [
-  "The line in the middle is the live BTC price on Binance Futures. Ships north are sell orders waiting, ships south are buy orders waiting.",
+  "The vertical line in the middle is the live BTC price on Binance Futures. Buy orders wait on the left; sell orders wait on the right.",
   "A ship's distance from the strait is how far its price is from the live price. Bigger ship = bigger order.",
   "Every shot is a real trade. The taker fires; the ship at that price is hit and loses the amount filled. A ship that is fully filled sinks and the front line moves.",
   "A big order that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
@@ -368,7 +368,7 @@ function LegendStrip() {
           <span className="text-muted-foreground">{l.range}</span>
         </span>
       ))}
-      <span className="shrink-0 text-muted-foreground">Bomber = liquidation · Sub = pulled big order</span>
+      <span className="shrink-0 text-muted-foreground">Buyers left · Sellers right · Bomber = liquidation · Sub = pulled big order</span>
     </div>
   );
 }
@@ -543,7 +543,7 @@ export function Hud() {
     <div className="pointer-events-none fixed inset-0 z-10 flex flex-col">
       {war && <div className="war-vignette absolute inset-0" aria-hidden />}
       <Labels />
-      <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
+       <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <Header now={now} />
         <div className="flex items-center justify-between gap-1.5">
           <Filters />
@@ -551,7 +551,8 @@ export function Hud() {
             {drawer ? "Close guide" : "Guide & tape"}
           </button>
         </div>
-        <div className="w-full md:max-w-md">
+        <div className="grid grid-cols-2 gap-1.5 lg:pr-0">
+          <BossBar side="bid" now={now} />
           <BossBar side="ask" now={now} />
         </div>
         <Banners />
@@ -588,14 +589,22 @@ export function Hud() {
       {status === "connecting" && !hud.hasBook && (
         <div className="absolute inset-x-0 top-1/2 text-center font-display text-sm uppercase tracking-[0.3em] text-foreground/80">Raising the fleet…</div>
       )}
+      <button
+        onClick={() => {
+          view.cameraX = view.frontX;
+          view.zoomScale = 1;
+        }}
+        aria-label="Recenter battlefield"
+        title="Recenter"
+        className="pointer-events-auto absolute right-2 top-[42%] z-20 rounded bg-secondary/90 p-2 text-foreground shadow-hud md:hidden"
+      >
+        <Crosshair className="h-4 w-4" />
+      </button>
 
       <div className="flex-1" />
 
       <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <div className="flex flex-col gap-1.5 md:flex-row md:items-end md:justify-between">
-          <div className="w-full md:max-w-md">
-            <BossBar side="bid" now={now} />
-          </div>
           <div className="w-full md:w-[360px]">
             <Guard name="predictions"><Predictions now={now} /></Guard>
           </div>

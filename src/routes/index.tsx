@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "No Man's Sea — Live order-flow naval battle" },
       {
         property: "og:description",
-        content: "Bulls vs Bears fleets built from live Binance Futures order flow. Every shot is a real trade.",
+        content: "Buyers versus Sellers fleets built from live Binance Futures order flow. Every shot is a real trade.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

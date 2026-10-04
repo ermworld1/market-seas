@@ -19,13 +19,13 @@
 - `src/lib/battle/walls.ts` and `tape.ts` are verbatim copies (prettier-ignored); adapt their inputs, never their bodies.
 - The phase machine, battle clock and rules are time-injected — so they stay unit-testable.
 - Labels are fixed DOM nodes positioned via rAF from projected anchors (`screen.ts`), never drei Html — avoids mount/unmount during render.
-- The camera is orthographic at 65° so both fleets render at equal scale.
+- The battlefield price axis is X: Buyers left, Sellers right, moving vertical mark front; the orthographic 65° camera keeps both fleets at equal scale.
 - Audio categories each have a sample slot (/sfx, /music, /vo) with procedural fallback — samples drop in without code changes.
 - Each subsystem renders inside `Guard` — one failure never blanks the page.
 - Analytics stay in localStorage (device-local /stats) — no backend.
 - The 3D scene reads `engineRef` and the mutable `view` object inside `useFrame`; React state (zustand) is only for the HUD, throttled to 250 ms — avoids 60 Hz re-renders.
 - `Fleet` drains engine events once per frame into `view.frameEvents` and must mount before `Effects` — both consume the same frame's events.
-- GLBs are merged, normalized (bow -X → world -Z, keel just below y=0), welded and decimated with meshoptimizer once at load, then drawn with one InstancedMesh per model per side — keeps draw calls and triangles within mobile budget.
+- GLBs are merged, normalized (bow stays -X, keel just below y=0), welded and decimated with meshoptimizer once at load, then drawn with one InstancedMesh per model per side — keeps draw calls and triangles within mobile budget.
 - Fire events are never dropped: the projectile pool recycles the oldest shot when full.
 - Particles use pooled point-sprite buffers (`ParticlePool`) and projectiles a single InstancedMesh — no per-effect React components.
 - The `/` route is `ssr: false` and lazy-loads the battle — WebGL, WebSocket and localStorage are browser-only.

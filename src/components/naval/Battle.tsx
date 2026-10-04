@@ -9,7 +9,7 @@ import { Background } from "./Background";
 import { Effects } from "./Effects";
 import { Fleet } from "./Fleet";
 import { Ocean } from "./Ocean";
-import { ELEVATION, REAR, view } from "./layout";
+import { DEPTH, ELEVATION, GAP, REAR, view } from "./layout";
 import { preloadModels } from "./models";
 import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";
@@ -24,7 +24,50 @@ const tmp = new THREE.Vector3();
  * fleets render at the same scale regardless of distance from the camera.
  */
 function CameraRig() {
-  const { camera, size } = useThree();
+  const { camera, size, gl } = useThree();
+  const gesture = useRef({ pointers: new Map<number, number>(), lastX: 0, pinch: 0 });
+  useEffect(() => {
+    const el = gl.domElement;
+    const down = (e: PointerEvent) => {
+      if (window.innerWidth >= 768) return;
+      gesture.current.pointers.set(e.pointerId, e.clientX);
+      gesture.current.lastX = e.clientX;
+      if (gesture.current.pointers.size === 2) {
+        const xs = [...gesture.current.pointers.values()];
+        gesture.current.pinch = Math.abs((xs[1] ?? 0) - (xs[0] ?? 0));
+      }
+      el.setPointerCapture(e.pointerId);
+    };
+    const move = (e: PointerEvent) => {
+      if (!gesture.current.pointers.has(e.pointerId) || window.innerWidth >= 768) return;
+      gesture.current.pointers.set(e.pointerId, e.clientX);
+      if (gesture.current.pointers.size === 1) {
+        const dx = e.clientX - gesture.current.lastX;
+        view.cameraX = THREE.MathUtils.clamp(view.cameraX - dx / 34 / view.zoomScale, view.frontX - DEPTH, view.frontX + DEPTH);
+        gesture.current.lastX = e.clientX;
+      } else {
+        const xs = [...gesture.current.pointers.values()];
+        const distance = Math.abs((xs[1] ?? 0) - (xs[0] ?? 0));
+        if (gesture.current.pinch > 4) view.zoomScale = THREE.MathUtils.clamp(view.zoomScale * (distance / gesture.current.pinch), 0.65, 2.2);
+        gesture.current.pinch = distance;
+      }
+    };
+    const up = (e: PointerEvent) => {
+      gesture.current.pointers.delete(e.pointerId);
+      gesture.current.pinch = 0;
+    };
+    el.style.touchAction = "none";
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+    };
+  }, [gl]);
   useFrame((state, raw) => {
     const dt = Math.min(raw, 0.05);
     const cam = camera as THREE.OrthographicCamera;
@@ -36,19 +79,23 @@ function CameraRig() {
     const botPx = view.mobile ? 215 : 110;
     const sidePx = size.width >= 1100 ? 340 : 0;
     const usableH = Math.max(200, size.height - topPx - botPx);
-    const zoom = usableH / (2 * (REAR + 0.8) * Math.sin(elev));
+    const usableW = Math.max(220, size.width - sidePx);
+    const worldHalfX = view.mobile ? GAP + DEPTH * 0.4 : REAR;
+    const zoomX = usableW / (2 * worldHalfX);
+    const zoomY = usableH / (2 * 8.5 * Math.sin(elev));
+    const zoom = Math.min(zoomX, zoomY) * (view.mobile ? view.zoomScale : 1);
     if (Math.abs(cam.zoom - zoom) > 1e-3) {
       cam.zoom = zoom;
       cam.updateProjectionMatrix();
     }
-    view.halfW = Math.max(3.2, ((size.width - sidePx) / 2 / zoom) * 0.9);
+    view.halfW = Math.max(4.5, (usableH / 2 / zoom / Math.sin(elev)) * 0.82);
     // shift the strait so it sits in the middle of the free area
     const shiftX = sidePx / 2 / zoom;
     const shiftY = ((topPx - botPx) / 2 / zoom) / Math.sin(elev);
-    view.offsetX = 0;
+    if (!view.mobile) view.cameraX = 0;
     fx.shake = Math.max(0, fx.shake - dt * 2.2);
     const sh = fx.shake * fx.shake * 0.25;
-    lookAt.set(shiftX + (Math.random() - 0.5) * sh, 0, -shiftY + (Math.random() - 0.5) * sh);
+    lookAt.set(view.cameraX + shiftX + (Math.random() - 0.5) * sh, 0, -shiftY + (Math.random() - 0.5) * sh);
     cam.position.set(lookAt.x, Math.sin(elev) * 100, lookAt.z + Math.cos(elev) * 100);
     cam.lookAt(lookAt);
     if (import.meta.env.DEV) (window as unknown as { __nmsInfo: unknown }).__nmsInfo = state.gl.info.render;
@@ -75,7 +122,7 @@ function Projector() {
     screen.near = p(A.near);
     screen.repairs = A.repairs.map((r) => p(r)!);
     screen.floaters = A.floaters.map((f) => ({ ...p(f)!, id: f.id, text: f.text, tone: f.tone, age: view.time - f.t0 }));
-    screen.strait = p({ x: 0, y: 0, z: 0 });
+    screen.strait = p({ x: view.frontX, y: 0, z: 0 });
   });
   return null;
 }
@@ -87,6 +134,9 @@ function useFront() {
     engineRef.current = engine;
     view.displays.clear();
     view.mid = 0;
+    view.origin = 0;
+    view.frontX = 0;
+    view.cameraX = 0;
     let stop = () => {};
     try {
       stop = connectFront(engine, (status, detail) => useBattle.setState({ status, statusDetail: detail }));
