@@ -44,7 +44,6 @@ const side = new THREE.Vector3();
 const up = new THREE.Vector3();
 const camPos = new THREE.Vector3();
 const mat4 = new THREE.Matrix4();
-let lastHitSound = 0;
 let mgThisFrame = 0;
 const COLORS = {
   mg: new THREE.Color(1.5, 1.1, 0.35),
@@ -185,8 +184,7 @@ export function Effects() {
     const d = p.target;
     if (d && !d.departing && Math.random() < 0.9) {
       d.hitFlash = Math.min(1, d.hitFlash + 0.08 + power * 0.3);
-      const tnow = performance.now();
-      if (tnow - lastHitSound > 120) { lastHitSound = tnow; audio.play("hit", { x: panX(p.tx - view.frontX, REAR), gain: 0.5 + power * 0.4 }); }
+      audio.play("hit", { x: panX(p.tx - view.frontX, REAR), gain: 0.5 + power * 0.4 });
       flash(p.tx, p.ty + 0.1, p.tz, 0.5 * power + 0.25);
       if (power > 0.5)
         for (let i = 0; i < 5 * power; i++)

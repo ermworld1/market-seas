@@ -123,5 +123,14 @@ export function preloadModels() {
 /** Shared realistic naval paint; side identity comes from physical stripes, deck marks and flags. */
 export function makeFleetMaterial(side: "buyers" | "sellers", trim = false) {
   const color = new THREE.Color(trim ? "#657076" : side === "buyers" ? "#37454a" : "#414348").convertSRGBToLinear();
-  return new THREE.MeshStandardMaterial({ color, metalness: trim ? 0.48 : 0.62, roughness: trim ? 0.58 : 0.72, flatShading: false });
+  const material = new THREE.MeshStandardMaterial({ color, metalness: trim ? 0.48 : 0.62, roughness: trim ? 0.58 : 0.72, flatShading: false });
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvHullPos = position;");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>\nfloat below = smoothstep(0.03, -0.08, vHullPos.y);\ndiffuseColor.rgb *= mix(1.0, 0.42, below);\nfloat weather = sin(vHullPos.x * 73.0 + sin(vHullPos.z * 51.0)) * sin(vHullPos.y * 117.0);\nfloat rust = smoothstep(0.84, 1.0, weather) * smoothstep(0.18, -0.02, vHullPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.18, 0.075, 0.035), rust * 0.32);`,
+    );
+  };
+  material.customProgramCacheKey = () => `naval-weather-${side}-${trim}`;
+  return material;
 }

@@ -89,13 +89,20 @@ export function Fleet() {
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
   const marks = useMemo(() => {
     const paint = (side: BookSide) => new THREE.MeshStandardMaterial({ color: SIDE_COL[side], metalness: 0.35, roughness: 0.64, side: THREE.DoubleSide });
+    const flag = (side: BookSide) => new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: SIDE_COL[side] }, uTime: { value: 0 } },
+      vertexShader: `uniform float uTime; varying float vShade; void main(){ vec3 p=position; float k=(p.x+0.08)/0.16; p.z += sin(uTime*5.0+k*5.5)*0.018*k; vShade=.72+.28*sin(uTime*5.0+k*5.5); gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
+      fragmentShader: `uniform vec3 uColor; varying float vShade; void main(){ gl_FragColor=vec4(uColor*vShade,1.0); }`,
+      side: THREE.DoubleSide,
+    });
     return {
       paint: { bid: paint("bid"), ask: paint("ask") },
+      flag: { bid: flag("bid"), ask: flag("ask") },
       pole: new THREE.MeshStandardMaterial({ color: "#20252b", metalness: 0.75, roughness: 0.4 }),
       foam: new THREE.MeshStandardMaterial({ color: "#d8e5e8", transparent: true, opacity: 0.5, roughness: 0.9, depthWrite: false }),
     };
   }, []);
-  useEffect(() => () => { [marks.paint.bid, marks.paint.ask, marks.pole, marks.foam].forEach((m) => m.dispose()); }, [marks]);
+  useEffect(() => () => { [marks.paint.bid, marks.paint.ask, marks.flag.bid, marks.flag.ask, marks.pole, marks.foam].forEach((m) => m.dispose()); }, [marks]);
   const markings = useRef<Record<string, THREE.InstancedMesh | null>>({});
   const meshes = useRef<Record<string, THREE.InstancedMesh | null>>({});
 
@@ -110,6 +117,8 @@ export function Fleet() {
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? fx.slowScale : 1);
+    marks.flag.bid.uniforms["uTime"]!.value = view.time;
+    marks.flag.ask.uniforms["uTime"]!.value = view.time;
     view.frameMs += (raw * 1000 - view.frameMs) * 0.05;
     view.time += dt;
     fx.slowmo = Math.max(0, fx.slowmo - Math.min(raw, 0.05));
@@ -177,7 +186,7 @@ export function Fleet() {
             break;
           case "reinforce":
             if (d) d.damage *= 0.4;
-            if (d && ev.notional >= 1_500_000) {
+            if (d && ev.notional >= e.bucketSampler.quantile(0.9)) {
               addFloater({ x: d.x + sign * 0.2, y: 0.4, z: d.z }, `+${usd(ev.notional)}`, ev.side === "bid" ? "buy" : "sell");
               if (ev.notional >= 5e6) audio.play("reinforce", pan);
             }
@@ -333,7 +342,7 @@ export function Fleet() {
           sm.setMatrixAt(hn, dummy.matrix);
           dm.setMatrixAt(hn, dummy.matrix);
           dummy.position.set(d.x, 0.018, d.z);
-          dummy.rotation.set(-Math.PI / 2, 0, 0);
+          dummy.rotation.set(0, 0, 0);
           dummy.scale.setScalar(sz * (0.9 + d.damage * 0.15));
           dummy.updateMatrix();
           wm.setMatrixAt(hn, dummy.matrix);
@@ -395,7 +404,7 @@ export function Fleet() {
           <instancedMesh ref={(m) => { markings.current["s" + side] = m; }} args={[stripeGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
           <instancedMesh ref={(m) => { markings.current["d" + side] = m; }} args={[deckGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
           <instancedMesh ref={(m) => { markings.current["w" + side] = m; }} args={[foamGeo, marks.foam, MARK_CAP]} frustumCulled={false} renderOrder={1} />
-          <instancedMesh ref={(m) => { markings.current["f" + side] = m; }} args={[flagGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
+          <instancedMesh ref={(m) => { markings.current["f" + side] = m; }} args={[flagGeo, marks.flag[side], MARK_CAP]} frustumCulled={false} />
           <instancedMesh ref={(m) => { markings.current["p" + side] = m; }} args={[poleGeo, marks.pole, MARK_CAP]} frustumCulled={false} />
         </group>
       ))}
