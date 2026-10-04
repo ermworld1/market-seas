@@ -61,7 +61,7 @@ export interface TapeLine {
   firstAggId?: number;
   lastAggId?: number;
 }
-export interface LadderLevel { side: "bid" | "ask"; price: number; qty: number; notional: number; cumulative: number; bucket: number }
+export interface LadderLevel { side: "bid" | "ask"; price: number; qty: number; notional: number; cumulative: number; sum: number; bucket: number }
 export interface Callout {
   id: number;
   text: string;
@@ -97,7 +97,9 @@ interface BattleStore {
   clip: ClipReady | null;
   tourOpen: boolean;
   presentation: "cinema" | "map";
-  panelTab: "book" | "trades" | "tape" | "guide" | "rankings";
+  panelTab: "read" | "book" | "trades" | "tape" | "guide" | "rankings";
+  bookGroup: number;
+  bookSync: { ok: boolean; at: number } | null;
   ladder: { bids: LadderLevel[]; asks: LadderLevel[] };
   recentTrades: RecentTrade[];
   selectedBucket: { side: "bid" | "ask"; b: number } | null;
@@ -155,7 +157,9 @@ export const useBattle = create<BattleStore>(() => ({
   clip: null,
   tourOpen: false,
   presentation: "cinema",
-  panelTab: "book",
+  panelTab: "read",
+  bookGroup: 0.1,
+  bookSync: null,
   ladder: { bids: [], asks: [] },
   recentTrades: [],
   selectedBucket: null,

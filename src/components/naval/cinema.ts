@@ -25,13 +25,15 @@ function wide(t: number) {
 export function cinemaPose(cam: THREE.PerspectiveCamera, dt: number) {
   const t = view.time;
   const shot = view.shot && performance.now() < view.shot.until ? view.shot : null;
-  const kind = shot?.kind ?? "wide";
+  // aircraft shots only cut while that real aircraft is actually in the sky
+  const air = shot?.kind === "fighter" || shot?.kind === "bomber";
+  const kind = shot && !(air && !view.planeActive && lastKind !== shot.kind) ? shot.kind : "wide";
   const target = shot?.side && shot.bucket !== undefined ? view.displays.get(shot.side + shot.bucket) : null;
   const tr = view.track;
   const plane = view.plane;
   const pd = view.planeDir;
   let snap = false;
-  if (kind !== lastKind) { snap = kind !== "wide"; lastKind = kind; cutAt = t; }
+  if (kind !== lastKind) { snap = kind !== "wide"; lastKind = kind; cutAt = t; if (kind !== "wide") view.cuts[kind] = (view.cuts[kind] ?? 0) + 1; }
   const age = t - cutAt;
   let fov = 42;
   let dof = 0; // focus distance for depth of field (0 = off)

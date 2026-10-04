@@ -35,9 +35,16 @@ export type ShotKind = "wide" | "trade" | "broadside" | "fighter" | "bomber" | "
 export interface ShotRequest { kind: ShotKind; at: number; until: number; side?: "bid" | "ask"; bucket?: number }
 export const CUT_COOLDOWN = 2_500;
 export const WIDE_RETURN = 6_000;
-export function selectShot(ev: BattleEvent, now: number, lastCut: number): ShotRequest | null {
-  if (now - lastCut < CUT_COOLDOWN) return null;
-  if (ev.type === "phase" && ev.phase === "P5") return { kind: "cascade", at: now, until: now + 6_000 };
+export const CASCADE_LOCK_MS = 10_000;
+/**
+ * Director shot selection. The P5 cascade bypasses the cut cooldown and, while active,
+ * locks the director: nothing but a flagship sinking can take the camera from it.
+ */
+export function selectShot(ev: BattleEvent, now: number, lastCut: number, active?: ShotRequest | null): ShotRequest | null {
+  if (ev.type === "phase" && ev.phase === "P5") return { kind: "cascade", at: now, until: now + CASCADE_LOCK_MS };
+  const locked = active?.kind === "cascade" && now < active.until;
+  if (locked && !(ev.type === "sink" && ev.tier === "battleship")) return null;
+  if (!locked && now - lastCut < CUT_COOLDOWN) return null;
   if (ev.type === "sink" && ev.tier === "battleship") return { kind: "flagship", at: now, until: now + 5_000, side: ev.side, bucket: ev.b };
   if (ev.type === "liquidation") return { kind: "bomber", at: now, until: now + 2_200, side: ev.liquidated === "longs" ? "bid" : "ask" };
   if (ev.type === "fighter") {

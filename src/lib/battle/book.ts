@@ -27,6 +27,8 @@ export class LocalBook {
   synced = false;
   private buffer: DepthDiff[] = [];
   private snapId = 0;
+  /** recently applied diffs, kept to replay a REST snapshot forward for verification */
+  private recent: DepthDiff[] = [];
 
   reset() {
     this.bids.clear();
@@ -35,6 +37,7 @@ export class LocalBook {
     this.lastU = 0;
     this.snapId = 0;
     this.buffer = [];
+    this.recent = [];
   }
 
   /** Feed a diff. Returns "gap" when a re-snapshot is required. */
@@ -108,6 +111,46 @@ export class LocalBook {
       else this.asks.delete(+p);
     }
     this.lastU = d.u;
+    this.recent.push(d);
+    if (this.recent.length > 600) this.recent.splice(0, this.recent.length - 500);
+  }
+
+  /**
+   * Compare a fresh REST snapshot with the local book: replay the applied diffs
+   * after the snapshot's lastUpdateId onto it, then compare every level inside
+   * the snapshot's price range. Returns null when the comparison is not possible.
+   */
+  verify(s: Snapshot): { mismatches: number; levels: number } | null {
+    const L = s.lastUpdateId;
+    if (!this.synced || L > this.lastU) return null;
+    const after = this.recent.filter((d) => d.u > L);
+    const first = after[0];
+    if (first ? first.pu > L : this.lastU !== L) return null; // history does not reach back to L
+    const bids = new Map<number, number>();
+    const asks = new Map<number, number>();
+    for (const [p, q] of s.bids) if (+q > 0) bids.set(+p, +q);
+    for (const [p, q] of s.asks) if (+q > 0) asks.set(+p, +q);
+    if (!bids.size || !asks.size) return null;
+    const lowBid = Math.min(...bids.keys());
+    const highAsk = Math.max(...asks.keys());
+    for (const d of after) {
+      for (const [p, q] of d.b) (+q > 0 ? bids.set(+p, +q) : bids.delete(+p));
+      for (const [p, q] of d.a) (+q > 0 ? asks.set(+p, +q) : asks.delete(+p));
+    }
+    let mismatches = 0;
+    let levels = 0;
+    const cmp = (ref: Map<number, number>, local: Map<number, number>, inRange: (p: number) => boolean) => {
+      const keys = new Set<number>();
+      for (const p of ref.keys()) if (inRange(p)) keys.add(p);
+      for (const p of local.keys()) if (inRange(p)) keys.add(p);
+      for (const p of keys) {
+        levels++;
+        if (Math.abs((ref.get(p) ?? 0) - (local.get(p) ?? 0)) > 1e-9) mismatches++;
+      }
+    };
+    cmp(bids, this.bids, (p) => p >= lowBid);
+    cmp(asks, this.asks, (p) => p <= highAsk);
+    return { mismatches, levels };
   }
 
   /** Replace from a partial depth20 snapshot (fallback mode). */

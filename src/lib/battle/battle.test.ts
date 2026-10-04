@@ -292,3 +292,36 @@ describe("lesson sentences", () => {
     expect(lessonText({ ...base, side: "bid", type: "reinforce", qty: 10, notional: 2_100_000, fresh: true } as never)).toContain("added $2.1M of buy orders at 85,320");
   });
 });
+
+describe("v7: book verification + director lock", () => {
+  it("replays diffs after a REST snapshot and finds zero mismatches", async () => {
+    const { LocalBook } = await import("./book");
+    const book = new LocalBook();
+    book.push({ U: 9, u: 11, pu: 8, b: [["100.0", "1"]], a: [] });
+    book.loadSnapshot({ lastUpdateId: 10, bids: [["100.0", "1"], ["99.9", "2"]], asks: [["100.1", "3"]] });
+    book.push({ U: 12, u: 13, pu: 11, b: [["99.9", "0"]], a: [["100.1", "4"]] });
+    book.push({ U: 14, u: 15, pu: 13, b: [["100.0", "5"]], a: [] });
+    // Binance snapshot taken at update 13
+    const ok = book.verify({ lastUpdateId: 13, bids: [["100.0", "1"]], asks: [["100.1", "4"]] });
+    expect(ok).toEqual({ mismatches: 0, levels: 2 });
+    const bad = book.verify({ lastUpdateId: 13, bids: [["100.0", "1"]], asks: [["100.1", "9"]] });
+    expect(bad?.mismatches).toBe(1);
+    expect(book.verify({ lastUpdateId: 99, bids: [["1", "1"]], asks: [["2", "1"]] })).toBeNull();
+  });
+  it("P5 cascade locks the director against trade and broadside cuts", async () => {
+    const { selectShot } = await import("@/lib/market/presentation");
+    const p5 = selectShot({ type: "phase", phase: "P5" } as never, 1000, 900)!;
+    expect(p5.kind).toBe("cascade");
+    const fire = { type: "fire", weapon: "broadside", notional: 2e6, target: "ask", b: 1 } as never;
+    expect(selectShot(fire, 5000, 1000, p5)).toBeNull();
+    expect(selectShot(fire, 12_000, 1000, p5)?.kind).toBe("broadside");
+  });
+  it("groups raw levels like the Binance DOM", async () => {
+    const { makeLadder } = await import("@/components/naval/LivePanels");
+    const bids = new Map([[100.4, 1], [100.1, 2], [99.6, 3]]);
+    const g = makeLadder(bids, "bid", 100, 1);
+    expect(g.map((r) => [r.price, r.qty, r.sum])).toEqual([[100, 3, 3], [99, 3, 6]]);
+    const asks = makeLadder(new Map([[100.1, 1], [100.9, 2]]), "ask", 100, 1);
+    expect(asks.map((r) => r.price)).toEqual([101]);
+  });
+});

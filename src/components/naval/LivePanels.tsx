@@ -8,22 +8,41 @@ import { cn } from "@/lib/utils";
 
 const tone: Record<TapeLine["tone"], string> = { buy: "text-bull", sell: "text-bear", sub: "text-sub", liq: "text-danger", info: "text-ok" };
 
+const GROUPS = [0.1, 1, 10, 50, 100];
+const btc = (n: number) => n.toFixed(3);
+/** Raw Binance levels from the synced local book, laid out like the Binance order book. */
 export function OrderBookPanel() {
   const ladder = useBattle((s) => s.ladder);
   const selectedBucket = useBattle((s) => s.selectedBucket);
   const mark = useBattle((s) => s.hud.mark);
-  const rows = useMemo(() => [...ladder.asks].reverse().concat(ladder.bids), [ladder]);
-  return <div className="min-h-0 overflow-auto font-mono text-[10px]">
-    <div className="sticky top-0 z-10 grid grid-cols-[1fr_.8fr_1fr_1fr] bg-background/95 px-2 py-1 text-muted-foreground"><span>Price</span><span>BTC</span><span>Notional</span><span>Cumulative</span></div>
-    {rows.map((r, i) => {
-      const selected = selectedBucket?.side === r.side && selectedBucket.b === r.bucket;
-      return <button key={`${r.side}-${r.price}-${i}`} className={cn("grid w-full grid-cols-[1fr_.8fr_1fr_1fr] px-2 py-0.5 text-left hover:bg-accent", r.side === "bid" ? "text-bull" : "text-bear", selected && "bg-primary/20 ring-1 ring-inset ring-primary")}
-        onClick={() => { const pick = { side: r.side, b: r.bucket }; useBattle.setState({ selectedBucket: pick }); view.selectedBucket = pick; }}>
-        <span>{fmtPrice(r.price)}</span><span>{r.qty.toFixed(3)}</span><span>{usd(r.notional)}</span><span>{usd(r.cumulative)}</span>
-      </button>;
-    })}
-    {!rows.length && <div className="p-3 text-muted-foreground">Waiting for live book…</div>}
-    <div className="sticky bottom-0 border-t border-border bg-background/95 px-2 py-1 text-center text-primary">MARK {mark ? fmtPrice(mark) : "—"}</div>
+  const group = useBattle((s) => s.bookGroup);
+  const sync = useBattle((s) => s.bookSync);
+  const last = useBattle((s) => s.recentTrades[0]);
+  const asks = useMemo(() => [...ladder.asks].reverse(), [ladder]);
+  const now = Date.now();
+  const synced = !!sync && sync.ok && now - sync.at < 40_000;
+  const row = (r: (typeof ladder.bids)[number], i: number) => {
+    const selected = selectedBucket?.side === r.side && selectedBucket.b === r.bucket;
+    return <button key={`${r.side}-${r.price}-${i}`} className={cn("grid w-full grid-cols-3 px-2 py-[1px] text-left hover:bg-accent", selected && "bg-primary/20 ring-1 ring-inset ring-primary")}
+      onClick={() => { const pick = { side: r.side, b: r.bucket }; useBattle.setState({ selectedBucket: pick }); view.selectedBucket = pick; }}>
+      <span className={r.side === "bid" ? "text-bull" : "text-bear"}>{r.price.toFixed(1)}</span><span className="text-right">{btc(r.qty)}</span><span className="text-right text-muted-foreground">{btc(r.sum)}</span>
+    </button>;
+  };
+  return <div id="book-panel" className="flex h-full min-h-0 flex-col font-mono text-[10px]">
+    <div className="flex items-center justify-between gap-1 px-2 py-1">
+      <span id="book-sync" className={synced ? "text-ok" : "text-muted-foreground"}>{synced ? "Synced with Binance ✓" : "Resyncing…"}</span>
+      <span className="flex gap-0.5">{GROUPS.map((g) => <button key={g} onClick={() => useBattle.setState({ bookGroup: g })} className={cn("rounded px-1", g === group ? "bg-primary text-primary-foreground" : "bg-secondary")}>{g}</button>)}</span>
+    </div>
+    <div className="grid grid-cols-3 px-2 py-0.5 text-muted-foreground"><span>Price (USDT)</span><span className="text-right">Size (BTC)</span><span className="text-right">Sum (BTC)</span></div>
+    <div className="min-h-0 flex-1 overflow-auto">
+      {asks.map(row)}
+      <div id="book-spread" className="flex items-baseline justify-between border-y border-border px-2 py-1">
+        <span className={cn("text-sm font-bold", last?.taker === "sell" ? "text-bear" : "text-bull")}>{last ? last.price.toFixed(1) : "—"}</span>
+        <span className="text-muted-foreground">Mark {mark ? mark.toFixed(1) : "—"}</span>
+      </div>
+      {ladder.bids.map(row)}
+      {!ladder.bids.length && <div className="p-3 text-muted-foreground">Waiting for live book…</div>}
+    </div>
   </div>;
 }
 
@@ -51,9 +70,23 @@ const GUIDE = [
 ] as const;
 export function GuidePanel() { return <div className="min-h-0 overflow-auto p-2"><p className="mb-2 text-xs text-foreground/90">The middle vertical line is live BTC price. Buy orders wait left; sell orders wait right.</p><ul className="grid gap-1.5 text-[11px] sm:grid-cols-2">{GUIDE.map(([name, text]) => <li key={name} className="border-l-2 border-primary/50 pl-2"><strong className="text-primary">{name}</strong><span className="block text-muted-foreground">{text}</span></li>)}</ul><a className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary" href="https://www.binance.com/en/futures/BTCUSDT" target="_blank" rel="noreferrer">Open BTCUSDT on Binance <ExternalLink className="h-3 w-3" /></a></div>; }
 
-export function makeLadder(levels: Map<number, number>, side: "bid" | "ask", mark: number) {
-  const sorted = [...levels].sort((a, b) => side === "bid" ? b[0] - a[0] : a[0] - b[0]).slice(0, 25);
-  let cumulative = 0;
+/** Raw Binance levels (not ship buckets), grouped like the Binance DOM: bids floor, asks ceil to the step. */
+export function makeLadder(levels: Map<number, number>, side: "bid" | "ask", mark: number, group = 0.1, n = 20) {
+  const sorted = [...levels].sort((a, b) => (side === "bid" ? b[0] - a[0] : a[0] - b[0]));
+  const out: { side: "bid" | "ask"; price: number; qty: number; notional: number; cumulative: number; sum: number; bucket: number }[] = [];
   const w = bucketWidth(mark);
-  return sorted.map(([price, qty]) => { const notional = price * qty; cumulative += notional; return { side, price, qty, notional, cumulative, bucket: bucketOf(price, w) }; });
+  const k = Math.round(1 / Math.min(group, 1)) || 1;
+  let sum = 0;
+  let cumulative = 0;
+  for (const [price, qty] of sorted) {
+    const g = group <= 0.1 ? price : (side === "bid" ? Math.floor(price / group + 1e-9) : Math.ceil(price / group - 1e-9)) * group;
+    const gp = Math.round(g * k) / k;
+    const last = out[out.length - 1];
+    sum += qty;
+    cumulative += price * qty;
+    if (last && Math.abs(last.price - gp) < 1e-9) { last.qty += qty; last.notional += price * qty; last.sum = sum; last.cumulative = cumulative; continue; }
+    if (out.length >= n) break;
+    out.push({ side, price: gp, qty, notional: price * qty, cumulative, sum, bucket: bucketOf(price, w) });
+  }
+  return out;
 }

@@ -134,6 +134,19 @@ export class MarketEngine {
     if (r === "applied") this.tick(now);
   }
 
+  /** REST cross-check of the local book (every 15 s from binance.ts). */
+  bookCheck = { checks: 0, ok: 0, skipped: 0, mismatchChecks: 0, mismatches: 0, lastAt: 0, lastOk: false, lastLevels: 0 };
+  verifyBook(s: Snapshot, now: number) {
+    const r = this.book.verify(s);
+    const c = this.bookCheck;
+    if (!r) { c.skipped++; return; }
+    c.checks++;
+    c.lastAt = now;
+    c.lastLevels = r.levels;
+    c.lastOk = r.mismatches === 0;
+    if (r.mismatches) { c.mismatchChecks++; c.mismatches += r.mismatches; this.needSnapshot = true; }
+    else c.ok++;
+  }
   handleSnapshot(s: Snapshot, now: number) {
     const r = this.book.loadSnapshot(s);
     this.needSnapshot = r === "gap";

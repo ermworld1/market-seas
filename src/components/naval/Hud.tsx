@@ -8,7 +8,7 @@ import { regimeOf } from "@/lib/market/rules";
 import { audio } from "@/lib/audio/engine";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
-import { choose } from "./useDirector";
+import { choose, radioCheck } from "./useDirector";
 import { view } from "./layout";
 import { Labels } from "./Labels";
 import { Tour } from "./Tour";
@@ -70,6 +70,7 @@ function SoundControl() {
       const on = !soundOn;
       audio.setVolume(volume);
       audio.setEnabled(on);
+      if (on) radioCheck();
       useBattle.setState({ soundOn: on });
       if (on) track("sound_on");
     } catch (err) {
@@ -174,11 +175,12 @@ function Header({ now }: { now: number }) {
   );
 }
 
-const DATA_TABS = [["book", "Book"], ["trades", "Trades"], ["tape", "Tape"], ["guide", "Guide"], ["rankings", "Ranks"]] as const;
+const DATA_TABS = [["read", "How to read"], ["book", "Book"], ["trades", "Trades"], ["tape", "Tape"], ["guide", "Guide"], ["rankings", "Ranks"]] as const;
 function DataPanels() {
   const tab = useBattle((s) => s.panelTab);
   return <Tabs value={tab} onValueChange={(v) => useBattle.setState({ panelTab: v as typeof tab })} className="hud-panel flex h-full min-h-0 flex-col p-1.5">
-    <TabsList className="grid h-8 shrink-0 grid-cols-5 rounded bg-secondary/70 p-0.5">{DATA_TABS.map(([id, label]) => <TabsTrigger key={id} value={id} className="px-1 text-[10px] uppercase">{label}</TabsTrigger>)}</TabsList>
+    <TabsList className="grid h-8 shrink-0 grid-cols-[1.7fr_repeat(5,1fr)] rounded bg-secondary/70 p-0.5">{DATA_TABS.map(([id, label]) => <TabsTrigger key={id} value={id} className="px-1 text-[10px] uppercase">{label}</TabsTrigger>)}</TabsList>
+    <TabsContent value="read" className="min-h-0 flex-1 overflow-hidden"><HowToRead /></TabsContent>
     <TabsContent value="book" className="min-h-0 flex-1 overflow-hidden"><OrderBookPanel /></TabsContent>
     <TabsContent value="trades" className="min-h-0 flex-1 overflow-hidden"><RecentTradesPanel /></TabsContent>
     <TabsContent value="tape" className="min-h-0 flex-1 overflow-hidden"><TapePanel /></TabsContent>
@@ -294,11 +296,21 @@ const DETAILS = [
   "Longs/shorts in the banner come from open interest change with price direction, never from the order book.",
 ];
 
-function Guide() {
+const UNIT_LEGEND: { img: string; name: string; range: string }[] = [
+  { img: "patrol", name: "Patrol boat", range: "smallest 40% of resting orders" },
+  { img: "frigate", name: "Destroyer", range: "40–70%" },
+  { img: "frigate", name: "Frigate", range: "70–90%" },
+  { img: "cruiser", name: "Cruiser", range: "top 10%" },
+  { img: "battleship", name: "Battleship / flagship", range: "largest order per side" },
+  { img: "bomber", name: "Bomber", range: "a real liquidation" },
+  { img: "transport", name: "Convoy", range: "open interest change" },
+  { img: "tanker", name: "Oil tanker", range: "funding rate at the fleet rear" },
+];
+export function HowToRead() {
   const [more, setMore] = useState(false);
   useEffect(() => setMore(localStorage.getItem("nms-more") === "1"), []);
   return (
-    <section className="hud-panel p-3">
+    <section id="how-to-read" className="h-full min-h-0 overflow-auto p-2">
       <h2 className="font-display text-sm font-semibold uppercase tracking-widest text-primary">How to read it</h2>
       <ul className="mt-1.5 space-y-1.5 text-xs leading-snug text-foreground/90">
         {GUIDE.map((g) => <li key={g}>{g}</li>)}
@@ -319,6 +331,16 @@ function Guide() {
           {DETAILS.map((g) => <li key={g}>{g}</li>)}
         </ul>
       )}
+      <h3 className="mt-3 font-display text-xs font-semibold uppercase tracking-widest text-primary">Units</h3>
+      <ul className="mt-1 grid gap-1">
+        {UNIT_LEGEND.map((u) => (
+          <li key={u.name} className="flex items-center gap-2 text-[11px]">
+            <img src={`/legend/${u.img}.png`} alt="" width={80} height={32} className={cn("h-8 w-20 shrink-0 object-contain", u.name === "Destroyer" && "scale-75")} />
+            <span><strong className="text-foreground">{u.name}</strong> <span className="text-muted-foreground">· {u.range}</span></span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[11px] text-muted-foreground">Gold ships are Buyers (left), steel/red ships are Sellers (right). Weapons by trade size: tracers, deck gun, torpedo, broadside. Full list in the Guide tab.</p>
     </section>
   );
 }
@@ -564,6 +586,7 @@ function EnterGate() {
         await audio.unlock();
         audio.setVolume(useBattle.getState().volume);
         audio.setEnabled(true);
+        radioCheck();
         useBattle.setState({ soundOn: true });
         track("sound_on");
       } catch (err) {
@@ -597,6 +620,7 @@ export function Hud() {
         <Header now={now} />
         <div className="flex items-center justify-between gap-1.5">
           {presentation === "map" && <Filters />}
+          <button id="how-to-read-chip" onClick={() => { useBattle.setState({ panelTab: "read" }); setDrawer(true); }} className="pointer-events-auto ml-auto rounded border border-primary/60 bg-background/80 px-2 py-1 text-[11px] font-semibold uppercase text-primary lg:hidden">How to read</button>
           <button onClick={() => setDrawer((v) => !v)} className="pointer-events-auto rounded bg-secondary px-2 py-1 text-[11px] font-semibold uppercase lg:hidden">
             {drawer ? "Close data" : "Live data"}
           </button>
