@@ -36,6 +36,8 @@ interface Plane {
   formation?: number;
   /** real liquidated notional carried by a liquidation bomber (drives the impact blast) */
   notional?: number;
+  /** quiet-market patrol: flies over its own fleet, does not strafe */
+  patrol?: boolean;
   /** liquidation: this aircraft belongs to the liquidated side and is shot down */
   doomed?: boolean;
   hit?: boolean;
@@ -56,6 +58,8 @@ const lastGun = { buy: 0, sell: 0 };
 const pendingShots = { buy: 0, sell: 0 };
 const salvoNotional = { buy: 0, sell: 0 };
 const lastBig = { buy: 0, sell: 0 };
+const lastImpact = { buy: 0, sell: 0 };
+const lastBroadside = { t: 0 };
 const lastSalvo = { buy: 0, sell: 0 };
 const mat4 = new THREE.Matrix4();
 let mgThisFrame = 0;
@@ -134,6 +138,8 @@ export function Effects() {
     [],
   );
   const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const lastAirAt = useRef(performance.now());
+  const patrolInfo = useRef<{ side: BookSide; buy: number; sell: number } | null>(null);
   const voices = useRef<(ReturnType<typeof audio.aircraftStart>)[]>([]);
   const gunsOn = useRef<boolean[]>([]);
   const bombed = useRef<boolean[]>([]);
@@ -198,7 +204,7 @@ export function Effects() {
     const d = p.target;
     if (d && !d.departing && Math.random() < 0.9) {
       d.hitFlash = Math.min(1, d.hitFlash + 0.08 + power * 0.3);
-      audio.play("hit", { x: panX(p.tx - view.frontX, REAR), gain: 0.5 + power * 0.4 });
+      // (impact sound is played once per volley in fire(), not per tracer)
       flash(p.tx, p.ty + 0.1, p.tz, 0.5 * power + 0.25);
       if (power > 0.5)
         for (let i = 0; i < 5 * power; i++)
@@ -214,7 +220,7 @@ export function Effects() {
         for (let i = 0; i < 10; i++) pools.smoke.emit({ x: p.tx + (Math.random() - 0.5) * 0.3, y: 0.1, z: p.tz + (Math.random() - 0.5) * 0.3, vy: 5 + Math.random() * 4, life: 1.4, size: 0.4, grow: 1.6, color: "#f2f8fb", alpha: 0.85, gravity: 6 });
         boom.current = { x: p.tx, z: p.tz, k: 1 };
       }
-    } else if (power > 0.2 || Math.random() < 0.35) { audio.play("miss", { x: panX(p.tx - view.frontX, REAR), gain: 0.35 + power * 0.25 }); splash(p.tx, p.tz, power * 0.7); }
+    } else if (power > 0.2 || Math.random() < 0.35) splash(p.tx, p.tz, power * 0.7);
   };
 
   const fire = (ev: Extract<BattleEvent, { type: "fire" }>) => {
@@ -241,6 +247,18 @@ export function Effects() {
     for (let i = 0; i < n; i++)
       spawn({ ...base, weapon: "mg", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.18, ty, tz: tz + (Math.random() - 0.5) * 0.35, dur: 0.14 + i * 0.012, arc: 0.12, size: 0.03, len: 0.45 });
     engineRef.current && (engineRef.current.tracersSpawned += n);
+    // ONE impact sound per volley, timed with the first tracer's arrival: steel being hit, bullets
+    // raking steel, or a shell splash. (Per-tracer impacts measured ~560 sounds/min and masked everything.)
+    {
+      const ti = performance.now();
+      const pz = panX(tx - view.frontX, REAR);
+      if (ti - lastImpact[ev.taker] >= 140) {
+        lastImpact[ev.taker] = ti;
+        const kind = target ? (ev.notional >= 50_000 ? "hull" : "bullets") : "splash";
+        const g = Math.min(1.1, 0.4 + Math.log10(Math.max(ev.notional, 1_000) / 1_000) * 0.25);
+        window.setTimeout(() => audio.impact(kind, pz, g), 140);
+      }
+    }
     // near miss: trade printed in a bucket with no ship → splash where it landed
     if (!displayFor(ev.target, ev.b)) splash(xForPrice(ev.target, ev.price), zForBucket(ev.b), 0.35);
     const now = performance.now();
@@ -281,11 +299,14 @@ export function Effects() {
     }
     // heavy main battery: any aggressive order of $250K+ is answered by the attacking side's big guns
     // (rate-limited per side so it stays a punctuation mark, not a constant rumble)
-    if (ev.notional >= 250_000 && ev.weapon !== "broadside") {
+    // only the top 3 % of aggressive orders (and at least $250K) wake the main battery, at most every 4 s per side
+    const bigCut = Math.max(250_000, engineRef.current?.orderSampler?.quantile(0.97) ?? 250_000);
+    if (ev.notional >= bigCut && ev.weapon !== "broadside") {
       const tb = performance.now();
-      if (tb - lastBig[ev.taker] >= 1600) {
+      if (tb - lastBig[ev.taker] >= 4000 && tb - lastBroadside.t >= 1500) {
         lastBig[ev.taker] = tb;
         audio.play("broadside", { ...pan, gain: Math.min(1.2, 0.7 + Math.log10(ev.notional / 250_000) * 0.4) });
+        void audio.exchange(["g_fire"], 16);
       }
     }
     if (ev.weapon === "torpedo") {
@@ -303,20 +324,43 @@ export function Effects() {
         flash(mx + ox, my, mz, 1.1, "#ffd27a");
         spawn({ ...base, weapon: "broadside", fx: mx + ox, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.8, ty, tz: tz + (Math.random() - 0.5) * 0.6, dur: 0.4 + i * 0.015, arc: 2.4, size: 0.09, len: 0.4 });
       }
-      audio.play("broadside", pan);
+      // full broadside at most once every 3 s across both fleets, so it stays the biggest moment
+      const tbs = performance.now();
+      if (tbs - lastBroadside.t >= 3000) { lastBroadside.t = tbs; audio.play("broadside", pan); }
     }
   };
 
   const launch = (kind: Plane["kind"], init: Omit<Plane, "on" | "t" | "next" | "kind">) => {
     const p = planes.find((q) => !q.on && q.kind === kind);
     if (!p) return;
-    Object.assign(p, { formation: undefined, notional: undefined, bank: undefined, doomed: undefined, hit: undefined, crashed: undefined, spin: 0 }, init, { on: true, t: 0, next: 0 });
+    Object.assign(p, { formation: undefined, notional: undefined, bank: undefined, doomed: undefined, hit: undefined, crashed: undefined, spin: 0, patrol: undefined }, init, { on: true, t: 0, next: 0 });
     const mesh = planeRefs.current[planes.indexOf(p)];
     if (mesh) mesh.material = airMats[p.side === "bid" ? "ask" : "bid"];
     lastPlane.current = p;
+    lastAirAt.current = performance.now();
   };
 
   useFrame((state, raw) => {
+    // Quiet-market patrol: if no aircraft has flown for 75 s, the side with more aggressive (taker)
+    // volume over those 75 s sends a two-plane patrol over its fleet. Real data, just a calmer trigger.
+    {
+      const nowMs = performance.now();
+      const e = engineRef.current;
+      if (e && view.mid > 0 && nowMs - lastAirAt.current > 75_000) {
+        const f = e.flowWindow(Date.now(), 75);
+        if (f.buy + f.sell > 0) {
+          const side: BookSide = f.buy >= f.sell ? "bid" : "ask";
+          const own = sideSign(side);
+          const span = view.halfW + 14;
+          for (let i = 0; i < 2; i++) {
+            const x = view.frontX + own * (GAP + DEPTH * (0.35 + i * 0.25));
+            launch("fighter", { dur: 3.6, ax: x, az: -span - i * 1.2, bx: x, bz: span - i * 1.2, alt: 3.2 + i * 0.3, side, formation: i, patrol: true });
+          }
+          patrolInfo.current = { side, buy: f.buy, sell: f.sell };
+        }
+        lastAirAt.current = nowMs;
+      }
+    }
     const dt = Math.min(raw, 0.05) * (fx.slowmo > 0 ? fx.slowScale : 1);
     // point-sprite scale: perspective cameras need focal-length based sizing
     const cam = state.camera as THREE.PerspectiveCamera;
@@ -453,7 +497,7 @@ export function Effects() {
           spawn({ weapon: "bomb", fx: x, fy: p.alt - 0.3, fz: z, tx: hit ? hit.x : tx, ty: hit ? 0.2 * hit.s : 0, tz: hit ? hit.z : tz, dur: 0.75, size: 0.08, len: 0.25, target: hit, ...(firstBomb && p.notional ? { blast: p.notional } : {}) });
           if (firstBomb) { bombed.current[i] = true; voices.current[i]?.bomb(0.75); }
         }
-      } else if (p.t >= p.next && u > 0.1 && u < 0.85) {
+      } else if (!p.patrol && p.t >= p.next && u > 0.1 && u < 0.85) {
         p.next = p.t + 0.05;
         spawn({ weapon: "cannon", fx: x, fy: p.alt, fz: z, tx: x + sideSign(p.side) * 1.2, ty: 0.1, tz: z + (Math.random() - 0.5) * 0.4, dur: 0.18, size: 0.035, len: 0.5, target: null });
         if (Math.random() < 0.45) splash(x + sideSign(p.side) * 1.2, z, 0.22);
@@ -467,7 +511,7 @@ export function Effects() {
         // loudness from on-screen distance to the action, not from the camera (the map camera sits far away)
         const close = Math.max(0, 1 - Math.abs(x - view.cameraX) / (view.halfW * 2.2 + REAR));
         vce.update(panX(x - view.frontX, REAR), 0.45 + 0.55 * close, 1 + Math.max(-0.25, Math.min(0.25, vRad / 120)), pull);
-        if (p.kind === "fighter" && !p.doomed && !gunsOn.current[i] && u > 0.3) { gunsOn.current[i] = true; vce.guns(p.dur * 0.5, panX(x - view.frontX, REAR)); }
+        if (p.kind === "fighter" && !p.doomed && !p.patrol && !gunsOn.current[i] && u > 0.3) { gunsOn.current[i] = true; vce.guns(p.dur * 0.5, panX(x - view.frontX, REAR)); }
       }
       if (u >= 1) {
         p.on = false;

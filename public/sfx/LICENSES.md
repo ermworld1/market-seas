@@ -59,6 +59,13 @@ License: https://sonniss.com/gdc-bundle-license/ (no standalone redistribution, 
 | `shipgun/1–5.mp3` | Audiobeast_Medium_Warehouse_Browning_M2_.50_Machine_Gun_03m_RSM191_MS_Raw_002_Burst_x2.wav (bursts cut into ~0.7 s pieces, pitched down 12%) |
 | `shipgun/6–7.mp3` | Automatic Cannon - MK44 - 03 - Single Shot with Report 03.wav (pitched down) |
 | `biggun/1–3.mp3` | Main battery, layered: TAJ - Tank Battle Cannon Fire [XY Stereo]-001.wav (pitched down ~40%) + Planet_Explosion_Low-04.wav + sally77_cannons___dry.wav + warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav (delayed echo), synthetic sub-bass and reverb tail |
+| `hullhit/1–4.mp3` | Bluezone_BC0251_heavy_metal_impact_large_tank_01_03 / metal_plate_medium / steel_barrel_01, Bluezone_BC0236_metal_debris_055 (pitched down) |
+| `bullethit/1–3.mp3` | Guns & Explosions Album - Bullet Impacts - Multiple 1.wav (three sections) |
+| `splash/1–3.mp3` | Water,Splashes,Bath Tub,Roomy,Dunk,Slow,Hard,x3.wav (pitched down) + Bluezone_BC0252_isolated_lake_wave_01_01.wav |
+| `hull/1.mp3` | Boat,Bow Wash,Ferry,Midship,Whine,Deep,Slosh.wav |
+| `engine/1.mp3` | tugboat_t24_onbrd_idle_steady_deck_propeller_MKH8040.wav (low-passed) |
+| `crew/1.mp3` | Crowd,Military,Army,Squad,Medium Distant,...,Drill Sergeant,Shout (busiest sections, low-passed) |
+| `battle/2–3.mp3` | Random layouts of the warfare distant cannon, TAJ tank-battle machine guns, Browning M2 and MK44 recordings above, low-passed with echoes |
 | `flak/1–3.mp3` | Automatic Cannon - MK44 - 03 - Single Shot with Report 03.wav (2 and 3 are pitched variants) |
 | `battle/1.mp3` | warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav + TAJ - Tank Battle Machine Guns (7.62 & 50 cal) (middle section), low-passed |
 

@@ -23,9 +23,13 @@ const VOICE_VARIANTS: Record<string, string[]> = {
   c_evade: ["c_evade", "c_evade2"], a_evade: ["a_evade", "a_evade2"],
   c_damage: ["c_damage", "c_damage2"], a_damage: ["a_damage", "a_damage2"],
   c_hold: ["c_hold", "c_hold2"], a_hold: ["a_hold", "a_hold2"],
+  // new roles: gunnery officer and damage control, plus short acknowledgements
+  g_fire: ["g_fire1", "g_fire2", "g_fire3"],
+  d_rep: ["d_rep1", "d_rep2", "d_rep3"],
+  ack: ["g_ack", "s_copy", "s_aye"],
 };
 /** seconds before the same kind of call may be heard again */
-const EXCHANGE_COOLDOWN: Record<string, number> = { s_aircraft: 120, s_shot: 90, s_torpedo: 75, s_hit: 45, s_dive: 90, s_wehit: 60 };
+const EXCHANGE_COOLDOWN: Record<string, number> = { g_fire: 60, s_aircraft: 120, s_shot: 90, s_torpedo: 75, s_hit: 45, s_dive: 90, s_wehit: 60 };
 const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
   mg: "weapons", hit: "weapons", miss: "weapons", gun: "weapons", gun5: "weapons", torpedo: "weapons", broadside: "weapons",
   fighter: "air", flak: "air", liquidation: "air",
@@ -72,6 +76,7 @@ class AudioEngine {
   private ambTimer: ReturnType<typeof setInterval> | null = null;
   private siren: { stop: () => void } | null = null;
   private battleBed: { s: AudioBufferSourceNode; g: GainNode } | null = null;
+  private crewBed: { s: AudioBufferSourceNode; g: GainNode } | null = null;
   private pending: { key: string; text: string; at: number } | null = null;
   private navalQueue: VoiceChain[] = [];
   private navalBusy = false;
@@ -101,9 +106,24 @@ class AudioEngine {
       this.comp.attack.value = 0.003;
       this.comp.release.value = 0.15;
       this.master.connect(this.comp);
-      this.comp.connect(ctx.destination);
+      // brick-wall style limiter after the bus compressor: measured 141 clipped samples in 2 min before this
+      const lim = ctx.createDynamicsCompressor();
+      lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.12;
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 28;
+      // presence: the mix measured 50 % energy under 150 Hz and 1 % above 2 kHz (dull, boomy)
+      const pres = ctx.createBiquadFilter(); pres.type = "highshelf"; pres.frequency.value = 2500; pres.gain.value = 3.5;
+      const mud = ctx.createBiquadFilter(); mud.type = "peaking"; mud.frequency.value = 140; mud.Q.value = 0.8; mud.gain.value = -3;
+      // headroom before the limiter, then a soft clipper so nothing can ever hard-clip
+      const pre = ctx.createGain(); pre.gain.value = 0.45;
+      const clip = ctx.createWaveShaper();
+      const cv = new Float32Array(2048);
+      for (let i = 0; i < 2048; i++) { const x = (i / 2047) * 2 - 1; cv[i] = Math.tanh(x * 1.2) / Math.tanh(1.2) * 0.97; }
+      clip.curve = cv;
+      this.comp.connect(hp).connect(mud).connect(pres).connect(pre).connect(lim).connect(clip);
+      clip.connect(ctx.destination);
+      this.comp = Object.assign(this.comp, { __out: clip });
       this.recordDest = ctx.createMediaStreamDestination();
-      this.comp.connect(this.recordDest);
+      ((this.comp as unknown as { __out: AudioNode }).__out ?? this.comp).connect(this.recordDest);
       for (const b of ["weapons", "ships", "air", "alarms", "vo"]) {
         const g = ctx.createGain();
         g.gain.value = b === "weapons" ? 0.9 : b === "vo" ? 1.58 : 0.8;
@@ -282,6 +302,7 @@ class AudioEngine {
       if (cat === "gun" || cat === "gun5" || cat === "torpedo" || cat === "broadside") this.boom(now, out, nodes, cat === "gun" ? 64 : 50, cat === "gun" ? 0.35 : 0.6, 260, cat === "gun" ? 0.55 : 0.8);
       // big guns: a second, slowed recording arrives later as the rolling echo across the water
       if (cat === "broadside" || cat === "gun5") { this.oneShot("explosion", now + 0.32, out, nodes, cat === "broadside" ? 0.45 : 0.25, 0.7); dur = Math.max(dur, 2.2); }
+      if (cat === "broadside") this.shellWhistle(opts.x ?? 0, -(opts.x ?? 0), 1.1, 0.35);
     } else dur = this.synth(cat, out, now, nodes, opts.shots ?? 4, v, pitch);
     this.played++;
     this.byCat[cat] = (this.byCat[cat] ?? 0) + 1;
@@ -318,12 +339,33 @@ class AudioEngine {
   }
   /** Looping bed from a folder; returns a stopper or null when missing. */
   private bed(f: BankFolder, out: AudioNode, gain: number) {
-    const b = this.bank(f)[0];
-    if (!b || !this.ctx) return null;
-    const s = this.ctx.createBufferSource(); s.buffer = b; s.loop = true;
+    const bufs = this.bank(f);
+    if (!bufs.length || !this.ctx) return null;
     const g = this.ctx.createGain(); g.gain.value = gain;
-    s.connect(g).connect(out); s.start();
-    return { s, g };
+    g.connect(out);
+    if (bufs.length === 1) {
+      const s = this.ctx.createBufferSource(); s.buffer = bufs[0]!; s.loop = true;
+      s.connect(g); s.start(this.ctx.currentTime, Math.random() * bufs[0]!.duration);
+      return { s, g };
+    }
+    // several takes: play them in random order with 2 s crossfades, so the bed never audibly loops
+    let last = -1;
+    const next = (at: number) => {
+      const c = this.ctx;
+      if (!c) return;
+      let i = Math.floor(Math.random() * bufs.length);
+      if (i === last) i = (i + 1) % bufs.length;
+      last = i;
+      const b = bufs[i]!;
+      const s = c.createBufferSource(); s.buffer = b;
+      const fg = c.createGain();
+      fg.gain.setValueAtTime(0.0001, at); fg.gain.exponentialRampToValueAtTime(1, at + 2);
+      fg.gain.setValueAtTime(1, at + b.duration - 2); fg.gain.exponentialRampToValueAtTime(0.0001, at + b.duration);
+      s.connect(fg).connect(g); s.start(at);
+      window.setTimeout(() => next((this.ctx?.currentTime ?? 0) + 0.05), Math.max(500, (b.duration - 2.2) * 1000));
+    };
+    next(this.ctx.currentTime);
+    return { s: null as unknown as AudioBufferSourceNode, g };
   }
   mergeShots(n: number) {
     this.byCat["mg"] = (this.byCat["mg"] ?? 0) + 1;
@@ -488,6 +530,7 @@ class AudioEngine {
       const b = bufs[i];
       if (!b) return;
       const who = k.startsWith("c_") ? "captain" : k.startsWith("a_") ? "admiral" : "spotter";
+      // gunnery and damage control speak on the ship phone like the spotter, with their own voices
       t = this.radioBuffer(b, t, who) + 0.28;
       this.voByCharacter[who] = (this.voByCharacter[who] ?? 0) + 1;
     });
@@ -572,6 +615,32 @@ class AudioEngine {
       g.gain.setTargetAtTime(base * 0.5, t, 0.05);
       g.gain.setTargetAtTime(base, t + dur + 0.2, 0.3);
     }
+  }
+
+  /** One impact sound per volley (not per tracer): recorded hull strike / bullet strike, or a shell splash. */
+  impact(kind: "hull" | "bullets" | "splash", x: number, gain = 1) {
+    const ctx = this.ctx;
+    if (!ctx || !this.enabled) return;
+    const pan = ctx.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, x));
+    pan.connect(this.buses["weapons"]!);
+    const n: AudioScheduledSourceNode[] = [];
+    const folder = kind === "hull" ? "hullhit" : kind === "bullets" ? "bullethit" : "splash";
+    this.oneShot(folder as BankFolder, ctx.currentTime, pan, n, gain, 0.92 + Math.random() * 0.16);
+    this.byCat[folder] = (this.byCat[folder] ?? 0) + 1;
+  }
+  /** Incoming heavy shell: a falling "freight train" rush from the firing side to the target side. */
+  shellWhistle(fromX: number, toX: number, dur: number, gain = 0.5) {
+    const ctx = this.ctx;
+    if (!ctx || !this.enabled) return;
+    const t = ctx.currentTime + 0.35;
+    const n: AudioScheduledSourceNode[] = [];
+    const pan = ctx.createStereoPanner();
+    pan.pan.setValueAtTime(Math.max(-1, Math.min(1, fromX)), t);
+    pan.pan.linearRampToValueAtTime(Math.max(-1, Math.min(1, toX)), t + dur);
+    pan.connect(this.buses["weapons"]!);
+    const bp = this.filt("bandpass", 900, 1.4);
+    bp.frequency.setValueAtTime(1400, t); bp.frequency.exponentialRampToValueAtTime(380, t + dur);
+    this.chain(this.noiseSrc(t, dur, n), pan, bp, this.env(t, dur * 0.6, gain, dur * 0.4));
   }
 
   /**
@@ -1164,6 +1233,10 @@ class AudioEngine {
     // recorded beds when available: sea + distant battle (its gain follows intensity)
     const recWaves = this.bed("waves", amb, 0.5);
     this.battleBed = this.bed("battle", amb, 0.05);
+    // on board: sea washing along the hull, engine room hum, and the deck crew shouting in the distance
+    this.bed("hull", amb, 0.35);
+    this.bed("engine", amb, 0.22);
+    this.crewBed = this.bed("crew", this.buses["chatter"]!, 0.0001);
     // sea wind + waves bed (procedural fallback, kept quiet under the recording)
     const waves = this.noiseSrc(ctx.currentTime, 1e6, keep);
     const wg = ctx.createGain();
@@ -1200,6 +1273,7 @@ class AudioEngine {
       const step = 0.2;
       const n: AudioScheduledSourceNode[] = [];
       if (this.battleBed) this.battleBed.g.gain.setTargetAtTime(0.05 + 0.4 * k, t, 1.5);
+      if (this.crewBed) this.crewBed.g.gain.setTargetAtTime(0.06 + 0.3 * k, t, 2);
       // far-off AA flak pops
       if (Math.random() < step * (0.6 + 4 * k)) {
         this.ambience.pops++;
