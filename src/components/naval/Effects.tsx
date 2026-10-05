@@ -18,6 +18,8 @@ interface Proj {
   t: number; dur: number; arc: number; size: number; len: number;
   color: THREE.Color;
   weapon: Weapon | "bomb" | "cannon";
+  /** liquidation notional for the first bomb of a liquidation bomber: plays the big blast */
+  blast?: number;
   target: Display | null;
   side?: BookSide;
 }
@@ -32,6 +34,8 @@ interface Plane {
   kind: "bomber" | "fighter";
   bank?: number;
   formation?: number;
+  /** real liquidated notional carried by a liquidation bomber (drives the impact blast) */
+  notional?: number;
 }
 
 const dummy = new THREE.Object3D();
@@ -163,7 +167,7 @@ export function Effects() {
       free = projs[cursor.current]!;
       cursor.current = (cursor.current + 1) % MAX_PROJ;
     }
-    Object.assign(free, { arc: 0, size: 0.05, len: 0.3, target: null, ...p, on: true, t: 0 });
+    Object.assign(free, { arc: 0, size: 0.05, len: 0.3, target: null, blast: undefined, ...p, on: true, t: 0 });
     free.color = COLORS[p.weapon];
   };
 
@@ -179,7 +183,10 @@ export function Effects() {
   const impact = (p: Proj) => {
     const power = POWER[p.weapon];
     // bombs explode loudly on the aircraft bus so they are not ducked with the ships' guns
-    if (p.weapon === "bomb") audio.play("sink", { x: panX(p.tx - view.frontX, REAR), gain: 1.2, bus: "air" });
+    if (p.weapon === "bomb") {
+      if (p.blast) audio.liquidationBlast(p.blast, panX(p.tx - view.frontX, REAR));
+      else audio.play("sink", { x: panX(p.tx - view.frontX, REAR), gain: 0.45, bus: "air" });
+    }
     const d = p.target;
     if (d && !d.departing && Math.random() < 0.9) {
       d.hitFlash = Math.min(1, d.hitFlash + 0.08 + power * 0.3);
@@ -277,7 +284,7 @@ export function Effects() {
   const launch = (kind: Plane["kind"], init: Omit<Plane, "on" | "t" | "next" | "kind">) => {
     const p = planes.find((q) => !q.on && q.kind === kind);
     if (!p) return;
-    Object.assign(p, init, { on: true, t: 0, next: 0 });
+    Object.assign(p, { formation: undefined, notional: undefined, bank: undefined }, init, { on: true, t: 0, next: 0 });
     const mesh = planeRefs.current[planes.indexOf(p)];
     if (mesh) mesh.material = airMats[p.side === "bid" ? "ask" : "bid"];
     lastPlane.current = p;
@@ -332,13 +339,12 @@ export function Effects() {
         const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
         const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);
         const span = view.halfW + 14;
-        launch("bomber", { dur: 3.8, ax: x, az: -span, bx: x, bz: span, alt: 6, side });
+        launch("bomber", { dur: 3.8, ax: x, az: -span, bx: x, bz: span, alt: 6, side, notional: ev.notional });
         if (engineRef.current?.phase.current === "P5") {
           const cap = view.quality === "low" ? 5 : view.quality === "medium" ? 8 : 12;
           const wave = Math.max(2, Math.min(cap, Math.round(ev.notional / 75_000) + 1)); // scaled by the real liquidation size
           for (let i = 1; i < wave; i++) launch(i % 3 ? "bomber" : "fighter", { dur: 3.2 + i * 0.12, ax: x + (Math.random() - 0.5) * 7, az: -span - i, bx: view.frontX, bz: span + i, alt: 4 + Math.random() * 5, side, formation: i });
         }
-        audio.play("liquidation");
       } else if (ev.type === "sink") {
         const d = displayFor(ev.side, ev.b);
         if (d) splash(d.x, d.z, Math.min(2, 0.6 + d.s * 0.4));
@@ -373,8 +379,9 @@ export function Effects() {
           const tx = p.ax + (Math.random() - 0.5) * 2;
           const tz = z - 1.2;
           const hit = target && Math.abs(target.z - tz) < 3 ? target : null;
-          spawn({ weapon: "bomb", fx: x, fy: p.alt - 0.3, fz: z, tx: hit ? hit.x : tx, ty: hit ? 0.2 * hit.s : 0, tz: hit ? hit.z : tz, dur: 0.75, size: 0.08, len: 0.25, target: hit });
-          if (!bombed.current[i]) { bombed.current[i] = true; voices.current[i]?.bomb(0.75); }
+          const firstBomb = !bombed.current[i];
+          spawn({ weapon: "bomb", fx: x, fy: p.alt - 0.3, fz: z, tx: hit ? hit.x : tx, ty: hit ? 0.2 * hit.s : 0, tz: hit ? hit.z : tz, dur: 0.75, size: 0.08, len: 0.25, target: hit, ...(firstBomb && p.notional ? { blast: p.notional } : {}) });
+          if (firstBomb) { bombed.current[i] = true; voices.current[i]?.bomb(0.75); }
         }
       } else if (p.t >= p.next && u > 0.1 && u < 0.85) {
         p.next = p.t + 0.05;
