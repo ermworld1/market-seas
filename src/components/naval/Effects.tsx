@@ -178,6 +178,8 @@ export function Effects() {
 
   const impact = (p: Proj) => {
     const power = POWER[p.weapon];
+    // bombs explode loudly on the aircraft bus so they are not ducked with the ships' guns
+    if (p.weapon === "bomb") audio.play("sink", { x: panX(p.tx - view.frontX, REAR), gain: 1.2, bus: "air" });
     const d = p.target;
     if (d && !d.departing && Math.random() < 0.9) {
       d.hitFlash = Math.min(1, d.hitFlash + 0.08 + power * 0.3);

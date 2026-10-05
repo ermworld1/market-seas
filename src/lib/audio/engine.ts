@@ -181,7 +181,7 @@ class AudioEngine {
    * One-shot with variety: random variant (never the same twice in a row), pitch ±10 %,
    * gain ±3 dB, pan from x, distance low-pass + delay + reverb send for far shots.
    */
-  play(cat: SfxCat, opts: { x?: number; xEnd?: number; panSeconds?: number; gain?: number; shots?: number; dist?: number } = {}) {
+  play(cat: SfxCat, opts: { x?: number; xEnd?: number; panSeconds?: number; gain?: number; shots?: number; dist?: number; bus?: "air"; rate?: number } = {}) {
     const ctx = this.ctx;
     if (!ctx || !this.enabled) return;
     if (ctx.state !== "running") {
@@ -212,7 +212,7 @@ class AudioEngine {
     this.lastVariant[cat] = v;
     const seen = (this.variants[cat] ??= []);
     if (!seen.includes(v)) seen.push(v);
-    const pitch = 0.9 + Math.random() * 0.2;
+    const pitch = (opts.rate ?? 1) * (0.9 + Math.random() * 0.2);
     const dist = Math.max(0, Math.min(1, opts.dist ?? Math.abs(opts.x ?? 0) * 0.5));
     const pan = ctx.createStereoPanner();
     pan.pan.value = Math.max(-1, Math.min(1, opts.x ?? 0));
@@ -227,7 +227,7 @@ class AudioEngine {
     const isGun = BUS[cat] === "weapons" && cat !== "hit" && cat !== "miss";
     delay.delayTime.value = isGun && dist > 0.35 ? 0.2 + dist * 0.4 : dist * 0.14;
     out.connect(lp).connect(delay).connect(pan);
-    pan.connect(this.buses[BUS[cat]]!);
+    pan.connect(this.buses[opts.bus ?? BUS[cat]]!);
     if (this.reverb) {
       const send = ctx.createGain();
       send.gain.value = 0.08 + dist * 0.35 + (v % 3) * 0.05;
@@ -596,7 +596,15 @@ class AudioEngine {
         },
         guns: (dur: number, panV: number) => {
           if (stopped || !this.ctx) return;
-          this.play("mg", { x: panV, gain: 0.8, shots: Math.round(dur * 10) });
+          // wing guns: short .50-cal bursts for the whole strafing run, on the aircraft bus (not ducked with
+          // the ships' guns), slightly faster/brighter than ship machine guns so they read as aircraft fire
+          const bursts = Math.max(2, Math.round(dur / 0.32));
+          for (let k = 0; k < bursts; k++) {
+            window.setTimeout(() => {
+              if (stopped) return;
+              this.play("mg", { x: panV + (k / bursts) * 0.6 - 0.3, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
+            }, k * 320 + Math.random() * 60);
+          }
           this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
         },
         bomb: (fall: number) => {
@@ -649,7 +657,15 @@ class AudioEngine {
         },
         guns: (dur: number, panV: number) => {
           if (stopped || !this.ctx) return;
-          this.play("mg", { x: panV, gain: 0.8, shots: Math.round(dur * 10) });
+          // wing guns: short .50-cal bursts for the whole strafing run, on the aircraft bus (not ducked with
+          // the ships' guns), slightly faster/brighter than ship machine guns so they read as aircraft fire
+          const bursts = Math.max(2, Math.round(dur / 0.32));
+          for (let k = 0; k < bursts; k++) {
+            window.setTimeout(() => {
+              if (stopped) return;
+              this.play("mg", { x: panV + (k / bursts) * 0.6 - 0.3, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
+            }, k * 320 + Math.random() * 60);
+          }
           this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
         },
         bomb: (fall: number) => {
