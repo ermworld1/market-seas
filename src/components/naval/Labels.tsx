@@ -39,7 +39,7 @@ export function Labels() {
           if (el.textContent !== txt) el.textContent = txt;
         }
       }
-      reps.current.forEach((el, i) => place(el, screen.repairs[i] ?? null, -18));
+      reps.current.forEach((el, i) => place(el, screen.repairs[i] ?? null, -10));
       fl.current.forEach((el, i) => {
         const f = screen.floaters[i];
         if (!el) return;
@@ -91,11 +91,11 @@ export function Labels() {
           ref={(el) => {
             reps.current[i] = el;
           }}
-          className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-full border border-ok/70 bg-background/75 text-ok"
+          className="absolute left-0 top-0 grid h-3.5 w-3.5 place-items-center rounded-full border border-ok/60 bg-background/70 text-ok"
           style={{ display: "none" }}
           title="Repair inferred from repeated refills"
         >
-          <Wrench className="h-3 w-3" />
+          <Wrench className="h-2 w-2" />
         </div>
       ))}
       {Array.from({ length: FLOATERS }, (_, i) => (

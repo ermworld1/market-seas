@@ -8,8 +8,8 @@ import { engineRef } from "@/lib/market/store";
 import { seaState } from "@/lib/market/rules";
 import { view } from "./layout";
 
-const SUN_ELEV = 38; // degrees: high enough to glint into a near top-down camera
-const SUN_AZ = 90; // side-light the left/right fleets and vertical strait
+const SUN_ELEV = 48;
+const SUN_AZ = 115;
 
 function cloudTexture() {
   const c = document.createElement("canvas");
@@ -74,9 +74,9 @@ export function Ocean() {
       textureHeight: view.mobile ? 192 : 384,
       waterNormals: normals,
       sunDirection: sun.clone(),
-      sunColor: 0xffe2b6,
-      waterColor: 0x071a24,
-      distortionScale: 3.1,
+      sunColor: 0xfff4dc,
+      waterColor: 0x1e4e6e,
+      distortionScale: 2.6,
       fog: true,
       alpha: 1,
     });
@@ -130,14 +130,16 @@ export function Ocean() {
     return l;
   }, []);
 
-  const fog = useMemo(() => new THREE.Fog("#718590", 34, 230), []);
+  const fog = useMemo(() => new THREE.Fog("#a8c7d4", 90, 320), []);
   const sunLight = useRef<THREE.DirectionalLight>(null);
   const hemi = useRef<THREE.HemisphereLight>(null);
   const storm = useRef(0);
   const flashT = useRef(0);
-  const calmFog = useMemo(() => new THREE.Color("#718590"), []);
-  const stormFog = useMemo(() => new THREE.Color("#3a4248"), []);
-  const warFog = useMemo(() => new THREE.Color("#4a2e2a"), []);
+  const calmFog = useMemo(() => new THREE.Color("#a8c7d4"), []);
+  const stormFog = useMemo(() => new THREE.Color("#637b86"), []);
+  const warFog = useMemo(() => new THREE.Color("#6d7478"), []);
+  const calmWater = useMemo(() => new THREE.Color("#1E4E6E"), []);
+  const stormWater = useMemo(() => new THREE.Color("#16384e"), []);
 
   useEffect(() => {
     scene.fog = fog;
@@ -172,7 +174,7 @@ export function Ocean() {
     u.time.value += dt * (0.45 + s * 1.1);
     u.distortionScale.value = 2.2 + s * 5.5;
     u.size.value = 2.2 - s * 1.0;
-    u.waterColor.value.setRGB(0.018, 0.075 - s * 0.025, 0.105 - s * 0.035);
+    u.waterColor.value.copy(calmWater).lerp(stormWater, s * 0.75);
 
     const su = sku(sky);
     su.turbidity.value = 4 + s * 14;
@@ -185,15 +187,15 @@ export function Ocean() {
     cm.map!.offset.x += dt * (0.003 + s * 0.012);
 
     fog.color.copy(calmFog).lerp(war ? warFog : stormFog, s);
-    fog.near = 45 - s * 28;
-    fog.far = 260 - s * 160;
+    fog.near = 90 - s * 35;
+    fog.far = 320 - s * 120;
 
     // lightning only in FULL WAR
     flashT.current = Math.max(0, flashT.current - dt * 4);
     if (war && Math.random() < dt * 0.4) flashT.current = 1;
-    if (sunLight.current) sunLight.current.intensity = 2.6 * (1 - s * 0.6) + flashT.current * 3;
-    if (hemi.current) hemi.current.intensity = 0.9 * (1 - s * 0.35) + flashT.current * 1.5;
-    gl.toneMappingExposure = 0.46 - s * 0.1 + flashT.current * 0.32;
+    if (sunLight.current) sunLight.current.intensity = 3.2 * (1 - s * 0.42) + flashT.current * 3;
+    if (hemi.current) hemi.current.intensity = 1.35 * (1 - s * 0.25) + flashT.current * 1.5;
+    gl.toneMappingExposure = 0.78 - s * 0.08 + flashT.current * 0.28;
 
     // rain
     const count = Math.floor(RAIN_MAX * Math.max(0, (s - 0.25) / 0.75) * (view.mobile ? 0.5 : 1));
@@ -222,12 +224,12 @@ export function Ocean() {
       <primitive object={water} />
       <primitive object={clouds} />
       <primitive object={rain} />
-      <hemisphereLight ref={hemi} args={["#cfe3f0", "#1d3a44", 0.9]} />
+      <hemisphereLight ref={hemi} args={["#e7f5ff", "#295467", 1.35]} />
       <directionalLight
         ref={sunLight}
         position={[sun.x * 100, sun.y * 100 + 30, sun.z * 100]}
-        intensity={2.6}
-        color="#fff0d8"
+        intensity={3.2}
+        color="#fff7e8"
         castShadow
         shadow-mapSize-width={view.mobile ? 1024 : 2048}
         shadow-mapSize-height={view.mobile ? 1024 : 2048}
@@ -237,11 +239,11 @@ export function Ocean() {
         shadow-camera-bottom={-20}
         shadow-bias={-0.0004}
       />
-      <ambientLight intensity={0.25} />
+      <ambientLight intensity={0.42} />
       <Environment frames={1} resolution={128}>
-        <Lightformer intensity={2.5} position={[0, 6, -10]} scale={[20, 4, 1]} color="#ffe6c4" />
-        <Lightformer intensity={1} position={[-8, 3, 4]} rotation-y={Math.PI / 2} scale={[20, 2, 1]} color="#9fc3d6" />
-        <Lightformer intensity={0.6} position={[8, 2, 6]} rotation-y={-Math.PI / 2} scale={[20, 2, 1]} color="#6e8ea0" />
+        <Lightformer intensity={3.2} position={[0, 7, -10]} scale={[20, 5, 1]} color="#fff0d5" />
+        <Lightformer intensity={1.8} position={[-8, 4, 4]} rotation-y={Math.PI / 2} scale={[20, 3, 1]} color="#c8e5f4" />
+        <Lightformer intensity={1.1} position={[8, 3, 6]} rotation-y={-Math.PI / 2} scale={[20, 3, 1]} color="#9bc3d5" />
       </Environment>
     </>
   );
