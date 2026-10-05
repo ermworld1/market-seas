@@ -42,6 +42,9 @@ const toCam = new THREE.Vector3();
 const side = new THREE.Vector3();
 const up = new THREE.Vector3();
 const camPos = new THREE.Vector3();
+const lastMg = { buy: 0, sell: 0 };
+const lastGun = { buy: 0, sell: 0 };
+const pendingShots = { buy: 0, sell: 0 };
 const mat4 = new THREE.Matrix4();
 let mgThisFrame = 0;
 const COLORS = {
@@ -234,12 +237,21 @@ export function Effects() {
     if (ev.weapon === "mg") {
       flash(mx, my, mz, 0.3, "#ffe08a"); // muzzle flash on the taker fleet
       // dense frames merge into volleys: every trade still fires its tracers; the sound merges shots
-      if (mgThisFrame++ < 4) audio.play("mg", { ...pan, shots: n });
-      else audio.mergeShots(n);
+      // one machine-gun burst per side every 0.2 s at most; trades in between join the next burst.
+      // (one sound per trade made a constant crackle at Binance's trade rate)
+      const sideKey = ev.taker;
+      const t0 = performance.now();
+      pendingShots[sideKey] += n;
+      if (t0 - lastMg[sideKey] >= 200) {
+        lastMg[sideKey] = t0;
+        audio.play("mg", { ...pan, shots: pendingShots[sideKey], gain: Math.min(1, 0.55 + pendingShots[sideKey] * 0.03) });
+        pendingShots[sideKey] = 0;
+      } else audio.mergeShots(n);
     } else if (ev.weapon === "gun") {
       flash(mx, my, mz, 0.55);
       for (let i = 0; i < 2; i++) spawn({ ...base, weapon: "gun", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.4, ty, tz, dur: 0.32 + i * 0.05, arc: 1.4, size: 0.06, len: 0.3 });
-      audio.play("gun", pan);
+      const t1 = performance.now();
+      if (t1 - lastGun[ev.taker] >= 120) { lastGun[ev.taker] = t1; audio.play("gun", pan); } else audio.mergeShots(1);
     } else if (ev.weapon === "torpedo") {
       flash(mx, my, mz, 0.6);
       fx.shake = Math.min(1.2, fx.shake + 0.35);
@@ -321,7 +333,7 @@ export function Effects() {
         if (engineRef.current?.phase.current === "P5") {
           const cap = view.quality === "low" ? 5 : view.quality === "medium" ? 8 : 12;
           const wave = Math.max(2, Math.min(cap, Math.round(ev.notional / 75_000) + 1)); // scaled by the real liquidation size
-          for (let i = 1; i < wave; i++) launch(i % 3 ? "bomber" : "fighter", { dur: 3.2 + i * 0.12, ax: x + (Math.random() - 0.5) * 7, az: -span - i, bx: view.frontX, bz: span + i, alt: 4 + Math.random() * 5, side });
+          for (let i = 1; i < wave; i++) launch(i % 3 ? "bomber" : "fighter", { dur: 3.2 + i * 0.12, ax: x + (Math.random() - 0.5) * 7, az: -span - i, bx: view.frontX, bz: span + i, alt: 4 + Math.random() * 5, side, formation: i });
         }
         audio.play("liquidation");
       } else if (ev.type === "sink") {
@@ -342,7 +354,7 @@ export function Effects() {
       p.t += dt;
       const u = Math.min(1, p.t / p.dur);
       // engine sound lives exactly as long as this aircraft is visible
-      if (!voices.current[i]) { voices.current[i] = audio.aircraftStart(p.kind); gunsOn.current[i] = false; bombed.current[i] = false; prevDist.current[i] = 0; }
+      if (!voices.current[i]) { voices.current[i] = audio.aircraftStart(p.kind, p.dur, !p.formation); gunsOn.current[i] = false; bombed.current[i] = false; prevDist.current[i] = 0; }
       const pull = p.kind === "fighter" ? Math.max(0, (u - 0.72) / 0.28) : 0;
       const x = p.ax + (p.bx - p.ax) * u;
       const z = p.az + (p.bz - p.az) * u + pull * pull * (p.formation && p.formation % 2 ? -2 : 2);

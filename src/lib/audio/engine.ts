@@ -238,7 +238,7 @@ class AudioEngine {
     let dur: number;
     if (buf) {
       this.recorded[cat] = (this.recorded[cat] ?? 0) + 1;
-      if (cat === "mg") this.oneShot("casing", now + buf.duration / pitch + 0.08, out, nodes, 0.35);
+      if (cat === "mg" && Math.random() < 0.35) this.oneShot("casing", now + buf.duration / pitch + 0.08, out, nodes, 0.18);
       if (cat === "liquidation") this.synth("liquidation", out, now, nodes, 1, v, pitch); // keep the dive whistle
       const s = ctx.createBufferSource();
       s.buffer = buf;
@@ -247,7 +247,9 @@ class AudioEngine {
       s.start(now);
       nodes.push(s);
       dur = buf.duration / pitch;
-      if (["mg", "gun", "torpedo", "broadside", "hit", "fighter", "flak"].includes(cat)) dur = Math.max(dur, this.synth(cat, out, now, nodes, opts.shots ?? 4, v % VARIANTS, pitch));
+      // recordings play clean: synthetic layers on top made every shot sound plastic
+      // big guns: a second, slowed recording arrives later as the rolling echo across the water
+      if (cat === "broadside" || cat === "gun5") { this.oneShot("explosion", now + 0.32, out, nodes, cat === "broadside" ? 0.45 : 0.25, 0.7); dur = Math.max(dur, 2.2); }
     } else dur = this.synth(cat, out, now, nodes, opts.shots ?? 4, v, pitch);
     this.played++;
     this.byCat[cat] = (this.byCat[cat] ?? 0) + 1;
@@ -472,7 +474,7 @@ class AudioEngine {
   // ───────── aircraft: one engine voice per visible plane, alive exactly as long as the plane ─────────
   aircraftLog: { kind: string; ev: "spawn" | "exit" | "guns" | "bomb"; t: number }[] = [];
   /** Starts a looping propeller engine for one aircraft. Returns null when audio is off. */
-  aircraftStart(kind: "fighter" | "bomber") {
+  aircraftStart(kind: "fighter" | "bomber", life = 3.5, lead = true) {
     const ctx = this.ctx;
     const bus = this.buses["air"] ?? this.buses["weapons"];
     if (!ctx || !this.enabled || !bus) return null;
@@ -482,6 +484,51 @@ class AudioEngine {
     const pan = ctx.createStereoPanner();
     out.connect(pan).connect(bus);
     const nodes: OscillatorNode[] = [];
+    // Prefer a real recorded fly-by (approach, pass, recede), stretched to this aircraft's on-screen life.
+    const recs = this.bank("aircraft");
+    if (recs.length) {
+      const buf = recs[kind === "bomber" ? recs.length - 1 : Math.floor(Math.random() * Math.max(1, recs.length - 1))]!;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const baseRate = Math.max(0.85, Math.min(1.35, buf.duration / Math.max(life, 0.5))) * (kind === "bomber" ? 0.78 : 1);
+      src.playbackRate.value = baseRate;
+      const level = ctx.createGain();
+      level.gain.value = lead ? 1 : 0.35; // wingmen sit under the lead plane instead of stacking copies
+      src.connect(level).connect(out);
+      src.start(t);
+      this.aircraftLog.push({ kind, ev: "spawn", t: performance.now() });
+      let stopped = false;
+      return {
+        update: (panV: number, closeness: number, pitch: number, climb: number) => {
+          if (stopped || !this.ctx) return;
+          const now = this.ctx.currentTime;
+          pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, panV)), now, 0.05);
+          out.gain.setTargetAtTime(0.15 + 0.85 * closeness, now, 0.1);
+          src.playbackRate.setTargetAtTime(baseRate * Math.max(0.9, Math.min(1.12, pitch)) * (1 + climb * 0.06), now, 0.08);
+        },
+        guns: (dur: number, panV: number) => {
+          if (stopped || !this.ctx) return;
+          this.play("mg", { x: panV, gain: 0.8, shots: Math.round(dur * 10) });
+          this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
+        },
+        bomb: (fall: number) => {
+          if (stopped || !this.ctx) return;
+          const now = this.ctx.currentTime;
+          const n2: AudioScheduledSourceNode[] = [];
+          this.chain(this.osc("sine", 1500, 380, now, fall, n2), bus, this.env(now, 0.08, 0.06, fall));
+          this.aircraftLog.push({ kind, ev: "bomb", t: performance.now() });
+        },
+        stop: () => {
+          if (stopped || !this.ctx) return;
+          stopped = true;
+          const now = this.ctx.currentTime;
+          out.gain.cancelScheduledValues(now);
+          out.gain.setTargetAtTime(0.0001, now, 0.25);
+          try { src.stop(now + 1.2); } catch { /* ended */ }
+          this.aircraftLog.push({ kind, ev: "exit", t: performance.now() });
+        },
+      };
+    }
     // fighter: one radial engine; bomber: four slightly detuned engines (beating drone)
     const base = kind === "fighter" ? 92 : 58;
     const engines = kind === "fighter" ? 1 : 4;
