@@ -38,4 +38,6 @@ export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
   flak: "flak",
 };
 
-export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => `/sfx/${f}/${i + 1}.mp3`);
+/** bump when sample files are replaced in place, so browsers do not keep playing the cached old files */
+export const SFX_VERSION = "16";
+export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => `/sfx/${f}/${i + 1}.mp3?v=${SFX_VERSION}`);

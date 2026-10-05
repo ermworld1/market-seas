@@ -1,5 +1,5 @@
 import type { Phase } from "@/lib/battle/phase";
-import { BANK, CAT_FOLDER, bankUrls, type BankFolder } from "./bank";
+import { SFX_VERSION, BANK, CAT_FOLDER, bankUrls, type BankFolder } from "./bank";
 import { chainText, type VoiceChain, type VoiceChannel, type VoicePart } from "./navalVoice";
 
 /**
@@ -262,6 +262,8 @@ class AudioEngine {
         }
       }
       // recordings play clean: synthetic layers on top made every shot sound plastic
+      // weight: a short sub-bass thump under every cannon recording (felt more than heard)
+      if (cat === "gun" || cat === "gun5" || cat === "torpedo" || cat === "broadside") this.boom(now, out, nodes, cat === "gun" ? 64 : 50, cat === "gun" ? 0.35 : 0.6, 260, cat === "gun" ? 0.55 : 0.8);
       // big guns: a second, slowed recording arrives later as the rolling echo across the water
       if (cat === "broadside" || cat === "gun5") { this.oneShot("explosion", now + 0.32, out, nodes, cat === "broadside" ? 0.45 : 0.25, 0.7); dur = Math.max(dur, 2.2); }
     } else dur = this.synth(cat, out, now, nodes, opts.shots ?? 4, v, pitch);
@@ -463,7 +465,7 @@ class AudioEngine {
           const legacy = file.startsWith("legacy:");
           const x = file.startsWith("x:");
           const name = legacy ? file.slice(7) : x ? file.slice(2) : file;
-          const r = await fetch(legacy ? `/vo/${name}.wav` : x ? `/vo/x/${name}.mp3` : `/vo/naval/${name}.mp3`);
+          const r = await fetch((legacy ? `/vo/${name}.wav` : x ? `/vo/x/${name}.mp3` : `/vo/naval/${name}.mp3`) + `?v=${SFX_VERSION}`);
           if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) return await this.ctx!.decodeAudioData(await r.arrayBuffer());
         } catch { /* slot empty */ }
         return null;

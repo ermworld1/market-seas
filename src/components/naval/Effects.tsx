@@ -49,6 +49,8 @@ const camPos = new THREE.Vector3();
 const lastMg = { buy: 0, sell: 0 };
 const lastGun = { buy: 0, sell: 0 };
 const pendingShots = { buy: 0, sell: 0 };
+const salvoNotional = { buy: 0, sell: 0 };
+const lastSalvo = { buy: 0, sell: 0 };
 const mat4 = new THREE.Matrix4();
 let mgThisFrame = 0;
 const COLORS = {
@@ -252,11 +254,19 @@ export function Effects() {
       const sideKey = ev.taker;
       const t0 = performance.now();
       pendingShots[sideKey] += n;
+      salvoNotional[sideKey] += ev.notional;
       if (t0 - lastMg[sideKey] >= 110) {
         lastMg[sideKey] = t0;
-        audio.play("mg", { ...pan, shots: pendingShots[sideKey], gain: Math.min(1, 0.55 + pendingShots[sideKey] * 0.03) });
+        // small arms sit back in the mix: a naval battle is carried by the heavy guns
+        audio.play("mg", { ...pan, shots: pendingShots[sideKey], gain: Math.min(0.7, 0.4 + pendingShots[sideKey] * 0.02) });
         pendingShots[sideKey] = 0;
       } else audio.mergeShots(n);
+      // the side's small trades add up into a deck-gun salvo every ~0.45 s once they reach $25K
+      if (t0 - lastSalvo[sideKey] >= 450 && salvoNotional[sideKey] >= 25_000) {
+        lastSalvo[sideKey] = t0;
+        audio.play("gun", { ...pan, gain: Math.min(1, 0.55 + Math.log10(salvoNotional[sideKey] / 25_000) * 0.3) });
+        salvoNotional[sideKey] = 0;
+      }
     } else if (ev.weapon === "gun") {
       flash(mx, my, mz, 0.55);
       for (let i = 0; i < 2; i++) spawn({ ...base, weapon: "gun", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.4, ty, tz, dur: 0.32 + i * 0.05, arc: 1.4, size: 0.06, len: 0.3 });
