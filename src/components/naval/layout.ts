@@ -30,6 +30,10 @@ export interface Display {
   ship: Tracked | null;
   departing: null | { kind: DepartKind; t0: number };
   surfacing: number; // >0 while rising from below (relocate / hidden)
+  /** fixed swell phase per ship */
+  seed?: number;
+  /** view.time of the last visible surfacing (rate-limited) */
+  lastSurface?: number;
   smoke: number; // smoke-screen timer
   hitFlash: number;
   damage: number;

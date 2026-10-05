@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { UnitSections } from "./Units";
 import { ExternalLink } from "lucide-react";
 import { bucketOf, bucketWidth } from "@/lib/battle/buckets";
@@ -26,6 +26,24 @@ export function OrderBookPanel() {
   const last = useBattle((s) => s.recentTrades[0]);
   const prev = useBattle((s) => s.recentTrades.find((t) => t.price !== s.recentTrades[0]?.price));
   const [mode, setMode] = useState<BookView>("both");
+  // Book tells the same story as the battle: rows just traded into flash, rows just pulled fade out
+  const prevQty = useRef(new Map<string, number>());
+  const flash = useRef(new Map<string, { kind: "hit" | "pulled"; until: number }>());
+  const recent = useBattle((s) => s.recentTrades);
+  {
+    const now = Date.now();
+    const tradedAt = new Set(recent.filter((t) => now - t.time <= 1500).map((t) => t.price.toFixed(1)));
+    const seen = new Set<string>();
+    for (const r of [...ladder.bids, ...ladder.asks]) {
+      const key = `${r.side}${r.price.toFixed(1)}`;
+      seen.add(key);
+      const before = prevQty.current.get(key);
+      if (before !== undefined && r.qty < before - 1e-9) flash.current.set(key, { kind: group <= 0.1 && tradedAt.has(r.price.toFixed(1)) ? "hit" : "pulled", until: now + 900 });
+      prevQty.current.set(key, r.qty);
+    }
+    for (const k of [...prevQty.current.keys()]) if (!seen.has(k)) prevQty.current.delete(k);
+    for (const [k, f] of flash.current) if (f.until < now) flash.current.delete(k);
+  }
   const asks = useMemo(() => [...ladder.asks].reverse(), [ladder]);
   const maxSum = Math.max(ladder.bids[ladder.bids.length - 1]?.sum ?? 0, ladder.asks[ladder.asks.length - 1]?.sum ?? 0, 1e-9);
   const bidTot = ladder.bids[ladder.bids.length - 1]?.sum ?? 0;
@@ -36,7 +54,8 @@ export function OrderBookPanel() {
   const row = (r: (typeof ladder.bids)[number], i: number) => {
     const selected = selectedBucket?.side === r.side && selectedBucket.b === r.bucket;
     const ask = r.side === "ask";
-    return <button key={`${r.side}-${r.price}-${i}`} data-side={r.side} className={cn("relative grid w-full grid-cols-3 px-3 py-[1.5px] text-right tabular-nums hover:bg-bn-hover", selected && "bg-bn-hover ring-1 ring-inset ring-primary")}
+    const fl = flash.current.get(`${r.side}${r.price.toFixed(1)}`);
+    return <button key={`${r.side}-${r.price}-${i}`} data-side={r.side} data-flash={fl?.kind} className={cn("relative grid w-full grid-cols-3 px-3 py-[1.5px] text-right tabular-nums transition-colors duration-500 hover:bg-bn-hover", selected && "bg-bn-hover ring-1 ring-inset ring-primary", fl?.kind === "hit" && (ask ? "bg-bear/35" : "bg-bull/35"), fl?.kind === "pulled" && "opacity-50 line-through decoration-bn-muted")}
       onClick={() => { const pick = { side: r.side, b: r.bucket }; useBattle.setState({ selectedBucket: pick }); view.selectedBucket = pick; }}>
       <span aria-hidden className={cn("absolute inset-y-0 right-0", ask ? "bg-bear/15" : "bg-bull/15")} style={{ width: `${(r.sum / maxSum) * 100}%` }} />
       <span className={cn("relative text-left", ask ? "text-bear" : "text-bull")}>{r.price.toFixed(1)}</span><span className="relative text-bn-text">{btc(r.qty)}</span><span className="relative text-bn-text">{btc(r.sum)}</span>
@@ -88,14 +107,14 @@ export function TapePanel() {
 }
 
 export function GuidePanel() {
-  return <div className="min-h-0 overflow-auto p-2"><p className="text-xs text-foreground/90">The middle vertical line is the live BTC price. <span className="text-bull">Buyers</span> wait left; <span className="text-bear">Sellers</span> wait right. Every ship is real resting liquidity from the live order book. Bigger means more displayed notional. Left/right = price; front/back = how long that liquidity has rested.</p><UnitSections /><a className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary" href="https://www.binance.com/en/futures/BTCUSDT" target="_blank" rel="noreferrer">Open BTCUSDT on Binance <ExternalLink className="h-3 w-3" /></a></div>;
+  return <div className="min-h-0 overflow-auto p-2"><p className="text-xs text-foreground/90">The middle vertical line is the live BTC price. <span className="text-bull">Buyers</span> wait left; <span className="text-bear">Sellers</span> wait right. Left/right = price. Front/back = how long that liquidity has rested: new liquidity arrives from the back and moves forward as it stays.</p><UnitSections /><a className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary" href="https://www.binance.com/en/futures/BTCUSDT" target="_blank" rel="noreferrer">Open BTCUSDT on Binance <ExternalLink className="h-3 w-3" /></a></div>;
 }
 
 /** Raw Binance levels (not ship buckets), grouped like the Binance DOM: bids floor, asks ceil to the step. */
-export function makeLadder(levels: Map<number, number>, side: "bid" | "ask", mark: number, group = 0.1, n = 20) {
+export function makeLadder(levels: Map<number, number>, side: "bid" | "ask", mark: number, group = 0.1, n = 20, width = 0) {
   const sorted = [...levels].sort((a, b) => (side === "bid" ? b[0] - a[0] : a[0] - b[0]));
   const out: { side: "bid" | "ask"; price: number; qty: number; notional: number; cumulative: number; sum: number; bucket: number }[] = [];
-  const w = bucketWidth(mark);
+  const w = width || bucketWidth(mark);
   const k = Math.round(1 / Math.min(group, 1)) || 1;
   let sum = 0;
   let cumulative = 0;
