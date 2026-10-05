@@ -321,7 +321,7 @@ function Banners() {
 
 const GUIDE = [
   "The vertical line in the middle is the last traded BTC price on Binance Futures. Resting buy liquidity waits on the left; sell liquidity on the right.",
-  "Left/right = price. Front/back = how long that liquidity has rested. Bigger ship = more resting liquidity. A ship is many orders in one price bucket, not one order.",
+  "Left/right = price. Front/back is just a fixed lane in the formation. Bigger ship = more resting liquidity. A ship is many orders in one price bucket, not one order.",
   "Ships are makers. Every shot is a real taker trade launched from the attacking fleet; the ship at that price loses what was filled. A fully traded ship sinks and the front line moves.",
   "Big liquidity that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
   "Bombers are liquidations, labelled Long or Short liquidated (sampled by Binance: max 1 per second).",

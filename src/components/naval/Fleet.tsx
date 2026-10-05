@@ -243,23 +243,40 @@ export function Fleet() {
           const total = members.reduce((sum, candidate) => sum + candidate.notional, 0);
           return { band, ship, members, weight: THREE.MathUtils.clamp(Math.sqrt(total / Math.max(ship.notional, 1)), 1, 1.35) };
         });
-        const stationTargets = separateStationDepth(shown.map(({ band, ship: s, members, weight }) => ({
-          key: `${side}#${band}`,
-          x: xForPrice(side, s.price),
-          z: zForStation(Math.min(...members.map((member) => member.bornAt))),
-          length: TIER_SCALE[s.tier] * weight * 1.08,
-          beam: TIER_SCALE[s.tier] * weight * 0.32,
-        })), view.halfW * 0.96);
+        // Fixed lanes: a ship gets its front/back lane ONCE when it appears and keeps it for life.
+        // Previously the lane followed order age and was re-solved for collisions every frame, so ships
+        // kept sliding along the screen's vertical axis. Now they only move left/right with price.
+        const laneFor = (x: number, len: number, beam: number) => {
+          const half = view.halfW * 0.92;
+          const step = Math.max(0.5, beam * 1.6);
+          const lanes: number[] = [];
+          for (let z = -half; z <= half + 1e-6; z += step) lanes.push(z);
+          const occupied = [...view.displays.values()].filter((o) => o.side === side && !o.departing);
+          let best = lanes[Math.floor(lanes.length / 2)] ?? 0;
+          let bestScore = Infinity;
+          for (const z of lanes) {
+            let overlap = 0;
+            for (const o of occupied) {
+              const ol = TIER_SCALE[o.tier] * o.visualWeight;
+              if (Math.abs(o.x - x) < (len + ol) * 0.55 && Math.abs(o.stationZ - z) < (beam + ol * 0.32) * 0.8) overlap++;
+            }
+            const score = overlap * 100 + Math.abs(z) * 0.15 + Math.random() * 0.5;
+            if (score < bestScore) { bestScore = score; best = z; }
+          }
+          return best;
+        };
         for (let gi = 0; gi < shown.length; gi++) {
           const { band, ship: s, members, weight } = shown[gi]!;
           const key = `${side}#${band}`;
           let d = view.displays.get(key);
           if (!d) {
             const x = xForPrice(side, s.price);
+            const len = TIER_SCALE[s.tier] * weight * 1.08;
+            const lane = laneFor(x, len, TIER_SCALE[s.tier] * weight * 0.32);
             d = {
-              key, side, b: s.b, price: s.price, x, z: -view.halfW, y: 0, s: 0.05, tier: s.tier, ship: s,
+              key, side, b: s.b, price: s.price, x, z: lane, y: 0, s: 0.05, tier: s.tier, ship: s,
               departing: null, surfacing: 0, smoke: 0, hitFlash: 0, damage: 0, roll: 0, pitch: 0, fade: 0, visualWeight: 1, lod: "low",
-              introBorn: view.introSerial, stationZ: zForStation(s.bornAt),
+              introBorn: view.introSerial, stationZ: lane,
             };
             view.displays.set(key, d);
           }
@@ -279,8 +296,6 @@ export function Fleet() {
           const keepHigh = d.lod === "high" && gi < (view.mobile ? 6 : 11);
           d.lod = wantHigh || keepHigh ? "high" : "low";
           for (const member of members) view.bucketVisual.set(side + member.b, d);
-          const station = stationTargets.get(key);
-          if (station) d.stationZ = station.z;
           seen.add(key);
           if (!d.departing) vis.push(d);
         }
