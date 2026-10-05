@@ -22,6 +22,8 @@ const SIDE_COL = { bid: new THREE.Color(UNIT_PAINT_HEX.bid), ask: new THREE.Colo
 const flagGeo = new THREE.PlaneGeometry(0.24, 0.14).translate(0.12, 0, 0);
 const poleGeo = new THREE.BoxGeometry(0.012, 0.3, 0.012).translate(0, -0.08, 0);
 const MARK_CAP = CAP * 5;
+/** remembered formation row per price band, so a ship always reappears in the same row */
+const laneMemory = new Map<string, number>();
 
 function textTexture(text: string, color: string) {
   const c = document.createElement("canvas");
@@ -272,7 +274,10 @@ export function Fleet() {
           if (!d) {
             const x = xForPrice(side, s.price);
             const len = TIER_SCALE[s.tier] * weight * 1.08;
-            const lane = laneFor(x, len, TIER_SCALE[s.tier] * weight * 0.32);
+            // a band that comes back returns to the row it had before
+            const lane = laneMemory.get(key) ?? laneFor(x, len, TIER_SCALE[s.tier] * weight * 0.32);
+            laneMemory.set(key, lane);
+            if (laneMemory.size > 2000) laneMemory.delete(laneMemory.keys().next().value!);
             d = {
               key, side, b: s.b, price: s.price, x, z: lane, y: 0, s: 0.05, tier: s.tier, ship: s,
               departing: null, surfacing: 0, smoke: 0, hitFlash: 0, damage: 0, roll: 0, pitch: 0, fade: 0, visualWeight: 1, lod: "low",
@@ -311,7 +316,13 @@ export function Fleet() {
       let near: Display | null = null;
       for (const d of view.displays.values()) {
         const sign = sideSign(d.side);
-        if (!seen.has(d.key) && !d.departing) d.departing = { kind: "drop", t0: view.time };
+        // keep a ship that briefly drops out of the book view for 4 s before letting it go, so ships at the
+        // edge of the visible range do not blink out and reappear in another row
+        if (seen.has(d.key)) d.missingSince = undefined;
+        else if (!d.departing) {
+          d.missingSince ??= view.time;
+          if (view.time - d.missingSince > 4) d.departing = { kind: "drop", t0: view.time };
+        }
         // phase is fixed per ship (not tied to x, which moves with price) so the swell stays smooth
         d.seed ??= Math.random() * Math.PI * 2;
         const bob = Math.sin(view.time * 0.8 + d.seed) * 0.004 * stormBob; // near-flat: calm-water swell only
