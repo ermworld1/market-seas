@@ -30,6 +30,9 @@ export interface Display {
   ship: Tracked | null;
   departing: null | { kind: DepartKind; t0: number };
   surfacing: number; // >0 while rising from below (relocate / hidden)
+  /** tier waiting to be applied (hysteresis) */
+  pendingTier?: Tier | undefined;
+  pendingSince?: number;
   /** how many price buckets this ship currently holds */
   memberCount?: number;
   /** fixed swell phase per ship */

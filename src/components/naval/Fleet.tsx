@@ -265,11 +265,19 @@ export function Fleet() {
           }
           if (d.departing && d.departing.kind === "drop") d.departing = null;
           d.ship = s;
-          d.tier = s.tier;
+          // hysteresis: a ship only changes class (and model) after the new class has held for 2.5 s,
+          // otherwise percentile jitter swaps the hull every few frames and the ship appears to jump
+          if (s.tier !== d.tier) {
+            if (d.pendingTier !== s.tier) { d.pendingTier = s.tier; d.pendingSince = view.time; }
+            else if (view.time - (d.pendingSince ?? 0) > 2.5 || s.tier === "battleship" || d.tier === "battleship") { d.tier = s.tier; d.pendingTier = undefined; }
+          } else d.pendingTier = undefined;
           d.price = s.price;
           d.visualWeight = weight;
           d.memberCount = members.length;
-          d.lod = gi < (view.mobile ? 4 : 8) || s.tier === "battleship" ? "high" : "low";
+          // LOD with a margin so ships near the cut-off do not flip between meshes
+          const wantHigh = gi < (view.mobile ? 4 : 8) || d.tier === "battleship";
+          const keepHigh = d.lod === "high" && gi < (view.mobile ? 6 : 11);
+          d.lod = wantHigh || keepHigh ? "high" : "low";
           for (const member of members) view.bucketVisual.set(side + member.b, d);
           const station = stationTargets.get(key);
           if (station) d.stationZ = station.z;
@@ -300,7 +308,7 @@ export function Fleet() {
           const intro = introProgress(s.tier, introElapsed);
           const tx = exactX + sign * REAR * (1 - intro);
           const targetZ = d.stationZ;
-          const ts = TIER_SCALE[s.tier] * d.visualWeight * mobileK;
+          const ts = TIER_SCALE[d.tier] * d.visualWeight * mobileK;
           const dx = (tx - d.x) * kMove;
           d.x += dx;
           d.z += (targetZ - d.z) * kMove;

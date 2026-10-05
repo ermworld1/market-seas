@@ -80,7 +80,7 @@ export function cinemaPose(cam: THREE.PerspectiveCamera, dt: number) {
       pos.set(view.frontX + Math.sin(t * 0.1) * 3, 2.2, view.halfW + 16);
       look.set(view.frontX, 2.5, 0);
       fov = 55;
-      fx.shake = Math.max(fx.shake, 0.45);
+      fx.shake = Math.max(fx.shake, 0.25);
       break;
     case "flagship":
       if (target) {
@@ -97,7 +97,8 @@ export function cinemaPose(cam: THREE.PerspectiveCamera, dt: number) {
   curPos.lerp(pos, k);
   curLook.lerp(look, k);
   const sh = fx.shake * fx.shake * 0.3;
-  cam.position.set(curPos.x + (Math.random() - 0.5) * sh, Math.max(0.15, curPos.y + (Math.random() - 0.5) * sh), curPos.z);
+  const tt = performance.now() / 1000;
+  cam.position.set(curPos.x + Math.sin(tt * 23) * sh * 0.5, Math.max(0.15, curPos.y + Math.sin(tt * 19 + 0.7) * sh * 0.4), curPos.z);
   cam.lookAt(curLook);
   if (Math.abs(cam.fov - fov) > 0.01) { cam.fov += (fov - cam.fov) * (snap ? 1 : 0.1); cam.updateProjectionMatrix(); }
   view.focus = dof;

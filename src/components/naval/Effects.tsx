@@ -217,7 +217,8 @@ export function Effects() {
     const base = { target, side: sSide };
     if (ev.notional >= 250_000 || ev.weapon === "broadside") view.track = { side: sSide, fx: mx, fz: mz, tx, tz, t0: view.time, dur: ev.weapon === "torpedo" ? 0.45 : 0.35 };
     if (ev.weapon === "broadside") { fx.slowmo = Math.max(fx.slowmo, 0.5); fx.slowScale = 0.4; }
-    const pan = { x: panX(mx - view.frontX, REAR), dist: Math.min(1, Math.abs(mx - view.cameraX) / (REAR * 1.2)) };
+    // guns are heard from the firing fleet: Buyers' guns on the left speaker, Sellers' on the right
+    const pan = { x: sign * (0.35 + 0.55 * Math.min(1, Math.abs(mx - view.frontX) / REAR)), dist: Math.min(1, Math.abs(mx - view.cameraX) / (REAR * 1.2)) };
     // one tracer per underlying fill (capped at 24)
     const n = tracersFor(ev.fills);
     for (let i = 0; i < n; i++)
@@ -242,7 +243,7 @@ export function Effects() {
       const sideKey = ev.taker;
       const t0 = performance.now();
       pendingShots[sideKey] += n;
-      if (t0 - lastMg[sideKey] >= 200) {
+      if (t0 - lastMg[sideKey] >= 110) {
         lastMg[sideKey] = t0;
         audio.play("mg", { ...pan, shots: pendingShots[sideKey], gain: Math.min(1, 0.55 + pendingShots[sideKey] * 0.03) });
         pendingShots[sideKey] = 0;
@@ -254,13 +255,13 @@ export function Effects() {
       if (t1 - lastGun[ev.taker] >= 120) { lastGun[ev.taker] = t1; audio.play("gun", pan); } else audio.mergeShots(1);
     } else if (ev.weapon === "torpedo") {
       flash(mx, my, mz, 0.6);
-      fx.shake = Math.min(1.2, fx.shake + 0.35);
+      // no camera shake for torpedoes: they are frequent and constant shake read as ships jumping
       spawn({ ...base, weapon: "torpedo", fx: mx, fy: 0.01, fz: mz, tx, ty: 0.01, tz, dur: 0.45, size: 0.05, len: 0.5 });
       audio.play("gun5", pan);
       audio.play("torpedo", { ...pan, gain: 0.55 });
       audio.torpedoVoice();
     } else {
-      fx.shake = Math.min(1.2, fx.shake + 0.8);
+      fx.shake = Math.min(0.7, fx.shake + 0.45);
       const s = shooter?.s ?? 1;
       for (let i = 0; i < 6; i++) {
         const ox = (i - 2.5) * 0.12 * s;
@@ -384,7 +385,9 @@ export function Effects() {
         const d = m.position.distanceTo(camPos);
         const vRad = prevDist.current[i] ? (prevDist.current[i]! - d) / Math.max(dt, 1e-3) : 0;
         prevDist.current[i] = d;
-        vce.update(panX(x - view.frontX, REAR), Math.max(0, 1 - d / 70), 1 + Math.max(-0.25, Math.min(0.25, vRad / 120)), pull);
+        // loudness from on-screen distance to the action, not from the camera (the map camera sits far away)
+        const close = Math.max(0, 1 - Math.abs(x - view.cameraX) / (view.halfW * 2.2 + REAR));
+        vce.update(panX(x - view.frontX, REAR), 0.45 + 0.55 * close, 1 + Math.max(-0.25, Math.min(0.25, vRad / 120)), pull);
         if (p.kind === "fighter" && !gunsOn.current[i] && u > 0.1) { gunsOn.current[i] = true; vce.guns(p.dur * 0.75, panX(x - view.frontX, REAR)); }
       }
       if (u >= 1) {
