@@ -320,7 +320,8 @@ class AudioEngine {
     if (this.radioChecked) return;
     this.radioChecked = true;
     this.lastVoiceAt = -1e9;
-    void this.exchange(["s_contact", "c_stations", "a_stations"], 0);
+    this.preloadVoices();
+    void this.exchange(["s_contact", "c_stations", "a_stations"], 0, true);
   }
 
   /** Opening movement is the only non-market ship motion: alarm, telegraph and engines. */
@@ -432,14 +433,22 @@ class AudioEngine {
    * different circuit (spotter: ship phone, Buyers' captain: radio left, Sellers' admiral: radio right).
    * Clips live in /vo/x/<key>.mp3. Returns false when the radio is busy (exchanges never overlap).
    */
-  async exchange(keys: string[], minGap = 10): Promise<boolean> {
+  /** fetch and decode every radio clip once, so a line can start the instant its event happens */
+  preloadVoices() {
+    const keys = ["s_contact","s_hit","s_wehit","s_torpedo","s_aircraft","s_flagsunk","s_dive","s_bombers","s_aye","s_report"];
+    for (const p of ["c", "a"]) for (const k of ["stations","fire","damage","evade","aa","push","abandon","hold","brace","ceasefire"]) keys.push(`${p}_${k}`);
+    for (const k of keys) void this.loadVo(`x:${k}`);
+  }
+  async exchange(keys: string[], minGap = 10, allowLate = false): Promise<boolean> {
     const ctx = this.ctx;
     if (!ctx || !this.enabled || ctx.state !== "running" || !keys.length) return false;
     const now = ctx.currentTime;
     if (now < this.voBusyUntil || now - this.lastVoiceAt < minGap) return false;
-    this.lastVoiceAt = now;
+    const t0 = performance.now();
     const bufs = await Promise.all(keys.map((k) => this.loadVo(`x:${k}`)));
     if (!this.ctx) return false;
+    if (!allowLate && performance.now() - t0 > 600) return false; // too late to match the action: stay silent
+    this.lastVoiceAt = this.ctx.currentTime;
     let t = this.ctx.currentTime + 0.15;
     keys.forEach((k, i) => {
       const b = bufs[i];
