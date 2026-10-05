@@ -8,10 +8,11 @@ import { stationDepth } from "@/lib/market/positioning";
 export const GAP = 0.9; // half-width of the no-man's sea
 export const DEPTH = 13; // row distance of a bucket 1% away
 export const REAR = GAP + DEPTH + 2.2;
-export const ELEVATION = 65; // degrees from horizontal
+export const ELEVATION = 52; // Map remains oblique enough to show hull sides
 
 export const TIERS: Tier[] = ["patrol", "destroyer", "frigate", "cruiser", "battleship"];
-export const TIER_SCALE: Record<Tier, number> = { patrol: 1.35, destroyer: 1.7, frigate: 2.25, cruiser: 3.15, battleship: 4.65 };
+/** Exact relative ship lengths requested for instant tier recognition. */
+export const TIER_SCALE: Record<Tier, number> = { patrol: 1, frigate: 1.6, destroyer: 1.9, cruiser: 2.5, battleship: 3.4 };
 export const CAPITAL: Tier[] = ["cruiser", "battleship"];
 
 export type DepartKind = "sink" | "dive" | "fled" | "pulled" | "drop";

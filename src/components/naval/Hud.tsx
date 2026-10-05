@@ -329,8 +329,8 @@ export function HowToRead() {
         </ul>
       )}
       <h3 className="mt-3 font-display text-xs font-semibold uppercase tracking-widest text-primary">Units</h3>
-      <UnitList items={[...SHIPS, ...WEAPONS, ...AIRCRAFT]} compact />
-      <p className="mt-2 text-[11px] text-muted-foreground"><span className="text-bull">Green markings identify Buyers</span> (left), <span className="text-bear">red markings identify Sellers</span> (right). Every event is in the Guide tab and the "?" panel.</p>
+      <UnitList items={[...SHIPS, ...WEAPONS, ...AIRCRAFT]} compact explainSides />
+      <p className="mt-2 text-[11px] text-muted-foreground">Every event is in the Guide tab and the "?" panel.</p>
     </section>
   );
 }
@@ -389,13 +389,12 @@ function LegendStrip() {
     <div className="pointer-events-auto flex items-center gap-3 overflow-x-auto px-1 text-[10px] text-foreground/80" data-tour="legend">
       {SHIPS.map((u) => (
         <span key={u.id} className="flex shrink-0 items-center gap-1">
-          <UnitIcon u={u} side="bid" />
-          <UnitIcon u={u} side="ask" />
+          <UnitIcon u={u} />
           <span className="font-semibold">{u.name}</span>
           <span className="text-muted-foreground">{u.rule.replace("smallest ", "<").replace(" of price buckets", "")}</span>
         </span>
       ))}
-      <span className="shrink-0 text-muted-foreground"><span className="text-bull">Buyers left</span> · <span className="text-bear">Sellers right</span> · Bomber = liquidation · Sub = pulled big order</span>
+      <span className="shrink-0 text-muted-foreground">Green-decked ships are buy orders (Buyers), red-decked ships are sell orders (Sellers). · Bomber = liquidation · Sub = pulled big order</span>
     </div>
   );
 }

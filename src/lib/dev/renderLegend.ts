@@ -19,31 +19,27 @@ export async function renderLegend(): Promise<Record<string, string>> {
   r.toneMapping = THREE.ACESFilmicToneMapping;
   const loader = new GLTFLoader();
   const geo = async (n: keyof typeof MODELS, kind: "ship" | "air") => normalizeGeometry((await loader.loadAsync(MODELS[n])).scene, kind);
-  const shot = (g: THREE.BufferGeometry, mat: THREE.Material, side: Side, scale: number, air = false) => {
+  const shot = (g: THREE.BufferGeometry, mat: THREE.Material, side: Side | "neutral", scale: number, air = false) => {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#183641");
-    scene.fog = new THREE.Fog("#52717a", 4, 10);
-    scene.add(new THREE.HemisphereLight("#dcebf0", "#18343d", 1.4));
-    const d = new THREE.DirectionalLight("#ffffff", 2.2);
+    scene.background = null;
+    scene.add(new THREE.HemisphereLight("#f2f7fa", "#50616b", 1.65));
+    const d = new THREE.DirectionalLight("#fff8e8", 2.6);
     d.position.set(2, 4, 3);
     scene.add(d);
     const m = new THREE.Mesh(g, mat);
-    m.rotation.y = side === "bid" ? Math.PI : 0;
+    m.rotation.y = side === "bid" ? Math.PI * 0.72 : side === "ask" ? -Math.PI * 0.28 : -Math.PI * 0.22;
     m.scale.setScalar(scale);
     scene.add(m);
     if (!air) {
-      const mark = new THREE.MeshStandardMaterial({ color: UNIT_PAINT_HEX[side], emissive: 0x000000, roughness: 0.82, side: THREE.DoubleSide });
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.012, 0.035).translate(0, 0.045, 0), mark);
-      const deck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.009, 0.055).translate(-0.08, 0.155, 0), mark);
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1).translate(0.08, 0, 0), mark);
-      flag.position.set(0.08, 0.28, 0); flag.rotation.y = Math.PI / 2;
-      for (const q of [stripe, deck, flag]) { q.rotation.y += m.rotation.y; q.scale.setScalar(scale); scene.add(q); }
+      const green = new THREE.MeshStandardMaterial({ color: UNIT_PAINT_HEX.bid, emissive: 0x000000, emissiveIntensity: 0, roughness: 0.84 });
+      const red = new THREE.MeshStandardMaterial({ color: UNIT_PAINT_HEX.ask, emissive: 0x000000, emissiveIntensity: 0, roughness: 0.84 });
+      const left = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.012, 0.12).translate(-0.19, 0.14, 0), green);
+      const right = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.012, 0.12).translate(0.19, 0.14, 0), red);
+      for (const q of [left, right]) { q.rotation.y = m.rotation.y; q.scale.setScalar(scale); scene.add(q); }
     }
-    const ocean = new THREE.Mesh(new THREE.PlaneGeometry(8, 4, 20, 10), new THREE.MeshPhysicalMaterial({ color: "#123945", roughness: 0.3, metalness: 0.25 }));
-    ocean.rotation.x = -Math.PI / 2; ocean.position.y = -0.025; scene.add(ocean);
     const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
-    cam.position.set(0.25, air ? 1.1 : 0.75, 2.7);
-    cam.lookAt(0, air ? 0 : 0.08, 0);
+    cam.position.set(0.55, air ? 1.05 : 0.72, 2.55);
+    cam.lookAt(0, air ? 0 : 0.1, 0);
     r.setClearColor(0, 0);
     r.render(scene, cam);
     return r.domElement.toDataURL("image/png");
@@ -54,19 +50,15 @@ export async function renderLegend(): Promise<Record<string, string>> {
   ];
   for (const [id, model, sc] of ships) {
     const g = await geo(model, "ship");
-    for (const side of ["bid", "ask"] as Side[]) {
-      const mat = model === "transport" ? new THREE.MeshStandardMaterial({ color: "#5d6669", metalness: 0.4, roughness: 0.6 }) : makeFleetMaterial(side === "bid" ? "buyers" : "sellers", id === "destroyer");
-      out[`${id}-${side}`] = shot(g, mat, side, sc);
-    }
+    const mat = model === "transport" ? new THREE.MeshStandardMaterial({ color: "#68747a", emissive: 0x000000, emissiveIntensity: 0, metalness: 0.3, roughness: 0.72 }) : makeFleetMaterial("neutral", id === "destroyer");
+    out[id] = shot(g, mat, "neutral", sc);
   }
   const air = () => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), emissive: 0x000000, emissiveIntensity: 0, metalness: 0.4, roughness: 0.62, flatShading: true });
   const bomber = await geo("bomber", "air");
   const fighter = makeFighterGeometry();
   fighter.computeBoundingBox();
-  for (const side of ["bid", "ask"] as Side[]) {
-    out[`bomber-${side}`] = shot(bomber, air(), side, 1, true);
-    out[`fighter-${side}`] = shot(fighter, air(), side, 0.9, true);
-  }
+  out["bomber"] = shot(bomber, air(), "neutral", 1, true);
+  out["fighter"] = shot(fighter, air(), "neutral", 0.9, true);
   r.dispose();
   // effect icons: same colours as the scene's effects
   const c = document.createElement("canvas");
@@ -114,6 +106,7 @@ export async function renderLegend(): Promise<Record<string, string>> {
     });
     fx(`fx-broadside-${side}`, () => { for (let i = 0; i < 5; i++) streak(L(30), 30 + i * 13, L(220), 26 + i * 13, 5, tint(side, "#ffb84a")); });
   }
+  for (const id of ["fx-mg", "fx-gun", "fx-torpedo", "fx-broadside"]) out[id] = out[`${id}-bid`]!;
   const water = () => { g.fillStyle = "rgba(60,110,130,0.35)"; g.fillRect(0, 78, W, 34); };
   const puff = (x: number, y: number, r: number, col: string) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, col); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); };
   fx("fx-sink", () => { water(); g.fillStyle = "#3b4045"; g.beginPath(); g.moveTo(90, 82); g.lineTo(150, 50); g.lineTo(170, 62); g.lineTo(120, 92); g.fill(); puff(140, 70, 30, "rgba(255,140,40,0.8)"); });

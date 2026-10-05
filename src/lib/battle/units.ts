@@ -12,7 +12,7 @@ import { T } from "./phase";
 /** Binance Futures colours: Buyers green, Sellers red. */
 export const SIDE_HEX = { bid: "#0ECB81", ask: "#F6465D" } as const;
 /** Muted physical fleet paint; never use the bright UI colours on 3D units. */
-export const UNIT_PAINT_HEX = { bid: "#2E7D4F", ask: "#B23A3A" } as const;
+export const UNIT_PAINT_HEX = { bid: "#2F8F57", ask: "#C0392B" } as const;
 
 const pct = (q: number) => `${Math.round(q * 100)}%`;
 const pctTxt = (f: number) => `${+(f * 100).toFixed(3)}%`;

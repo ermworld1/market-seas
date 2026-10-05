@@ -22,7 +22,7 @@ const STEPS: Step[] = [
   },
   {
     title: "A real order",
-    text: "This ship is a real resting order. Left/right is its exact price; front/back is how long it has waited. New orders enter from the back.",
+    text: "This ship is a real resting order. Left/right is its exact price; front/back is how long it has waited. Green decks are Buyers, red decks are Sellers.",
     rect: () => (screen.near ? { x: screen.near.x - 40, y: screen.near.y - 40, w: 80, h: 80 } : null),
   },
   { title: "Ship size = order size", text: "Bigger ships are bigger orders, ranked against the rest of the book. The largest on each side is the flagship.", rect: el('[data-tour="legend"]') },

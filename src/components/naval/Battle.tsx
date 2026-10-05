@@ -104,7 +104,7 @@ function CameraRig() {
     if (view.shot && performance.now() >= view.shot.until) view.shot = null;
     if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
       // Cinema: perspective camera driven by the shot director
-      view.halfW = view.mobile ? 6 : 8;
+      view.halfW = view.mobile ? 8 : 10;
       if (!view.mobile) view.cameraX += (view.frontX - view.cameraX) * (1 - Math.exp(-1.2 * dt));
       fx.shake = Math.max(0, fx.shake - dt * 2.2);
       cinemaPose(camera as THREE.PerspectiveCamera, dt * (fx.slowmo > 0 ? Math.max(0.5, fx.slowScale) : 1));
@@ -230,7 +230,7 @@ export default function Battle() {
             orthographic
             dpr={[1, 1.75]}
             camera={{ position: [0, 90, 42], zoom: 30, near: 0.1, far: 1000 }}
-            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.55, powerPreference: "high-performance", preserveDrawingBuffer: true }}
+            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.78, powerPreference: "high-performance", preserveDrawingBuffer: true }}
           >
             <PerspectiveCamera makeDefault={presentation === "cinema"} fov={36} near={0.1} far={2000} position={[0, 12, 16]} />
             <CameraRig />

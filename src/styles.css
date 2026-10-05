@@ -194,6 +194,7 @@
   .war-vignette { animation: none; }
 }
 
+.unit-preview img { filter: drop-shadow(0 3px 3px oklch(0.05 0.02 230 / .45)); }
 .unit-preview.is-playing img { animation: unit-preview-bob 1.8s ease-in-out infinite; }
 .unit-preview-fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .unit-preview-fx::before { content: ""; position: absolute; left: 18%; top: 38%; width: 34%; height: 2px; background: var(--primary); transform: rotate(-5deg); animation: unit-preview-fire .7s linear infinite; }

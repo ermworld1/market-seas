@@ -29,27 +29,35 @@ export function introArrived(tier: Tier, elapsedMs: number) {
   return introProgress(tier, elapsedMs) >= 0.999;
 }
 
-export interface StationPoint { key: string; x: number; z: number; radius: number }
+export interface StationPoint { key: string; x: number; z: number; length: number; beam: number }
 
-/** Resolve overlap only on the time axis. X is copied exactly and never altered. */
+/** Resolve every projected hull collision only on the time axis. X is never altered. */
 export function separateStationDepth(points: StationPoint[], halfDepth: number) {
-  const byX = new Map<number, StationPoint[]>();
-  for (const point of points) {
-    const key = Math.round(point.x * 10_000);
-    const group = byX.get(key) ?? [];
-    group.push({ ...point });
-    byX.set(key, group);
-  }
   const out = new Map<string, { x: number; z: number }>();
-  for (const group of byX.values()) {
-    group.sort((a, b) => b.z - a.z || a.key.localeCompare(b.key));
-    let previous = Number.POSITIVE_INFINITY;
-    for (const point of group) {
-      const clearance = point.radius * 0.7;
-      const z = Math.max(-halfDepth, Math.min(point.z, previous - clearance));
-      out.set(point.key, { x: point.x, z });
-      previous = z;
+  const placed: Array<StationPoint & { z: number }> = [];
+  const ordered = [...points].sort((a, b) => b.z - a.z || a.x - b.x || a.key.localeCompare(b.key));
+  const collides = (point: StationPoint, z: number) => placed.some((other) => {
+    const xClearance = (point.length + other.length) * 0.52;
+    const zClearance = (point.beam + other.beam) * 0.72 + 0.08;
+    return Math.abs(point.x - other.x) < xClearance && Math.abs(z - other.z) < zClearance;
+  });
+  for (const point of ordered) {
+    const target = Math.max(-halfDepth, Math.min(point.z, halfDepth));
+    let z = target;
+    // Search both depth directions around the data-derived target. X is exact;
+    // only the minimum depth displacement needed to clear another hull is used.
+    if (collides(point, z)) {
+      const step = Math.max(0.18, point.beam * 0.32);
+      for (let ring = 1; ring <= Math.ceil((halfDepth * 2) / step); ring++) {
+        const towardRear = target - ring * step;
+        const towardCamera = target + ring * step;
+        if (towardRear >= -halfDepth && !collides(point, towardRear)) { z = towardRear; break; }
+        if (towardCamera <= halfDepth && !collides(point, towardCamera)) { z = towardCamera; break; }
+      }
     }
+    const placedPoint = { ...point, z };
+    placed.push(placedPoint);
+    out.set(point.key, { x: point.x, z });
   }
   return out;
 }

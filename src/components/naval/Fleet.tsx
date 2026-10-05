@@ -19,10 +19,8 @@ const col = new THREE.Color();
 const WHITE = new THREE.Color(1, 1, 1);
 const FOG = new THREE.Color(0.55, 0.6, 0.64);
 const SIDE_COL = { bid: new THREE.Color(UNIT_PAINT_HEX.bid), ask: new THREE.Color(UNIT_PAINT_HEX.ask) };
-const stripeGeo = new THREE.BoxGeometry(0.82, 0.012, 0.035).translate(0, 0.045, 0);
-const deckGeo = new THREE.BoxGeometry(0.22, 0.009, 0.055).translate(-0.08, 0.155, 0);
-const flagGeo = new THREE.PlaneGeometry(0.16, 0.1).translate(0.08, 0, 0);
-const poleGeo = new THREE.BoxGeometry(0.012, 0.22, 0.012).translate(0, -0.06, 0);
+const flagGeo = new THREE.PlaneGeometry(0.24, 0.14).translate(0.12, 0, 0);
+const poleGeo = new THREE.BoxGeometry(0.012, 0.3, 0.012).translate(0, -0.08, 0);
 const MARK_CAP = CAP * 5;
 
 function textTexture(text: string, color: string) {
@@ -149,7 +147,7 @@ export function Fleet() {
       for (const ev of view.frameEvents) {
         if (!("b" in ev) || ev.type === "fire") continue;
         const key = ev.side + ev.b;
-        const d = view.displays.get(key);
+        const d = view.bucketVisual.get(key) ?? view.displays.get(key);
         const sign = sideSign(ev.side);
         const pan = { x: panX((d?.x ?? view.frontX) - view.frontX, REAR) };
         switch (ev.type) {
@@ -230,16 +228,26 @@ export function Fleet() {
           .sort((a, b) => (side === "bid" ? b.price - a.price : a.price - b.price))
           .slice(0, qualityCap);
         const vis: Display[] = [];
-        const visualCap = view.presentation === "cinema" ? (view.mobile ? 18 : 30) : qualityCap;
-        const shown = ships.slice(0, visualCap);
-        const stationTargets = separateStationDepth(shown.map((s) => ({
+        const visualCap = Math.min(qualityCap, view.presentation === "cinema" ? 25 : 40);
+        const groups: Tracked[][] = [];
+        for (let i = 0; i < ships.length; i++) {
+          const group = Math.min(visualCap - 1, Math.floor(i * visualCap / Math.max(ships.length, 1)));
+          (groups[group] ??= []).push(ships[i]!);
+        }
+        const shown = groups.filter(Boolean).map((members) => {
+          const ship = members.reduce((best, candidate) => candidate.notional > best.notional ? candidate : best);
+          const total = members.reduce((sum, candidate) => sum + candidate.notional, 0);
+          return { ship, members, weight: THREE.MathUtils.clamp(Math.sqrt(total / Math.max(ship.notional, 1)), 1, 1.35) };
+        });
+        const stationTargets = separateStationDepth(shown.map(({ ship: s, members, weight }) => ({
           key: side + s.b,
           x: xForPrice(side, s.price),
-          z: zForStation(s.bornAt),
-          radius: TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac),
-        })), view.halfW * 0.9);
+          z: zForStation(Math.min(...members.map((member) => member.bornAt))),
+          length: TIER_SCALE[s.tier] * weight * 1.08,
+          beam: TIER_SCALE[s.tier] * weight * 0.32,
+        })), view.halfW * 0.96);
         for (let gi = 0; gi < shown.length; gi++) {
-          const s = shown[gi]!;
+          const { ship: s, members, weight } = shown[gi]!;
           const key = side + s.b;
           let d = view.displays.get(key);
           if (!d) {
@@ -255,9 +263,9 @@ export function Fleet() {
           d.ship = s;
           d.tier = s.tier;
           d.price = s.price;
-          d.visualWeight = 1;
+          d.visualWeight = weight;
           d.lod = gi < (view.mobile ? 4 : 8) || s.tier === "battleship" ? "high" : "low";
-          view.bucketVisual.set(key, d);
+          for (const member of members) view.bucketVisual.set(side + member.b, d);
           const station = stationTargets.get(key);
           if (station) d.stationZ = station.z;
           seen.add(key);
@@ -285,7 +293,7 @@ export function Fleet() {
           const intro = introProgress(s.tier, introElapsed);
           const tx = exactX + sign * REAR * (1 - intro);
           const targetZ = d.stationZ;
-          const ts = TIER_SCALE[s.tier] * (1 + 0.25 * s.tierFrac) * d.visualWeight * mobileK;
+          const ts = TIER_SCALE[s.tier] * d.visualWeight * mobileK;
           const dx = (tx - d.x) * kMove;
           d.x += dx;
           d.z += (targetZ - d.z) * kMove;
@@ -369,20 +377,16 @@ export function Fleet() {
         counts[mkey] = n + 1;
         const hk = d.side as string;
         const hn = counts["h" + hk] ?? 0;
-        const sm = markings.current["s" + hk];
-        const dm = markings.current["d" + hk];
         const fm = markings.current["f" + hk];
         const pm = markings.current["p" + hk];
-        if (sm && dm && fm && pm && hn < MARK_CAP) {
+        if (fm && pm && hn < MARK_CAP) {
           const sz = Math.max(0.001, d.s) * (1 - d.fade * 0.6);
           dummy.rotation.copy(euler);
           dummy.position.set(d.x, d.y, d.z);
           dummy.scale.setScalar(sz);
           dummy.updateMatrix();
-          sm.setMatrixAt(hn, dummy.matrix);
-          dm.setMatrixAt(hn, dummy.matrix);
-          const fs = (0.22 + d.s * 0.48) * (1 - d.fade);
-          dummy.position.set(d.x, d.y + 0.34 * d.s + 0.16, d.z);
+          const fs = (0.2 + d.s * 0.38) * (d.tier === "battleship" ? 1.35 : 1) * (1 - d.fade);
+          dummy.position.set(d.x, d.y + 0.39 * d.s + 0.12, d.z);
           dummy.rotation.set(0, d.side === "bid" ? 0 : Math.PI, Math.sin(view.time * 5 + d.b) * 0.16);
           dummy.scale.setScalar(Math.max(0.001, fs));
           dummy.updateMatrix();
@@ -413,7 +417,7 @@ export function Fleet() {
           if (m.instanceColor) m.instanceColor.needsUpdate = true;
         }
     for (const side of SIDES)
-      for (const p of ["s", "d", "f", "p"]) {
+      for (const p of ["f", "p"]) {
         const m = markings.current[p + side];
         if (!m) continue;
         m.count = counts["h" + side] ?? 0;
@@ -439,8 +443,6 @@ export function Fleet() {
       )}
       {SIDES.map((side) => (
         <group key={"mk" + side}>
-          <instancedMesh ref={(m) => { markings.current["s" + side] = m; }} args={[stripeGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
-          <instancedMesh ref={(m) => { markings.current["d" + side] = m; }} args={[deckGeo, marks.paint[side], MARK_CAP]} frustumCulled={false} />
           <instancedMesh ref={(m) => { markings.current["f" + side] = m; }} args={[flagGeo, marks.flag[side], MARK_CAP]} frustumCulled={false} />
           <instancedMesh ref={(m) => { markings.current["p" + side] = m; }} args={[poleGeo, marks.pole, MARK_CAP]} frustumCulled={false} />
         </group>
