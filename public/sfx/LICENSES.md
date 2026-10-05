@@ -18,9 +18,6 @@ The naval mix layers these recordings with original browser synthesis: 20 mm/.50
 | `mg/3.mp3` | shot_03.ogg (burst of 7 rounds) | [25 CC0 bang / firework SFX (rubberduck)](https://opengameart.org/content/25-cc0-bang-firework-sfx) | CC0 1.0 |
 | `mg/4.mp3` | gun2Heavy.ogg (burst of 4 rounds) | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 | `gun/4.mp3` | dl_cannon_fire_1.ogg | [Battle at sea (Thimras)](https://opengameart.org/content/battle-at-sea) | CC0 1.0 |
-| `biggun/1.mp3` | cannon_01.ogg | [25 CC0 bang / firework SFX (rubberduck)](https://opengameart.org/content/25-cc0-bang-firework-sfx) | CC0 1.0 |
-| `biggun/2.mp3` | cannon_02.ogg | [25 CC0 bang / firework SFX (rubberduck)](https://opengameart.org/content/25-cc0-bang-firework-sfx) | CC0 1.0 |
-| `biggun/3.mp3` | bang_06.ogg | [25 CC0 bang / firework SFX (rubberduck)](https://opengameart.org/content/25-cc0-bang-firework-sfx) | CC0 1.0 |
 | `torpedo/1.mp3` | bang_07.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 | `torpedo/2.mp3` | bang_08.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 | `torpedo/3.mp3` | bang_09.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
@@ -61,6 +58,7 @@ License: https://sonniss.com/gdc-bundle-license/ (no standalone redistribution, 
 | `gun/3.mp3` | warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav |
 | `shipgun/1–5.mp3` | Audiobeast_Medium_Warehouse_Browning_M2_.50_Machine_Gun_03m_RSM191_MS_Raw_002_Burst_x2.wav (bursts cut into ~0.7 s pieces, pitched down 12%) |
 | `shipgun/6–7.mp3` | Automatic Cannon - MK44 - 03 - Single Shot with Report 03.wav (pitched down) |
+| `biggun/1–3.mp3` | Main battery, layered: TAJ - Tank Battle Cannon Fire [XY Stereo]-001.wav (pitched down ~40%) + Planet_Explosion_Low-04.wav + sally77_cannons___dry.wav + warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav (delayed echo), synthetic sub-bass and reverb tail |
 | `flak/1–3.mp3` | Automatic Cannon - MK44 - 03 - Single Shot with Report 03.wav (2 and 3 are pitched variants) |
 | `battle/1.mp3` | warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav + TAJ - Tank Battle Machine Guns (7.62 & 50 cal) (middle section), low-passed |
 
@@ -72,4 +70,4 @@ License: https://sonniss.com/gdc-bundle-license/ (no standalone redistribution, 
 
 ## Still lacking genuine naval recordings
 
-These categories still use CC0 recordings that are not naval-specific or are synthesised: `biggun/1–3` (cannon/bang set), dive-bomber whistle, submarine dive/surface, bomb whistle. To upgrade, drop licensed files into `/public/sfx/<category>/<n>.mp3` and update the count in `src/lib/audio/bank.ts`.
+These categories still use CC0 recordings that are not naval-specific or are synthesised: dive-bomber whistle, submarine dive/surface, bomb whistle. To upgrade, drop licensed files into `/public/sfx/<category>/<n>.mp3` and update the count in `src/lib/audio/bank.ts`.
