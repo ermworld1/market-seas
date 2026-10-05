@@ -9,7 +9,7 @@ import { audio, panX } from "@/lib/audio/engine";
 import { UNIT_PAINT_HEX } from "@/lib/battle/units";
 import { introProgress, separateStationDepth } from "@/lib/market/positioning";
 import { makeFleetMaterial, useModelGeometry } from "./models";
-import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, type Display, sideSign, updateFront, view, xForPrice, zForStation } from "./layout";
+import { CAPITAL, REAR, TIERS, TIER_SCALE, addFloater, displayFor, type Display, sideSign, updateFront, view, xForPrice, zForStation } from "./layout";
 
 const CAP = 130;
 const SIDES: BookSide[] = ["bid", "ask"];
@@ -147,22 +147,26 @@ export function Fleet() {
       for (const ev of view.frameEvents) {
         if (!("b" in ev) || ev.type === "fire") continue;
         const key = ev.side + ev.b;
-        const d = view.bucketVisual.get(key) ?? view.displays.get(key);
+        const d = displayFor(ev.side, ev.b);
         const sign = sideSign(ev.side);
         const pan = { x: panX((d?.x ?? view.frontX) - view.frontX, REAR) };
         switch (ev.type) {
           case "sink":
-            if (d && !d.departing) d.departing = { kind: "sink", t0: view.time };
+            // a ship holds a whole price band: it only goes down when nothing is left in the band
+            if (d && !d.departing && (d.memberCount ?? 1) <= 1) d.departing = { kind: "sink", t0: view.time };
+            else if (d) { d.hitFlash = 1; d.damage = Math.min(0.9, d.damage + 0.3); }
             view.sinkPulse = 1;
             audio.play("sink", pan);
             break;
           case "dive":
           case "fled":
-            if (d && !d.departing) d.departing = { kind: ev.type, t0: view.time };
+            if (d && !d.departing && (d.memberCount ?? 1) <= 1) d.departing = { kind: ev.type, t0: view.time };
+            else if (d) d.smoke = 1.6;
             audio.play(ev.type, pan);
             break;
           case "pulled":
-            if (d && !d.departing) d.departing = { kind: "pulled", t0: view.time };
+            if (d && !d.departing && (d.memberCount ?? 1) <= 1) d.departing = { kind: "pulled", t0: view.time };
+            else if (d) d.smoke = 1.2;
             break;
           case "cancel":
             if (d) d.smoke = 1.6;
@@ -174,17 +178,8 @@ export function Fleet() {
             }
             break;
           case "relocate": {
-            const from = view.displays.get(ev.side + ev.from);
-            let to = view.displays.get(key);
-            if (from && !to) {
-              view.displays.delete(from.key);
-              from.key = key;
-              from.b = ev.b;
-              from.price = ev.price;
-              from.departing = null;
-              view.displays.set(key, from);
-              to = from;
-            }
+            const from = displayFor(ev.side, ev.from);
+            const to = displayFor(ev.side, ev.b);
             // only capital ships surface visibly, at most once per 20 s; small market-maker requotes just move
             if (to && (to.tier === "cruiser" || to.tier === "battleship") && view.time - (to.lastSurface ?? -99) > 20) { to.surfacing = 1; to.lastSurface = view.time; }
             if (smoke && to) {
@@ -230,26 +225,34 @@ export function Fleet() {
           .slice(0, qualityCap);
         const vis: Display[] = [];
         const visualCap = Math.min(qualityCap, view.presentation === "cinema" ? 25 : 40);
-        const groups: Tracked[][] = [];
-        for (let i = 0; i < ships.length; i++) {
-          const group = Math.min(visualCap - 1, Math.floor(i * visualCap / Math.max(ships.length, 1)));
-          (groups[group] ??= []).push(ships[i]!);
+        // Stable ships: buckets are grouped into FIXED absolute price bands, so a ship keeps its identity
+        // while orders churn underneath. (Rank-based grouping swapped the representative bucket every
+        // few hundred ms, which made ships vanish, respawn and look like they were jumping.)
+        const w = e.width || 1;
+        const span = Math.max(mid * 0.011, w);
+        if (!view.bandW || Math.abs(view.bandW - Math.ceil(span / visualCap / w) * w) > w * 2) view.bandW = Math.max(w, Math.ceil(span / visualCap / w) * w);
+        const bands = new Map<number, Tracked[]>();
+        for (const sh of ships) {
+          const band = Math.floor(sh.price / view.bandW);
+          let arr = bands.get(band);
+          if (!arr) { arr = []; bands.set(band, arr); }
+          arr.push(sh);
         }
-        const shown = groups.filter(Boolean).map((members) => {
+        const shown = [...bands.entries()].sort((a, b) => (side === "bid" ? b[0] - a[0] : a[0] - b[0])).slice(0, visualCap).map(([band, members]) => {
           const ship = members.reduce((best, candidate) => candidate.notional > best.notional ? candidate : best);
           const total = members.reduce((sum, candidate) => sum + candidate.notional, 0);
-          return { ship, members, weight: THREE.MathUtils.clamp(Math.sqrt(total / Math.max(ship.notional, 1)), 1, 1.35) };
+          return { band, ship, members, weight: THREE.MathUtils.clamp(Math.sqrt(total / Math.max(ship.notional, 1)), 1, 1.35) };
         });
-        const stationTargets = separateStationDepth(shown.map(({ ship: s, members, weight }) => ({
-          key: side + s.b,
+        const stationTargets = separateStationDepth(shown.map(({ band, ship: s, members, weight }) => ({
+          key: `${side}#${band}`,
           x: xForPrice(side, s.price),
           z: zForStation(Math.min(...members.map((member) => member.bornAt))),
           length: TIER_SCALE[s.tier] * weight * 1.08,
           beam: TIER_SCALE[s.tier] * weight * 0.32,
         })), view.halfW * 0.96);
         for (let gi = 0; gi < shown.length; gi++) {
-          const { ship: s, members, weight } = shown[gi]!;
-          const key = side + s.b;
+          const { band, ship: s, members, weight } = shown[gi]!;
+          const key = `${side}#${band}`;
           let d = view.displays.get(key);
           if (!d) {
             const x = xForPrice(side, s.price);
@@ -265,6 +268,7 @@ export function Fleet() {
           d.tier = s.tier;
           d.price = s.price;
           d.visualWeight = weight;
+          d.memberCount = members.length;
           d.lod = gi < (view.mobile ? 4 : 8) || s.tier === "battleship" ? "high" : "low";
           for (const member of members) view.bucketVisual.set(side + member.b, d);
           const station = stationTargets.get(key);

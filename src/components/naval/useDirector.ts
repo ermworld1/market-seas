@@ -7,7 +7,7 @@ import { battleWindow, battleWinner, recordResult } from "@/lib/battle/round";
 import { audio } from "@/lib/audio/engine";
 import { track } from "@/lib/analytics";
 import { recordClip } from "@/lib/clips";
-import { view } from "./layout";
+import { displayFor, view } from "./layout";
 import { canNarrateRelocate, lessonForEvent, lessonText, selectShot, tapeEligible } from "@/lib/market/presentation";
 import { makeLadder } from "./LivePanels";
 import { settleMine, submitPrediction } from "@/lib/market/community.functions";
@@ -81,7 +81,14 @@ const attackFleet = (taker: "buy" | "sell"): FleetCallsign => taker === "buy" ? 
 const commenceClip = (fleet: FleetCallsign) => fleet === "Bull Fleet" ? "bull_cap_callsign_commence" : "bear_cap_commence";
 const aaClip = (fleet: FleetCallsign) => fleet === "Bull Fleet" ? "bull_cap_aa" : "bear_cap_aa";
 const abandonClip = (fleet: FleetCallsign) => fleet === "Bull Fleet" ? "bull_cap_abandon" : "bear_cap_abandon";
+/**
+ * Second voice system (multi-role chains + spoken digit readouts) is switched off: it ran on top of the
+ * recorded radio lines, mixed different synthetic voices and read numbers digit by digit, which sounded
+ * like a robot reading a spreadsheet. One radio, three characters, big moments only; numbers stay in subtitles.
+ */
+const NAVAL_CHAINS_ENABLED = false;
 function naval(id: string, priority: number, channel: VoiceChannel, fleet: FleetCallsign | undefined, detail: string, lines: VoiceChain["lines"]) {
+  if (!NAVAL_CHAINS_ENABLED) return;
   const chain: VoiceChain = { id: `${id}:${Date.now()}`, priority, channel, lines, ...(fleet ? { fleet } : {}), detail };
   const speaker = lines[0]?.role === "Captain" ? "captain" : fleet === "Bear Fleet" ? "admiral" : "spotter";
   useBattle.setState({ radio: { id: nextId(), text: audio.describeVoiceChain(chain), speaker, detail } });
@@ -169,12 +176,12 @@ function onEvent(ev: BattleEvent) {
   const fleet = side ? FLEET_NAME[side] : "";
   switch (ev.type) {
     case "fire": {
-      const target = view.displays.get(ev.target + ev.b);
+      const target = displayFor(ev.target, ev.b);
       if (target?.tier === "battleship" && ev.notional >= 250_000) orderReadout(ev, "flagship");
       if (ev.notional < 250_000) break;
       const sideName = ev.target === "bid" ? "Buyers'" : "Sellers'";
       const detail = `${usd(ev.notional)} aggressive ${ev.taker} ${target ? `hit the ${sideName} ${target.tier}` : "landed between ships"} at ${fmtPrice(ev.price)}`;
-      radio(target ? "spot_hit" : "spot_splash", detail);
+      if (target && (ev.notional >= 1_000_000 || target.tier === "battleship")) radio("spot_hit", detail);
       // only real outcomes are spoken: a hit is called by voice, a miss stays a subtitle (no invented corrections)
       if (target) naval("hit", 45, "tbs", callsign(ev.target), detail, [line("Lookout/Spotter", phrase("spot_hithit", "Hit! Hit!"))]);
       break;
@@ -201,7 +208,7 @@ function onEvent(ev: BattleEvent) {
         radio("spot_breaking", `${fleet}' flagship at ${fmtPrice(ev.price)} was fully traded`);
         triggerClip(`${fleet}' flagship sunk`);
         naval("flagship-sunk", 95, "tbs", callsign(ev.side), `${fleet} flagship at ${fmtPrice(ev.price)}`, [lineOn("tbs", "Lookout/Spotter", phrase("spot_goingunder", "She's going under")), lineOn("tbs", "Captain", phrase(abandonClip(callsign(ev.side)), `${callsign(ev.side)}, abandon ship`))]);
-      } else radio("spot_breaking", `${fleet}' ${ev.tier} worth ${usd(ev.notional)} sank at ${fmtPrice(ev.price)}`);
+      } else if (ev.tier === "cruiser") radio("spot_breaking", `${fleet}' ${ev.tier} worth ${usd(ev.notional)} sank at ${fmtPrice(ev.price)}`);
       break;
     case "dive":
     case "fled": {
@@ -215,9 +222,9 @@ function onEvent(ev: BattleEvent) {
     case "damage": {
       if (!side) break;
       const f = engineRef.current?.flagship(side);
-      const d = view.displays.get(side + ev.b);
+      const d = displayFor(side, ev.b);
       const damageKey = `${side}:${ev.b}`;
-      if (d && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); const detail = `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`; radio("spot_fire", detail); naval("damage", 60, "phone", callsign(ev.side), detail, [line("Damage Control", phrase("dc_fire_frame40", "Fire on the main deck, frame forty"))]); }
+      if (d && (d.tier === "cruiser" || d.tier === "battleship") && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); const detail = `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`; radio("spot_fire", detail); naval("damage", 60, "phone", callsign(ev.side), detail, [line("Damage Control", phrase("dc_fire_frame40", "Fire on the main deck, frame forty"))]); }
       if (!f || f.b !== ev.b) break;
       const h = flagHits[side]?.b === ev.b ? flagHits[side]! : (flagHits[side] = { b: ev.b, dmg: 0, told: 0 });
       h.dmg += ev.filled;

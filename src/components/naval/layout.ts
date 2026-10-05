@@ -30,6 +30,8 @@ export interface Display {
   ship: Tracked | null;
   departing: null | { kind: DepartKind; t0: number };
   surfacing: number; // >0 while rising from below (relocate / hidden)
+  /** how many price buckets this ship currently holds */
+  memberCount?: number;
   /** fixed swell phase per ship */
   seed?: number;
   /** view.time of the last visible surfacing (rate-limited) */
@@ -95,6 +97,8 @@ export const view = {
   visible: { bid: [] as Display[], ask: [] as Display[] },
   displays: new Map<string, Display>(),
   bucketVisual: new Map<string, Display>(),
+  /** fixed $-band width used to group buckets into stable ships */
+  bandW: 0,
   frameEvents: [] as BattleEvent[],
   fx: { glow: null as ParticlePool | null, smoke: null as ParticlePool | null },
   sinkPulse: 0,
@@ -159,3 +163,8 @@ export function addFloater(a: Anchor, text: string, tone: Floater["tone"]) {
  * maxLag: longest delay from trade receipt to its shot on screen.
  */
 export const fireStats = { last: 0, lastWall: 0, maxGap: 0, maxGapActive: 0, maxLag: 0, recvLast: 0, maxRecvGap: 0 };
+
+/** The ship that currently represents a price bucket (ships are stable price bands holding several buckets). */
+export function displayFor(side: BookSide, b: number): Display | undefined {
+  return view.bucketVisual.get(side + b) ?? view.displays.get(side + b);
+}

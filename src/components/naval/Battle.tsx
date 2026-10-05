@@ -9,7 +9,7 @@ import { Background } from "./Background";
 import { Effects } from "./Effects";
 import { Fleet } from "./Fleet";
 import { Ocean } from "./Ocean";
-import { DEPTH, ELEVATION, GAP, REAR, startFleetIntro, view, xForPrice } from "./layout";
+import { displayFor, DEPTH, ELEVATION, GAP, REAR, startFleetIntro, view, xForPrice } from "./layout";
 import { preloadModels } from "./models";
 import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";
@@ -136,7 +136,7 @@ function CameraRig() {
     const shiftY = ((topPx - botPx) / 2 / zoom) / Math.sin(elev);
     if (!view.mobile && !activeShot) view.cameraX += (view.frontX - view.cameraX) * (1 - Math.exp(-1.2 * dt));
     if (activeShot && activeShot.side) {
-      const d = activeShot.bucket === undefined ? null : view.displays.get(activeShot.side + activeShot.bucket);
+      const d = activeShot.bucket === undefined ? null : displayFor(activeShot.side, activeShot.bucket);
       const targetX = d?.x ?? view.frontX;
       view.cameraX += (targetX - view.cameraX) * (1 - Math.exp(-3 * dt));
       lastCut.current = activeShot.at;
@@ -185,10 +185,10 @@ function Projector() {
       }
     }
     screen.ticks = ticks;
-    const selected = view.selectedBucket ? view.displays.get(view.selectedBucket.side + view.selectedBucket.b) : null;
+    const selected = view.selectedBucket ? displayFor(view.selectedBucket.side, view.selectedBucket.b) : null;
     screen.selected = selected ? p({ x: selected.x, y: selected.y + selected.s * 0.4, z: selected.z }) : null;
     const lt = view.lessonTarget;
-    const ld = lt?.kind === "ship" ? view.displays.get(lt.side + lt.b) : null;
+    const ld = lt?.kind === "ship" ? displayFor(lt.side, lt.b) : null;
     screen.lesson = lt?.kind === "plane" ? p(view.plane) : ld ? p({ x: ld.x, y: ld.y + ld.s * 0.3, z: ld.z }) : null;
   });
   return null;

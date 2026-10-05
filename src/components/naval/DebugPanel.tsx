@@ -3,7 +3,7 @@ import { engineRef } from "@/lib/market/store";
 import type { Phase } from "@/lib/battle/phase";
 import { audio, SFX } from "@/lib/audio/engine";
 import { triggerClip, verifyNavalReadouts } from "./useDirector";
-import { fireStats, view } from "./layout";
+import { displayFor, fireStats, view } from "./layout";
 
 const PHASES: Phase[] = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"];
 
@@ -71,7 +71,7 @@ export function DebugPanel() {
             const f = e?.flagship(k === "flagship" ? "ask" : "bid");
             const now = performance.now();
             view.shot = k === "wide" ? null : { kind: k, at: now, until: now + 5000, side: k === "flagship" ? "ask" : "bid", ...(f ? { bucket: f.b } : {}) };
-            if (k === "flagship" && f) { const d = view.displays.get("ask" + f.b); if (d && !d.departing) d.departing = { kind: "sink", t0: view.time }; }
+            if (k === "flagship" && f) { const d = displayFor("ask", f.b); if (d && !d.departing) d.departing = { kind: "sink", t0: view.time }; }
           }}>cam:{k}</button>
         ))}
       </div>
