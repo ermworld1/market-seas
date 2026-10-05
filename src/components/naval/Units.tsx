@@ -19,12 +19,12 @@ function loadLegend() {
 /** Generated once at startup by an offscreen renderer using the battle's exact geometry and materials. */
 export function UnitIcon({ u }: { u: UnitDef }) {
   const key = u.icon;
-  const staticSrc = u.sided ? `/legend/${u.icon}-bid.png` : `/legend/${u.icon}.png`;
+  const staticSrc = `/legend/${u.icon}.png`;
   const [src, setSrc] = useState(legendCache[key] ?? staticSrc);
   const [playing, setPlaying] = useState(false);
   useEffect(() => { void loadLegend().then((r) => setSrc(r[key] ?? "")); }, [key]);
   return (
-    <button type="button" aria-label={`Preview ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative h-[55px] w-[110px] shrink-0 overflow-hidden", playing && "is-playing")}>
+    <button type="button" aria-label={`Preview ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative h-[55px] w-[110px] shrink-0 overflow-hidden bg-transparent", playing && "is-playing")}>
       <img src={src} alt="" width={110} height={55} className="h-full w-full object-contain" />
       {playing && <span className={cn("unit-preview-fx", u.id)} aria-hidden />}
     </button>

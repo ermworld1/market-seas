@@ -417,7 +417,7 @@ export function Fleet() {
           if (m.instanceColor) m.instanceColor.needsUpdate = true;
         }
     for (const side of SIDES)
-      for (const p of ["s", "d", "f", "p"]) {
+      for (const p of ["f", "p"]) {
         const m = markings.current[p + side];
         if (!m) continue;
         m.count = counts["h" + side] ?? 0;
