@@ -153,13 +153,14 @@ function Header({ now }: { now: number }) {
         <TugOfWar />
       </div>
       <div className={cn("mt-1.5 grid grid-cols-4 gap-x-3 gap-y-1 md:grid-cols-9", presentation === "cinema" && "hidden")}>
-        <Stat label="Last / mark">
+        <Stat label="Last">
           {hud.last ? fmtPrice(hud.last) : "—"}
-          <span className="ml-1 text-muted-foreground">{hud.mark ? fmtPrice(hud.mark) : ""}</span>
+          {/* mark on its own small line so neither number is cut off */}
+          <span className="block text-[10px] text-muted-foreground">mark {hud.mark ? fmtPrice(hud.mark) : "—"}</span>
         </Stat>
         <Stat label="Funding">
           <span title="Funding is paid between longs and shorts every 8h. Positive: longs pay shorts.">{hud.mark ? `${(hud.funding * 100).toFixed(4)}%` : "—"}</span>
-          {hud.mark ? <span className="ml-1 text-[10px] text-muted-foreground">{hud.funding >= 0 ? "longs pay" : "shorts pay"}</span> : null}
+          {hud.mark ? <span className="block text-[10px] text-muted-foreground">{hud.funding >= 0 ? "longs pay shorts" : "shorts pay longs"}</span> : null}
         </Stat>
         <Stat label="Open interest" className="hidden md:block">
           {hud.oi ? hud.oi.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 }) : "—"}
