@@ -38,6 +38,16 @@ export const SHIPS: UnitDef[] = [
   { id: "battleship", name: "Flagship (battleship)", icon: "battleship", sided: true, rule: "largest bucket on each side", text: "The biggest wall. Its HP bar is its size." },
 ];
 
+/** Universal ship guide item. It deliberately avoids tier claims because visible ships may merge nearby buckets. */
+export const SHIP_GUIDE: UnitDef = {
+  id: "ship",
+  name: "Ship",
+  icon: "patrol",
+  sided: true,
+  rule: "real resting liquidity from the live order book",
+  text: "Bigger means more displayed notional. Left/right is price; front/back is how long the liquidity has rested.",
+};
+
 export const WEAPONS: UnitDef[] = [
   { id: "mg", name: "Machine gun", icon: "fx-mg", sided: true, rule: `trades below the ${pct(TRADE_Q.gun)} size rank`, text: "A small real trade; one tracer per fill (max 24)." },
   { id: "gun", name: "Deck gun", icon: "fx-gun", sided: true, rule: `${pct(TRADE_Q.gun)}–${pct(TRADE_Q.torpedo)}`, text: "A medium real trade; arcing shells." },

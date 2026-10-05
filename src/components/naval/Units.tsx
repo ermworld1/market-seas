@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { AIRCRAFT, EVENTS, RULES_FACTS, SCENERY, SHIPS, WEAPONS, type UnitDef } from "@/lib/battle/units";
+import { AIRCRAFT, EVENTS, RULES_FACTS, SCENERY, SHIP_GUIDE, WEAPONS, type UnitDef } from "@/lib/battle/units";
 import { engineRef, useBattle } from "@/lib/market/store";
 import { cn } from "@/lib/utils";
 
@@ -79,7 +79,7 @@ export function UnitSections({ compact = false }: { compact?: boolean }) {
   return (
     <>
       <H>Ships (resting liquidity)</H>
-      <UnitList items={SHIPS} compact={compact} explainSides />
+      <UnitList items={[SHIP_GUIDE]} compact={compact} explainSides />
       <H>Weapons (real trades)</H>
       <UnitList items={WEAPONS} compact={compact} />
       <H>Aircraft</H>

@@ -25,7 +25,7 @@ const STEPS: Step[] = [
     text: "This ship is real resting liquidity on Binance (many orders in one price bucket). Left/right is its price; front/back is how long it has rested. Green decks are Buyers, red decks are Sellers.",
     rect: () => (screen.near ? { x: screen.near.x - 40, y: screen.near.y - 40, w: 80, h: 80 } : null),
   },
-  { title: "Ship size = liquidity", text: "Bigger ships hold more resting liquidity, ranked against the rest of the book. The largest on each side is the flagship.", rect: el('[data-tour="legend"]') },
+  { title: "Every ship = liquidity", text: "Every ship is real resting liquidity from the live order book. Bigger means more displayed notional. Green decks are Buyers; red decks are Sellers.", rect: el('[data-tour="legend"]') },
   { title: "Battle clock and flagships", text: "Each battle lasts 5 minutes. Push the price toward the other fleet and sink its flagship to win.", rect: el('[data-tour="clock"]') },
 ];
 
