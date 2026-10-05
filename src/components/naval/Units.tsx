@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { AIRCRAFT, EVENTS, RULES_FACTS, SCENERY, SHIP_GUIDE, WEAPONS, type UnitDef } from "@/lib/battle/units";
+import { AIRCRAFT, EVENTS, RULES_FACTS, SCENERY, SHIPS, WEAPONS, type UnitDef } from "@/lib/battle/units";
 import { engineRef, useBattle } from "@/lib/market/store";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ function loadLegend() {
 }
 
 /** Generated once at startup by an offscreen renderer using the battle's exact geometry and materials. */
-export function UnitIcon({ u }: { u: UnitDef }) {
+export function UnitIcon({ u, small = false }: { u: UnitDef; small?: boolean }) {
   const key = u.icon;
   // Existing side render is only a loading fallback; the offscreen neutral
   // render replaces it as soon as the exact live geometry is ready.
@@ -26,8 +26,8 @@ export function UnitIcon({ u }: { u: UnitDef }) {
   const [playing, setPlaying] = useState(false);
   useEffect(() => { void loadLegend().then((r) => setSrc(r[key] ?? "")); }, [key]);
   return (
-    <button type="button" aria-label={`Preview ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative h-[55px] w-[110px] shrink-0 overflow-hidden bg-transparent", playing && "is-playing")}>
-      <img src={src} alt="" width={110} height={55} className="h-full w-full object-contain" />
+    <button type="button" aria-label={`Preview ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative shrink-0 overflow-hidden bg-transparent", small ? "h-[18px] w-[36px]" : "h-[55px] w-[110px]", playing && "is-playing")}>
+      <img src={src} alt="" width={small ? 36 : 110} height={small ? 18 : 55} className="h-full w-full object-contain" />
       {playing && <span className={cn("unit-preview-fx", u.id)} aria-hidden />}
     </button>
   );
@@ -49,6 +49,22 @@ function liveRule(u: UnitDef) {
   if (u.id === "torpedo") return `${money(tq.quantile(0.9))}–${money(tq.quantile(0.99))} right now`;
   if (u.id === "broadside") return `trades of ${money(tq.quantile(0.99))} or more right now`;
   return u.rule;
+}
+
+/** Short live range for the legend strip, e.g. "$190K to $1.2M" (same quantiles as the fleet). */
+export function shortRange(id: string): string {
+  const e = engineRef.current;
+  const q = e?.bucketSampler;
+  if (id === "fighter") return "$200K+ burst";
+  if (id === "bomber") return "liquidation";
+  if (id === "battleship") return "largest wall";
+  if (!q) return "";
+  const a = q.quantile(0.4), b = q.quantile(0.7), c = q.quantile(0.9);
+  if (id === "patrol") return `under ${money(a)}`;
+  if (id === "destroyer") return `${money(a)} to ${money(b)}`;
+  if (id === "frigate") return `${money(b)} to ${money(c)}`;
+  if (id === "cruiser") return `${money(c)}+`;
+  return "";
 }
 
 export function UnitList({ items, compact = false, explainSides = false }: { items: UnitDef[]; compact?: boolean; explainSides?: boolean }) {
@@ -79,7 +95,7 @@ export function UnitSections({ compact = false }: { compact?: boolean }) {
   return (
     <>
       <H>Ships (resting liquidity)</H>
-      <UnitList items={[SHIP_GUIDE]} compact={compact} explainSides />
+      <UnitList items={SHIPS} compact={compact} explainSides />
       <H>Weapons (real trades)</H>
       <UnitList items={WEAPONS} compact={compact} />
       <H>Aircraft</H>
