@@ -243,8 +243,8 @@ export function Fleet() {
           key: side + s.b,
           x: xForPrice(side, s.price),
           z: zForStation(Math.min(...members.map((member) => member.bornAt))),
-          length: TIER_SCALE[s.tier] * weight,
-          beam: TIER_SCALE[s.tier] * weight * 0.24,
+          length: TIER_SCALE[s.tier] * weight * 1.08,
+          beam: TIER_SCALE[s.tier] * weight * 0.32,
         })), view.halfW * 0.96);
         for (let gi = 0; gi < shown.length; gi++) {
           const { ship: s, members, weight } = shown[gi]!;

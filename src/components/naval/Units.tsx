@@ -19,7 +19,9 @@ function loadLegend() {
 /** Generated once at startup by an offscreen renderer using the battle's exact geometry and materials. */
 export function UnitIcon({ u }: { u: UnitDef }) {
   const key = u.icon;
-  const staticSrc = `/legend/${u.icon}.png`;
+  // Existing side render is only a loading fallback; the offscreen neutral
+  // render replaces it as soon as the exact live geometry is ready.
+  const staticSrc = `/legend/${u.icon}-bid.png`;
   const [src, setSrc] = useState(legendCache[key] ?? staticSrc);
   const [playing, setPlaying] = useState(false);
   useEffect(() => { void loadLegend().then((r) => setSrc(r[key] ?? "")); }, [key]);

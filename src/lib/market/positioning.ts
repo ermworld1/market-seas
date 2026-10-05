@@ -36,21 +36,25 @@ export function separateStationDepth(points: StationPoint[], halfDepth: number) 
   const out = new Map<string, { x: number; z: number }>();
   const placed: Array<StationPoint & { z: number }> = [];
   const ordered = [...points].sort((a, b) => b.z - a.z || a.x - b.x || a.key.localeCompare(b.key));
+  const collides = (point: StationPoint, z: number) => placed.some((other) => {
+    const xClearance = (point.length + other.length) * 0.52;
+    const zClearance = (point.beam + other.beam) * 0.72 + 0.08;
+    return Math.abs(point.x - other.x) < xClearance && Math.abs(z - other.z) < zClearance;
+  });
   for (const point of ordered) {
-    let z = Math.max(-halfDepth, Math.min(point.z, halfDepth));
-    for (let pass = 0; pass < points.length; pass++) {
-      let next = z;
-      for (const other of placed) {
-        const xClearance = (point.length + other.length) * 0.52;
-        const zClearance = (point.beam + other.beam) * 0.62;
-        if (Math.abs(point.x - other.x) < xClearance && Math.abs(z - other.z) < zClearance) {
-          next = Math.min(next, other.z - zClearance);
-        }
+    const target = Math.max(-halfDepth, Math.min(point.z, halfDepth));
+    let z = target;
+    // Search both depth directions around the data-derived target. X is exact;
+    // only the minimum depth displacement needed to clear another hull is used.
+    if (collides(point, z)) {
+      const step = Math.max(0.18, point.beam * 0.32);
+      for (let ring = 1; ring <= Math.ceil((halfDepth * 2) / step); ring++) {
+        const towardRear = target - ring * step;
+        const towardCamera = target + ring * step;
+        if (towardRear >= -halfDepth && !collides(point, towardRear)) { z = towardRear; break; }
+        if (towardCamera <= halfDepth && !collides(point, towardCamera)) { z = towardCamera; break; }
       }
-      if (next === z) break;
-      z = next;
     }
-    z = Math.max(-halfDepth, z);
     const placedPoint = { ...point, z };
     placed.push(placedPoint);
     out.set(point.key, { x: point.x, z });

@@ -74,9 +74,9 @@ export function Ocean() {
       textureHeight: view.mobile ? 192 : 384,
       waterNormals: normals,
       sunDirection: sun.clone(),
-      sunColor: 0xfff4dc,
+      sunColor: 0xfff7ea,
       waterColor: 0x1e4e6e,
-      distortionScale: 2.6,
+      distortionScale: 1.8,
       fog: true,
       alpha: 1,
     });
@@ -172,7 +172,7 @@ export function Ocean() {
 
     const u = wu(water);
     u.time.value += dt * (0.45 + s * 1.1);
-    u.distortionScale.value = 2.2 + s * 5.5;
+    u.distortionScale.value = 1.45 + s * 3.8;
     u.size.value = 2.2 - s * 1.0;
     u.waterColor.value.copy(calmWater).lerp(stormWater, s * 0.75);
 
@@ -193,9 +193,9 @@ export function Ocean() {
     // lightning only in FULL WAR
     flashT.current = Math.max(0, flashT.current - dt * 4);
     if (war && Math.random() < dt * 0.4) flashT.current = 1;
-    if (sunLight.current) sunLight.current.intensity = 3.2 * (1 - s * 0.42) + flashT.current * 3;
-    if (hemi.current) hemi.current.intensity = 1.35 * (1 - s * 0.25) + flashT.current * 1.5;
-    gl.toneMappingExposure = 0.78 - s * 0.08 + flashT.current * 0.28;
+    if (sunLight.current) sunLight.current.intensity = 2.15 * (1 - s * 0.36) + flashT.current * 2;
+    if (hemi.current) hemi.current.intensity = 1.1 * (1 - s * 0.22) + flashT.current;
+    gl.toneMappingExposure = 0.58 - s * 0.05 + flashT.current * 0.2;
 
     // rain
     const count = Math.floor(RAIN_MAX * Math.max(0, (s - 0.25) / 0.75) * (view.mobile ? 0.5 : 1));
@@ -224,11 +224,11 @@ export function Ocean() {
       <primitive object={water} />
       <primitive object={clouds} />
       <primitive object={rain} />
-      <hemisphereLight ref={hemi} args={["#e7f5ff", "#295467", 1.35]} />
+      <hemisphereLight ref={hemi} args={["#e7f5ff", "#295467", 1.1]} />
       <directionalLight
         ref={sunLight}
         position={[sun.x * 100, sun.y * 100 + 30, sun.z * 100]}
-        intensity={3.2}
+        intensity={2.15}
         color="#fff7e8"
         castShadow
         shadow-mapSize-width={view.mobile ? 1024 : 2048}
@@ -239,11 +239,11 @@ export function Ocean() {
         shadow-camera-bottom={-20}
         shadow-bias={-0.0004}
       />
-      <ambientLight intensity={0.42} />
+      <ambientLight intensity={0.3} />
       <Environment frames={1} resolution={128}>
-        <Lightformer intensity={3.2} position={[0, 7, -10]} scale={[20, 5, 1]} color="#fff0d5" />
-        <Lightformer intensity={1.8} position={[-8, 4, 4]} rotation-y={Math.PI / 2} scale={[20, 3, 1]} color="#c8e5f4" />
-        <Lightformer intensity={1.1} position={[8, 3, 6]} rotation-y={-Math.PI / 2} scale={[20, 3, 1]} color="#9bc3d5" />
+        <Lightformer intensity={1.6} position={[0, 7, -10]} scale={[20, 5, 1]} color="#fff0d5" />
+        <Lightformer intensity={1.15} position={[-8, 4, 4]} rotation-y={Math.PI / 2} scale={[20, 3, 1]} color="#c8e5f4" />
+        <Lightformer intensity={0.8} position={[8, 3, 6]} rotation-y={-Math.PI / 2} scale={[20, 3, 1]} color="#9bc3d5" />
       </Environment>
     </>
   );
