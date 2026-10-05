@@ -19,7 +19,7 @@ const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
 const MAX_VOICES = 12;
 /** Voice lines are recorded files in /public/vo. There is deliberately no TTS path. */
 export const VO_FILES: Record<string, string> = { P3: "p3_fire", P4: "capital", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo", dive: "dive", surface: "surface", flagsunk: "flagsunk", liq: "bombers", radiocheck: "cap_stations", flaghit: "p3_fire", fighter: "p3_fire", start: "cap_stations", warn: "cap_holdline", end: "p7_ceasefire", capital: "capital", cap_commence: "cap_commence", cap_holdline: "cap_holdline", cap_stations: "cap_stations", adm_openfire: "adm_openfire", adm_break: "adm_break", adm_withdraw: "adm_withdraw", spot_hit: "spot_hit", spot_aircraft: "spot_aircraft", spot_sonar: "spot_sonar", spot_fire: "spot_fire", spot_breaking: "spot_breaking" };
-const VO_COOLDOWN = 6;
+const VO_COOLDOWN = 9;
 const VARIANTS = 6;
 const LAYERS = ["sea", "drone", "drums", "brass", "choir"] as const;
 type Layer = (typeof LAYERS)[number];

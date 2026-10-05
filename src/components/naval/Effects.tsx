@@ -7,7 +7,7 @@ import { tracersFor } from "@/lib/market/rules";
 import { audio, panX } from "@/lib/audio/engine";
 import { makeAircraftMaterial, useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
-import { fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
+import { displayFor, fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
 import { introArrived, INTRO_MS } from "@/lib/market/positioning";
 
 const MAX_PROJ = 2400;
@@ -224,7 +224,7 @@ export function Effects() {
       spawn({ ...base, weapon: "mg", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.18, ty, tz: tz + (Math.random() - 0.5) * 0.35, dur: 0.14 + i * 0.012, arc: 0.12, size: 0.03, len: 0.45 });
     engineRef.current && (engineRef.current.tracersSpawned += n);
     // near miss: trade printed in a bucket with no ship → splash where it landed
-    if (!view.displays.get(ev.target + ev.b)) splash(xForPrice(ev.target, ev.price), zForBucket(ev.b), 0.35);
+    if (!displayFor(ev.target, ev.b)) splash(xForPrice(ev.target, ev.price), zForBucket(ev.b), 0.35);
     const now = performance.now();
     const wall = Date.now();
     if (fireStats.last) fireStats.maxGap = Math.max(fireStats.maxGap, now - fireStats.last);
@@ -337,7 +337,7 @@ export function Effects() {
         }
         audio.play("liquidation");
       } else if (ev.type === "sink") {
-        const d = view.displays.get(ev.side + ev.b);
+        const d = displayFor(ev.side, ev.b);
         if (d) splash(d.x, d.z, Math.min(2, 0.6 + d.s * 0.4));
       }
     }

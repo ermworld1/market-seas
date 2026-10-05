@@ -20,27 +20,25 @@ export async function renderLegend(): Promise<Record<string, string>> {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const geo = async (n: keyof typeof MODELS, kind: "ship" | "air") => normalizeGeometry((await loader.loadAsync(MODELS[n])).scene, kind);
-  const shot = (g: THREE.BufferGeometry, mat: THREE.Material, side: Side | "neutral", scale: number, air = false) => {
+  /** one neutral sample per unit: near-side profile so each hull and superstructure reads, framed to fill the card */
+  const shot = (g: THREE.BufferGeometry, mat: THREE.Material, _side: Side | "neutral", _scale: number, air = false) => {
     const scene = new THREE.Scene();
     scene.background = null;
-    scene.add(new THREE.HemisphereLight("#f2f7fa", "#50616b", 1.65));
-    const d = new THREE.DirectionalLight("#fff8e8", 2.6);
-    d.position.set(2, 4, 3);
+    scene.add(new THREE.HemisphereLight("#f4f8fb", "#3c4a52", 1.9));
+    const d = new THREE.DirectionalLight("#fff6e6", 2.8);
+    d.position.set(1.5, 3, 4);
     scene.add(d);
     const m = new THREE.Mesh(g, mat);
-    m.rotation.y = side === "bid" ? Math.PI * 0.72 : side === "ask" ? -Math.PI * 0.28 : -Math.PI * 0.22;
-    m.scale.setScalar(scale);
+    m.rotation.y = air ? -0.5 : -0.32;
     scene.add(m);
-    if (!air) {
-      const green = new THREE.MeshStandardMaterial({ color: UNIT_PAINT_HEX.bid, emissive: 0x000000, emissiveIntensity: 0, roughness: 0.84 });
-      const red = new THREE.MeshStandardMaterial({ color: UNIT_PAINT_HEX.ask, emissive: 0x000000, emissiveIntensity: 0, roughness: 0.84 });
-      const left = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.012, 0.12).translate(-0.19, 0.14, 0), green);
-      const right = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.012, 0.12).translate(0.19, 0.14, 0), red);
-      for (const q of [left, right]) { q.rotation.y = m.rotation.y; q.scale.setScalar(scale); scene.add(q); }
-    }
-    const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
-    cam.position.set(0.55, air ? 1.05 : 0.72, 2.55);
-    cam.lookAt(0, air ? 0 : 0.1, 0);
+    m.updateMatrixWorld();
+    const box = new THREE.Box3().setFromObject(m);
+    const size = box.getSize(new THREE.Vector3());
+    const c = box.getCenter(new THREE.Vector3());
+    const cam = new THREE.PerspectiveCamera(22, W / H, 0.01, 50);
+    const dist = (Math.max(size.x / (W / H), size.y, size.z * 0.6) * 1.15) / (2 * Math.tan(THREE.MathUtils.degToRad(11)));
+    cam.position.set(c.x, c.y + dist * (air ? 0.45 : 0.22), c.z + dist);
+    cam.lookAt(c);
     r.setClearColor(0, 0);
     r.render(scene, cam);
     return r.domElement.toDataURL("image/png");
@@ -51,7 +49,7 @@ export async function renderLegend(): Promise<Record<string, string>> {
   ];
   for (const [id, model, sc] of ships) {
     const g = await geo(model, "ship");
-    const mat = model === "transport" || model === "tanker" ? makeAircraftMaterial() : makeFleetMaterial("neutral", id === "destroyer");
+    const mat = model === "transport" || model === "tanker" ? makeAircraftMaterial() : makeAircraftMaterial();
     out[id] = shot(g, mat, "neutral", sc);
   }
   const air = () => makeAircraftMaterial();
