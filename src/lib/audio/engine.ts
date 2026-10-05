@@ -580,24 +580,31 @@ class AudioEngine {
     // WWII piston engines: a recorded propeller loop (CC-BY 3.0, jakobthiesen / AntumDeluge) runs for the
     // aircraft's whole visible life. Fighter = one engine at higher rpm; bomber = four engines, slightly
     // detuned so they beat like a multi-engine drone. A quiet recorded fly-by adds the air rush.
-    const propBuf = this.bank("prop")[0];
-    const rushBuf = this.bank("aircraft")[kind === "bomber" ? 2 : 0];
+    // Real WWII recordings (Sonniss GDC bundle, royalty-free): fighters use a Spitfire fly-by whose loudest
+    // moment is lined up with the middle of the plane's pass; bombers use B-25 piston engines looped.
+    const spits = this.bank("spitfire");
+    const b25 = this.bank("b25")[0];
+    const propBuf = kind === "fighter" ? (spits.length ? spits[Math.floor(Math.random() * spits.length)] : this.bank("prop")[0]) : (b25 ?? this.bank("prop")[0]);
+    const isFlyby = kind === "fighter" && spits.length > 0;
+    const rushBuf = isFlyby ? undefined : this.bank("aircraft")[kind === "bomber" ? 2 : 0];
     if (propBuf) {
-      const rates = kind === "fighter" ? [1.18] : [0.72, 0.735, 0.75, 0.765];
+      const rates = isFlyby ? [1] : kind === "fighter" ? [1.18] : b25 ? [1.22, 1.245] : [0.72, 0.735, 0.75, 0.765];
       const engines: AudioBufferSourceNode[] = [];
       const lp = this.filt("lowpass", 2200, 0.7);
       const level = ctx.createGain();
-      level.gain.value = (lead ? 1 : 0.35) * (kind === "fighter" ? 1.6 : 1.6);
+      level.gain.value = (lead ? 1 : 0.35) * (isFlyby ? 1.3 : kind === "fighter" ? 1.6 : b25 ? 4.5 : 1.6);
       lp.connect(level).connect(out);
       for (const r of rates) {
         const src = ctx.createBufferSource();
         src.buffer = propBuf;
-        src.loop = true;
+        src.loop = !isFlyby;
         src.playbackRate.value = r;
         const g = ctx.createGain();
         g.gain.value = 1 / Math.sqrt(rates.length);
         src.connect(g).connect(lp);
-        src.start(t, Math.random() * propBuf.duration);
+        // fly-by: start so the recording's peak (its centre) lands at the middle of the on-screen pass
+        if (isFlyby) src.start(t, Math.max(0, propBuf.duration / 2 - life / 2));
+        else src.start(t, Math.random() * propBuf.duration);
         engines.push(src);
       }
       if (rushBuf) {
@@ -622,22 +629,30 @@ class AudioEngine {
           if (stopped || !this.ctx) return;
           const now = this.ctx.currentTime;
           pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, panV)), now, 0.05);
-          out.gain.setTargetAtTime(0.35 + 0.65 * closeness, now, 0.1);
-          lp.frequency.setTargetAtTime(900 + 2600 * closeness, now, 0.1);
+          // the fly-by recording already carries its own approach and recede
+          out.gain.setTargetAtTime(isFlyby ? 1 : 0.35 + 0.65 * closeness, now, 0.1);
+          lp.frequency.setTargetAtTime(isFlyby ? 18000 : 900 + 2600 * closeness, now, 0.1);
           // doppler + engine strain when pulling up
           const k = Math.max(0.88, Math.min(1.14, pitch)) * (1 + climb * 0.12);
-          engines.forEach((e, i) => { if (i < rates.length) e.playbackRate.setTargetAtTime(rates[i]! * k, now, 0.08); });
+          if (!isFlyby) engines.forEach((e, i) => { if (i < rates.length) e.playbackRate.setTargetAtTime(rates[i]! * k, now, 0.08); });
         },
         guns: (dur: number, panV: number) => {
           if (stopped || !this.ctx) return;
           // wing guns: short .50-cal bursts for the whole strafing run, on the aircraft bus (not ducked with
           // the ships' guns), slightly faster/brighter than ship machine guns so they read as aircraft fire
-          const bursts = Math.max(2, Math.round(dur / 0.32));
+          const bursts = Math.max(1, Math.round(dur / 0.9));
           for (let k = 0; k < bursts; k++) {
             window.setTimeout(() => {
               if (stopped) return;
-              this.play("mg", { x: panV + (k / bursts) * 0.6 - 0.3, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
-            }, k * 320 + Math.random() * 60);
+              const c = this.ctx;
+              if (!c) return;
+              const p2 = c.createStereoPanner();
+              p2.pan.value = Math.max(-1, Math.min(1, panV + (k / bursts) * 0.6 - 0.3));
+              p2.connect(bus);
+              const n3: AudioScheduledSourceNode[] = [];
+              // real Browning M2 .50-cal bursts (the wing guns of WWII US fighters); falls back to the ship MG
+              if (!this.oneShot("m2", c.currentTime, p2, n3, lead ? 1.1 : 0.5, 0.95 + Math.random() * 0.1)) this.play("mg", { x: panV, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
+            }, k * 900 + Math.random() * 120);
           }
           this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
         },
@@ -693,12 +708,19 @@ class AudioEngine {
           if (stopped || !this.ctx) return;
           // wing guns: short .50-cal bursts for the whole strafing run, on the aircraft bus (not ducked with
           // the ships' guns), slightly faster/brighter than ship machine guns so they read as aircraft fire
-          const bursts = Math.max(2, Math.round(dur / 0.32));
+          const bursts = Math.max(1, Math.round(dur / 0.9));
           for (let k = 0; k < bursts; k++) {
             window.setTimeout(() => {
               if (stopped) return;
-              this.play("mg", { x: panV + (k / bursts) * 0.6 - 0.3, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
-            }, k * 320 + Math.random() * 60);
+              const c = this.ctx;
+              if (!c) return;
+              const p2 = c.createStereoPanner();
+              p2.pan.value = Math.max(-1, Math.min(1, panV + (k / bursts) * 0.6 - 0.3));
+              p2.connect(bus);
+              const n3: AudioScheduledSourceNode[] = [];
+              // real Browning M2 .50-cal bursts (the wing guns of WWII US fighters); falls back to the ship MG
+              if (!this.oneShot("m2", c.currentTime, p2, n3, lead ? 1.1 : 0.5, 0.95 + Math.random() * 0.1)) this.play("mg", { x: panV, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
+            }, k * 900 + Math.random() * 120);
           }
           this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
         },
