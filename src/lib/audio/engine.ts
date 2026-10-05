@@ -318,7 +318,7 @@ class AudioEngine {
     if (this.radioChecked) return;
     this.radioChecked = true;
     this.lastVoiceAt = -1e9;
-    void this.voice("cap_stations", "Battle stations! All hands to battle stations!");
+    void this.exchange(["s_contact", "c_stations", "a_stations"], 0);
   }
 
   /** Opening movement is the only non-market ship motion: alarm, telegraph and engines. */
@@ -405,7 +405,7 @@ class AudioEngine {
       const buf = await this.loadVo(`legacy:${file}`);
       if (buf) {
         this.lastVoiceAt = now;
-        this.radioBuffer(buf);
+        this.radioBuffer(buf, undefined, character);
         this.voPlayed.push(key);
         this.voByCharacter[character] = (this.voByCharacter[character] ?? 0) + 1;
         return true;
@@ -413,14 +413,42 @@ class AudioEngine {
     }
     return false;
   }
-  /** Play once on the first torpedo after 30 s without any voice. */
-  torpedoVoice() {
+  /** Torpedo exchange: spotter calls it, the commander of the targeted fleet answers. At most every 30 s. */
+  torpedoVoice(target: "bid" | "ask" = "bid") {
     const ctx = this.ctx;
     if (!ctx) return;
     const now = ctx.currentTime;
-    if (now - this.lastVoiceAt < 30 || now - this.lastTorpedoVoice < 30) return;
+    if (now - this.lastVoiceAt < 20 || now - this.lastTorpedoVoice < 30) return;
     this.lastTorpedoVoice = now;
-    void this.voice("torpedo", "Torpedo in the water!");
+    void this.exchange(["s_torpedo", `${target === "bid" ? "c" : "a"}_evade`]);
+  }
+
+  exchangesPlayed: string[][] = [];
+  /**
+   * A short radio exchange between several people, e.g. spotter report then the commander's order.
+   * Lines play back to back with a mic click / squelch between speakers. Each speaker sits on a
+   * different circuit (spotter: ship phone, Buyers' captain: radio left, Sellers' admiral: radio right).
+   * Clips live in /vo/x/<key>.mp3. Returns false when the radio is busy (exchanges never overlap).
+   */
+  async exchange(keys: string[], minGap = 10): Promise<boolean> {
+    const ctx = this.ctx;
+    if (!ctx || !this.enabled || ctx.state !== "running" || !keys.length) return false;
+    const now = ctx.currentTime;
+    if (now < this.voBusyUntil || now - this.lastVoiceAt < minGap) return false;
+    this.lastVoiceAt = now;
+    const bufs = await Promise.all(keys.map((k) => this.loadVo(`x:${k}`)));
+    if (!this.ctx) return false;
+    let t = this.ctx.currentTime + 0.15;
+    keys.forEach((k, i) => {
+      const b = bufs[i];
+      if (!b) return;
+      const who = k.startsWith("c_") ? "captain" : k.startsWith("a_") ? "admiral" : "spotter";
+      t = this.radioBuffer(b, t, who) + 0.28;
+      this.voByCharacter[who] = (this.voByCharacter[who] ?? 0) + 1;
+    });
+    this.exchangesPlayed.push(keys);
+    if (this.exchangesPlayed.length > 50) this.exchangesPlayed.shift();
+    return true;
   }
   hasVoiceBeenQuiet(seconds: number) {
     return !!this.ctx && this.ctx.currentTime - this.lastVoiceAt >= seconds;
@@ -433,8 +461,9 @@ class AudioEngine {
       p = (async () => {
         try {
           const legacy = file.startsWith("legacy:");
-          const name = legacy ? file.slice(7) : file;
-          const r = await fetch(legacy ? `/vo/${name}.wav` : `/vo/naval/${name}.mp3`);
+          const x = file.startsWith("x:");
+          const name = legacy ? file.slice(7) : x ? file.slice(2) : file;
+          const r = await fetch(legacy ? `/vo/${name}.wav` : x ? `/vo/x/${name}.mp3` : `/vo/naval/${name}.mp3`);
           if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) return await this.ctx!.decodeAudioData(await r.arrayBuffer());
         } catch { /* slot empty */ }
         return null;
@@ -443,28 +472,37 @@ class AudioEngine {
     }
     return p;
   }
-  private radioBuffer(buf: AudioBuffer) {
+  private radioBuffer(buf: AudioBuffer, at?: number, who: "captain" | "admiral" | "spotter" = "spotter"): number {
     const ctx = this.ctx!;
-    const t = ctx.currentTime + 0.2;
-    this.micClick(ctx.currentTime);
-    this.static(ctx.currentTime + 0.03, 0.2);
+    const start = at ?? ctx.currentTime + 0.2;
+    const pre = Math.max(ctx.currentTime, start - 0.2);
+    this.micClick(pre);
+    this.static(pre + 0.03, 0.17);
     const s = ctx.createBufferSource();
     s.buffer = buf;
     const shaper = ctx.createWaveShaper();
     const curve = new Float32Array(1024);
+    const drive = who === "spotter" ? 2.8 : 2.0;
     for (let i = 0; i < 1024; i++) {
       const x = (i / 1023) * 2 - 1;
-      curve[i] = Math.tanh(x * 2.2) / Math.tanh(2.2);
+      curve[i] = Math.tanh(x * drive) / Math.tanh(drive);
     }
     shaper.curve = curve;
     const g = ctx.createGain();
     g.gain.value = 1.1;
-    this.chain(s, this.buses["vo"]!, this.filt("highpass", 300, 0.8), this.filt("lowpass", 3400, 0.8), this.filt("peaking", 1800, 1), shaper, g);
-    s.start(t);
-    this.voBusyUntil = t + buf.duration;
-    this.duck(t, buf.duration);
-    this.static(t + buf.duration, 0.2);
-    this.micClick(t + buf.duration + 0.12);
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = who === "captain" ? -0.45 : who === "admiral" ? 0.45 : 0;
+    // spotter on the ship's sound-powered phone (narrow, hard); commanders on the fleet radio (wider)
+    const lo = who === "spotter" ? 450 : 300;
+    const hi = who === "spotter" ? 2900 : 3500;
+    this.chain(s, this.buses["vo"]!, this.filt("highpass", lo, 0.8), this.filt("lowpass", hi, 0.8), this.filt("peaking", who === "spotter" ? 1500 : 1900, 1), shaper, g, pan);
+    s.start(start);
+    const end = start + buf.duration;
+    this.voBusyUntil = Math.max(this.voBusyUntil, end);
+    this.duck(start, buf.duration);
+    this.static(end, 0.15);
+    this.micClick(end + 0.08);
+    return end;
   }
   private micClick(t: number) {
     const n: AudioScheduledSourceNode[] = [];
@@ -486,6 +524,7 @@ class AudioEngine {
   }
 
   // ───────── aircraft: one engine voice per visible plane, alive exactly as long as the plane ─────────
+  activeAircraft = 0;
   aircraftLog: { kind: string; ev: "spawn" | "exit" | "guns" | "bomb"; t: number }[] = [];
   /** Starts a looping propeller engine for one aircraft. Returns null when audio is off. */
   aircraftStart(kind: "fighter" | "bomber", life = 3.5, lead = true) {
@@ -507,9 +546,12 @@ class AudioEngine {
       const baseRate = Math.max(0.85, Math.min(1.35, buf.duration / Math.max(life, 0.5))) * (kind === "bomber" ? 0.78 : 1);
       src.playbackRate.value = baseRate;
       const level = ctx.createGain();
-      level.gain.value = lead ? 1 : 0.35; // wingmen sit under the lead plane instead of stacking copies
+      level.gain.value = lead ? 1.5 : 0.4; // wingmen sit under the lead plane instead of stacking copies
       src.connect(level).connect(out);
       src.start(t);
+      // duck the guns while aircraft are overhead so the engines are actually heard
+      this.activeAircraft++;
+      this.buses["weapons"]?.gain.setTargetAtTime(0.32, t, 0.15);
       this.aircraftLog.push({ kind, ev: "spawn", t: performance.now() });
       let stopped = false;
       return {
@@ -539,6 +581,8 @@ class AudioEngine {
           out.gain.cancelScheduledValues(now);
           out.gain.setTargetAtTime(0.0001, now, 0.25);
           try { src.stop(now + 1.2); } catch { /* ended */ }
+          this.activeAircraft = Math.max(0, this.activeAircraft - 1);
+          if (!this.activeAircraft) this.buses["weapons"]?.gain.setTargetAtTime(0.9, now + 0.3, 0.4);
           this.aircraftLog.push({ kind, ev: "exit", t: performance.now() });
         },
       };

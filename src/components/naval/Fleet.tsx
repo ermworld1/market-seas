@@ -299,7 +299,7 @@ export function Fleet() {
         if (!seen.has(d.key) && !d.departing) d.departing = { kind: "drop", t0: view.time };
         // phase is fixed per ship (not tied to x, which moves with price) so the swell stays smooth
         d.seed ??= Math.random() * Math.PI * 2;
-        const bob = Math.sin(view.time * 1.1 + d.seed) * 0.015 * stormBob;
+        const bob = Math.sin(view.time * 0.8 + d.seed) * 0.004 * stormBob; // near-flat: calm-water swell only
         let hidden = subsOnly;
         if (!d.departing && d.ship) {
           const s = d.ship;
@@ -464,7 +464,6 @@ export function Fleet() {
           <instancedMesh ref={(m) => { markings.current["p" + side] = m; }} args={[poleGeo, marks.pole, MARK_CAP]} frustumCulled={false} />
         </group>
       ))}
-      <WaterLabels />
     </group>
   );
 }

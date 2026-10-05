@@ -145,6 +145,7 @@ function Header({ now }: { now: number }) {
           <button onClick={async () => { const on = !alertsOn; if (on && "Notification" in window) await Notification.requestPermission(); useBattle.setState({ alertsOn: on }); savePrefs(); }} aria-label={alertsOn ? "Disable alerts" : "Enable alerts"} className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
             {alertsOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
           </button>
+          <AutoCamToggle />
           <SoundControl />
         </div>
       </div>
@@ -190,6 +191,17 @@ function countdown(t: number) {
 }
 
 /** Compact trader metrics, all computed from the live Binance data (definitions in the tooltips). */
+function AutoCamToggle() {
+  const on = useBattle((st) => st.autoCamera);
+  const presentation = useBattle((st) => st.presentation);
+  if (presentation !== "cinema") return null;
+  return (
+    <button onClick={() => { useBattle.setState({ autoCamera: !on }); if (on) view.shot = null; }} aria-pressed={on} aria-label="Toggle automatic camera" className={cn("rounded px-2 py-1.5 text-[10px] font-semibold uppercase", on ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
+      Auto camera {on ? "on" : "off"}
+    </button>
+  );
+}
+
 function TraderStrip() {
   const h = useBattle(useShallow((s) => ({ spread: s.hud.spread, d05: s.hud.depth05, d1: s.hud.depth1, cvd1: s.hud.cvd1m, cvd5: s.hud.cvd5m, liq: s.hud.liq1h, walls: s.hud.walls, nft: s.hud.nextFundingTime, has: s.hud.hasBook })));
   if (!h.has) return null;
@@ -302,16 +314,7 @@ function Banners() {
           {show.text}
         </div>
       )}
-      {rad && (
-        <div key={rad.id} className="radio-panel" role="status">
-          <div className="radio-portrait" aria-hidden><span /></div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2"><span className={cn("radio-name", rad.speaker === "captain" ? "text-bull" : rad.speaker === "admiral" ? "text-bear" : "text-primary")}>{rad.speaker === "captain" ? "CAPTAIN · BUYERS" : rad.speaker === "admiral" ? "ADMIRAL · SELLERS" : "SPOTTER"}</span><span className="radio-wave" aria-hidden>{Array.from({ length: 9 }, (_, i) => <i key={i} />)}</span></div>
-            <div className="radio-line">{rad.text}</div>
-            {rad.detail && <div className="radio-detail">{rad.detail}</div>}
-          </div>
-        </div>
-      )}
+      {/* radio is audio-only: no on-screen voice text */}
     </>
   );
 }

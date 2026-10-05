@@ -15,11 +15,11 @@ let cutAt = 0;
 
 function wide(t: number) {
   // Readable 40° oblique establishing view: hull sides, decks and superstructure stay visible.
-  const side = Math.floor(t / 28) % 2 ? 1 : -1;
+  const side = 0; // fixed, centred on the front line (no periodic side swap)
   const dist = view.mobile ? 14 : 12;
   const elevation = THREE.MathUtils.degToRad(40);
   pos.set(view.frontX + side * 4.8, dist * Math.sin(elevation), view.halfW * 0.55 + dist * Math.cos(elevation));
-  look.set(view.frontX - side * 1.3, 0.35, 0);
+  look.set(view.frontX, 0.35, 0);
 }
 
 export function cinemaPose(cam: THREE.PerspectiveCamera, dt: number) {

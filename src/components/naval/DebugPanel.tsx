@@ -37,6 +37,7 @@ export function DebugPanel() {
       <div id="debug-amb">ambience {JSON.stringify(audio.ambience)} · intensity {audio.intensity.toFixed(2)}</div>
       <div id="debug-vo">voice {audio.voPlayed.length} {JSON.stringify(audio.voByCharacter)}: {audio.voPlayed.join(", ")}</div>
       <pre id="debug-voice-chains" className="whitespace-pre-wrap">chains {JSON.stringify(audio.voiceChainLog.slice(-8), null, 0)}</pre>
+      <div id="debug-aircraft">aircraft voices started {audio.aircraftLog.filter((l) => l.ev === "spawn").length} · playing now {audio.activeAircraft} · exchanges {audio.exchangesPlayed.length}</div>
       <pre id="debug-counts" className="mt-1 whitespace-pre-wrap">{JSON.stringify(e?.counts ?? {}, null, 0)}</pre>
       <div className="mt-1 flex flex-wrap gap-1">
         {PHASES.map((p) => (
