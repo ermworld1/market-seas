@@ -318,12 +318,13 @@ export function Fleet() {
             smoke.emit({ x: d.x + sign * 0.5 * d.s, y: 0.02, z: d.z + (Math.random() - 0.5) * 0.15 * d.s, vx: sign * (0.15 + speed * 0.08), vz: (Math.random() - 0.5) * 0.3, life: 2.4, size: 0.12 + 0.1 * d.s, grow: 3.2, color: "#e1ecee", alpha: 0.68 });
           d.s += (ts - d.s) * kScale;
           // damage persists until the order is refilled (reinforce/repair) or sunk
-          d.roll += (d.damage * 0.3 + Math.sin(view.time * 0.7 + (d.seed ?? 0)) * 0.025 * stormBob - d.roll) * kMove;
+          // no damage list/roll and no vertical dips: ships ride level on the water; damage shows as fire/smoke only
+          d.roll += (Math.sin(view.time * 0.5 + (d.seed ?? 0)) * 0.008 - d.roll) * kMove;
           d.pitch += (0 - d.pitch) * kMove;
-          let targetY = bob - d.damage * 0.05 * d.s;
+          let targetY = bob;
           if (d.surfacing > 0) {
             d.surfacing = Math.max(0, d.surfacing - dt / 1.6);
-            targetY -= d.surfacing * d.surfacing * 0.25 * d.s;
+            // surfacing is shown with foam only; the hull no longer dips and rises
             hidden = false;
             if (smoke && Math.random() < dt * 30) smoke.emit({ x: d.x + (Math.random() - 0.5) * 0.5 * d.s, y: 0.03, z: d.z + (Math.random() - 0.5) * d.s, vy: 0.3, life: 1.2, size: 0.3, grow: 2, color: "#f4fbff", alpha: 0.7 });
           }
