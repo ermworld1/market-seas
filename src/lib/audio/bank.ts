@@ -15,13 +15,19 @@ export const BANK = {
   siren: 1,
   horn: 2,
   waves: 1,
-  battle: 1,
+  battle: 3,
   radio: 2,
   prop: 1,
   spitfire: 3,
   b25: 1,
   m2: 2,
   shipgun: 7,
+  hullhit: 4,
+  bullethit: 3,
+  splash: 3,
+  hull: 1,
+  engine: 1,
+  crew: 1,
 } as const;
 export type BankFolder = keyof typeof BANK;
 
@@ -41,5 +47,5 @@ export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
 };
 
 /** bump when sample files are replaced in place, so browsers do not keep playing the cached old files */
-export const SFX_VERSION = "19";
+export const SFX_VERSION = "20";
 export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => `/sfx/${f}/${i + 1}.mp3?v=${SFX_VERSION}`);

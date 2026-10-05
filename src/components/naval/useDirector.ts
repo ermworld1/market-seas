@@ -186,7 +186,7 @@ function onEvent(ev: BattleEvent) {
       if (ev.notional < 250_000) break;
       const sideName = ev.target === "bid" ? "Buyers'" : "Sellers'";
       const detail = `${usd(ev.notional)} aggressive ${ev.taker} ${target ? `hit the ${sideName} ${target.tier}` : "landed between ships"} at ${fmtPrice(ev.price)}`;
-      if (target && (ev.notional >= 1_000_000 || target.tier === "battleship")) talk(["s_hit", `${cmd(ev.target === "bid" ? "ask" : "bid")}_fire`]);
+      if (target && (ev.notional >= 1_000_000 || target.tier === "battleship")) talk(["s_hit", `${cmd(ev.target === "bid" ? "ask" : "bid")}_fire`, "ack"]);
       // only real outcomes are spoken: a hit is called by voice, a miss stays a subtitle (no invented corrections)
       if (target) naval("hit", 45, "tbs", callsign(ev.target), detail, [line("Lookout/Spotter", phrase("spot_hithit", "Hit! Hit!"))]);
       break;
@@ -229,7 +229,7 @@ function onEvent(ev: BattleEvent) {
       const f = engineRef.current?.flagship(side);
       const d = displayFor(side, ev.b);
       const damageKey = `${side}:${ev.b}`;
-      if (d && (d.tier === "cruiser" || d.tier === "battleship") && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); const detail = `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`; talk(["s_wehit", `${cmd(ev.side)}_damage`]); void detail; naval("damage", 60, "phone", callsign(ev.side), detail, [line("Damage Control", phrase("dc_fire_frame40", "Fire on the main deck, frame forty"))]); }
+      if (d && (d.tier === "cruiser" || d.tier === "battleship") && ev.hp <= 0.5 && !damageCalled.has(damageKey)) { damageCalled.add(damageKey); const detail = `${fleet}' ${d.tier} lost ${Math.round((1 - ev.hp) * 100)}% at ${fmtPrice(ev.price)} after a ${usd(ev.notional)} hit`; talk(["s_wehit", `${cmd(ev.side)}_damage`, "d_rep"]); void detail; naval("damage", 60, "phone", callsign(ev.side), detail, [line("Damage Control", phrase("dc_fire_frame40", "Fire on the main deck, frame forty"))]); }
       if (!f || f.b !== ev.b) break;
       const h = flagHits[side]?.b === ev.b ? flagHits[side]! : (flagHits[side] = { b: ev.b, dmg: 0, told: 0 });
       h.dmg += ev.filled;
