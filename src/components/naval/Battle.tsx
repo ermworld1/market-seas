@@ -143,7 +143,9 @@ function CameraRig() {
     }
     fx.shake = Math.max(0, fx.shake - dt * 2.2);
     const sh = fx.shake * fx.shake * 0.25;
-    lookAt.set(view.cameraX + shiftX + (Math.random() - 0.5) * sh, 0, -shiftY + (Math.random() - 0.5) * sh);
+    // smooth shake (low-frequency sines) instead of per-frame random jitter
+    const tt = performance.now() / 1000;
+    lookAt.set(view.cameraX + shiftX + Math.sin(tt * 23) * sh * 0.5, 0, -shiftY + Math.sin(tt * 17 + 1.3) * sh * 0.5);
     cam.position.set(lookAt.x, Math.sin(elev) * 100, lookAt.z + Math.cos(elev) * 100);
     cam.lookAt(lookAt);
   });

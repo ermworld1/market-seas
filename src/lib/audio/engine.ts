@@ -247,6 +247,20 @@ class AudioEngine {
       s.start(now);
       nodes.push(s);
       dur = buf.duration / pitch;
+      // heavy bursts: a second, different take slightly offset so it sounds like several guns, not one loop
+      if ((cat === "mg" && (opts.shots ?? 1) >= 6) || cat === "gun") {
+        const alt = bufs[(v + 1 + Math.floor(Math.random() * Math.max(1, nv - 1))) % nv];
+        if (alt && alt !== buf) {
+          const s2 = ctx.createBufferSource();
+          s2.buffer = alt;
+          s2.playbackRate.value = pitch * (0.94 + Math.random() * 0.1);
+          const g2 = ctx.createGain();
+          g2.gain.value = 0.6;
+          s2.connect(g2).connect(out);
+          s2.start(now + 0.03 + Math.random() * 0.06);
+          nodes.push(s2);
+        }
+      }
       // recordings play clean: synthetic layers on top made every shot sound plastic
       // big guns: a second, slowed recording arrives later as the rolling echo across the water
       if (cat === "broadside" || cat === "gun5") { this.oneShot("explosion", now + 0.32, out, nodes, cat === "broadside" ? 0.45 : 0.25, 0.7); dur = Math.max(dur, 2.2); }

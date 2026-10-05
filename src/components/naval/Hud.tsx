@@ -458,7 +458,7 @@ function RoundCard({ r, kind, now }: { r: Round; kind: "round" | "flagRound"; no
           </button>
         ))}
       </div>
-      {locked && !r.choice && <p className="mt-1 text-[10px] text-muted-foreground">Picks closed for this one.</p>}
+      {locked && !r.choice && <p className="mt-1 text-[10px] text-muted-foreground">Picks are locked for this round. The result shows when the timer hits zero.</p>}
     </div>
   );
 }
