@@ -55,6 +55,7 @@ const lastMg = { buy: 0, sell: 0 };
 const lastGun = { buy: 0, sell: 0 };
 const pendingShots = { buy: 0, sell: 0 };
 const salvoNotional = { buy: 0, sell: 0 };
+const lastBig = { buy: 0, sell: 0 };
 const lastSalvo = { buy: 0, sell: 0 };
 const mat4 = new THREE.Matrix4();
 let mgThisFrame = 0;
@@ -277,7 +278,17 @@ export function Effects() {
       for (let i = 0; i < 2; i++) spawn({ ...base, weapon: "gun", fx: mx, fy: my, fz: mz, tx: tx + (Math.random() - 0.5) * 0.4, ty, tz, dur: 0.32 + i * 0.05, arc: 1.4, size: 0.06, len: 0.3 });
       const t1 = performance.now();
       if (t1 - lastGun[ev.taker] >= 120) { lastGun[ev.taker] = t1; audio.play("gun", pan); } else audio.mergeShots(1);
-    } else if (ev.weapon === "torpedo") {
+    }
+    // heavy main battery: any aggressive order of $250K+ is answered by the attacking side's big guns
+    // (rate-limited per side so it stays a punctuation mark, not a constant rumble)
+    if (ev.notional >= 250_000 && ev.weapon !== "broadside") {
+      const tb = performance.now();
+      if (tb - lastBig[ev.taker] >= 1600) {
+        lastBig[ev.taker] = tb;
+        audio.play("broadside", { ...pan, gain: Math.min(1.2, 0.7 + Math.log10(ev.notional / 250_000) * 0.4) });
+      }
+    }
+    if (ev.weapon === "torpedo") {
       flash(mx, my, mz, 0.6);
       // no camera shake for torpedoes: they are frequent and constant shake read as ships jumping
       spawn({ ...base, weapon: "torpedo", fx: mx, fy: 0.01, fz: mz, tx, ty: 0.01, tz, dur: 0.45, size: 0.05, len: 0.5 });
