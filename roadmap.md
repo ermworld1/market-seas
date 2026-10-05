@@ -70,4 +70,5 @@
 - [x] Matte full-deck and upper-hull side paint, larger flags, brighter daylight and clear blue water
 - [x] Tier-ratio scaling, Cinema/Map caps, nearby-price collision-free depth packing, and smaller active-only repair icons
 - [x] One transparent shared model sample per unit across legend, Guide, help, and tour copy
-- [ ] Verify 1440/390 Cinema, per-tier side close-ups, and legend cards in the software-rendered browser
+- [x] Verify unobstructed 1440/390 Cinema and transparent live-rendered legend cards in the software-rendered browser
+- [ ] Capture stable per-tier/side close-ups without live director aircraft/effects obscuring the fleet
