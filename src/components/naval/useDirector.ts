@@ -260,7 +260,8 @@ function onEvent(ev: BattleEvent) {
       const what = ev.liquidated === "longs" ? "LONG" : "SHORT";
       pushTape("AIR STRIKE", `AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, "liq", ev.notional);
       callout(`AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)}`, "liq");
-      if (ev.notional >= 250_000) talk(["s_bombers", `${cmd(ev.liquidated === "longs" ? "bid" : "ask")}_brace`]);
+      // the liquidated side's aircraft is shot down by the other fleet
+      if (ev.notional >= 100_000) talk(["s_hit", `${cmd(ev.liquidated === "longs" ? "ask" : "bid")}_fire`]);
       naval("liquidation", 85, "tbs", ev.liquidated === "longs" ? "Bull Fleet" : "Bear Fleet", `${what} ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [line("Lookout/Spotter", phrase("spot_bombers", "Bombers overhead"))]);
       break;
     }
