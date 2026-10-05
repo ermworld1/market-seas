@@ -113,6 +113,8 @@ function traderAlert(ev: BattleEvent, ref: number) {
     body = `${usd(ev.notional)} of ${ev.side === "bid" ? "bids" : "asks"} pulled at ${fmtPrice(ev.price)}, within 0.05% of price.`;
   else if (ev.type === "order" && ev.notional >= 500_000 && ev.buckets.length >= 3)
     body = `Sweep: ${usd(ev.notional)} of aggressive ${ev.taker === "buy" ? "buying" : "selling"} through ${ev.buckets.length} price levels.`;
+  else if (ev.type === "sink" && ev.tier === "battleship")
+    body = `${ev.side === "bid" ? "Buyers'" : "Sellers'"} flagship eaten: ${usd(ev.notional)} at ${fmtPrice(ev.price)} fully traded.`;
   else if (ev.type === "liquidation" && ev.notional >= 1e6)
     body = `${ev.liquidated === "longs" ? "Long" : "Short"} liquidated: ${usd(ev.notional)} at ${fmtPrice(ev.price)}.`;
   if (!body) return;
@@ -417,7 +419,7 @@ export function useDirector() {
         if (!nextTarget || f.away < Math.abs(nextTarget.price - e.ref) / e.ref) nextTarget = { side: f.side, price: f.price, depth };
       }
       useBattle.setState({
-        ladder: { bids: makeLadder(e.book.bids, "bid", e.last || e.mark, st.bookGroup), asks: makeLadder(e.book.asks, "ask", e.last || e.mark, st.bookGroup) },
+        ladder: { bids: makeLadder(e.book.bids, "bid", e.last || e.mark, st.bookGroup, 20, e.width), asks: makeLadder(e.book.asks, "ask", e.last || e.mark, st.bookGroup, 20, e.width) },
         bookSync: e.bookCheck.lastAt ? { ok: e.bookCheck.lastOk && e.book.synced, at: e.bookCheck.lastAt } : null,
         recentTrades: e.recentTrades.slice(0, 80),
         hud: {

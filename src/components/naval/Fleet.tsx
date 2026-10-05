@@ -185,7 +185,8 @@ export function Fleet() {
               view.displays.set(key, from);
               to = from;
             }
-            if (to) to.surfacing = 1;
+            // only capital ships surface visibly, at most once per 20 s; small market-maker requotes just move
+            if (to && (to.tier === "cruiser" || to.tier === "battleship") && view.time - (to.lastSurface ?? -99) > 20) { to.surfacing = 1; to.lastSurface = view.time; }
             if (smoke && to) {
               const fx0 = from?.x ?? xForPrice(ev.side, ev.fromPrice);
               const fz0 = from?.z ?? zForStation(Date.now());
@@ -199,7 +200,7 @@ export function Fleet() {
           }
           case "hidden":
             if (d) {
-              d.surfacing = 1;
+              if (view.time - (d.lastSurface ?? -99) > 20) { d.surfacing = 1; d.lastSurface = view.time; }
               addFloater({ x: d.x, y: 0.4, z: d.z }, `hidden ${usd(ev.notional)}`, "sub");
             }
             audio.play("surface", pan);
@@ -278,13 +279,15 @@ export function Fleet() {
       const kMove = 1 - Math.exp(-4 * dt);
       const kScale = 1 - Math.exp(-3 * dt);
       const mobileK = view.mobile ? 1.4 : 1;
-      const stormBob = 1 + view.storm * 3;
+      const stormBob = 1 + view.storm * 1.5;
       const repairs: { x: number; y: number; z: number }[] = [];
       let near: Display | null = null;
       for (const d of view.displays.values()) {
         const sign = sideSign(d.side);
         if (!seen.has(d.key) && !d.departing) d.departing = { kind: "drop", t0: view.time };
-        const bob = Math.sin(view.time * 1.4 + d.x * 1.7 + d.b) * 0.02 * stormBob;
+        // phase is fixed per ship (not tied to x, which moves with price) so the swell stays smooth
+        d.seed ??= Math.random() * Math.PI * 2;
+        const bob = Math.sin(view.time * 1.1 + d.seed) * 0.015 * stormBob;
         let hidden = subsOnly;
         if (!d.departing && d.ship) {
           const s = d.ship;
@@ -303,15 +306,17 @@ export function Fleet() {
             smoke.emit({ x: d.x + sign * 0.5 * d.s, y: 0.02, z: d.z + (Math.random() - 0.5) * 0.15 * d.s, vx: sign * (0.15 + speed * 0.08), vz: (Math.random() - 0.5) * 0.3, life: 2.4, size: 0.12 + 0.1 * d.s, grow: 3.2, color: "#e1ecee", alpha: 0.68 });
           d.s += (ts - d.s) * kScale;
           // damage persists until the order is refilled (reinforce/repair) or sunk
-          d.roll += (d.damage * 0.3 + Math.sin(view.time * 0.9 + d.x) * 0.03 * stormBob - d.roll) * kMove;
+          d.roll += (d.damage * 0.3 + Math.sin(view.time * 0.7 + (d.seed ?? 0)) * 0.025 * stormBob - d.roll) * kMove;
           d.pitch += (0 - d.pitch) * kMove;
-          d.y = bob - d.damage * 0.05 * d.s;
+          let targetY = bob - d.damage * 0.05 * d.s;
           if (d.surfacing > 0) {
-            d.surfacing = Math.max(0, d.surfacing - dt / 1.2);
-            d.y -= d.surfacing * d.surfacing * 0.6 * d.s;
+            d.surfacing = Math.max(0, d.surfacing - dt / 1.6);
+            targetY -= d.surfacing * d.surfacing * 0.25 * d.s;
             hidden = false;
             if (smoke && Math.random() < dt * 30) smoke.emit({ x: d.x + (Math.random() - 0.5) * 0.5 * d.s, y: 0.03, z: d.z + (Math.random() - 0.5) * d.s, vy: 0.3, life: 1.2, size: 0.3, grow: 2, color: "#f4fbff", alpha: 0.7 });
           }
+          // ease vertical changes (damage, refills, surfacing) instead of snapping
+          d.y += (targetY - d.y) * Math.min(1, dt * 3);
           d.fade += (0 - d.fade) * kMove;
           if (smoke && d.smoke > 0) {
             d.smoke -= dt;
