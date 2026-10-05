@@ -16,7 +16,7 @@ import { line, lineOn, navyPriceParts, navySizeParts, phrase, type FleetCallsign
 
 export const RADIO: Record<string, string[]> = {
   P1: ["All quiet on the line. Hold position."],
-  P2: ["Contact, bearing zero-niner-zero.", "Contact! Enemy ships on the move."],
+  P2: ["Contact! Enemy ships on the move."],
   P3: ["All guns, fire at will!"],
   P4: ["Capital ship on the surface!"],
   P5: ["Brace, brace, brace!"],
@@ -40,7 +40,7 @@ export const RADIO: Record<string, string[]> = {
   adm_break: ["Break their line! Full speed ahead!"],
   adm_withdraw: ["Withdraw! Lay smoke and fall back!"],
   spot_hit: ["Direct hit! Direct hit!"],
-  spot_splash: ["Splash! Short. Add two hundred!"],
+  spot_splash: ["Splash! Miss."],
   spot_aircraft: ["Enemy aircraft, two o'clock high!"],
   spot_sonar: ["Sonar contact! She's diving!"],
   spot_fire: ["Fire on the main deck! Damage control, move!"],
@@ -100,6 +100,26 @@ function orderReadout(ev: Extract<BattleEvent, { type: "fire" }>, targetTier?: s
 /** cumulative damage per flagship, announced each time another 25 % of its peak size is traded */
 const flagHits: Record<string, { b: number; dmg: number; told: number }> = {};
 /** First sound enable: radio check with subtitle. */
+const ALERT_COOLDOWN = 20_000;
+let lastAlertAt = 0;
+/** Opt-in trader alerts from real events (browser notifications). */
+function traderAlert(ev: BattleEvent, ref: number) {
+  const st = useBattle.getState();
+  if (!st.alertsOn || typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const now = Date.now();
+  if (now - lastAlertAt < ALERT_COOLDOWN) return;
+  let body = "";
+  if ((ev.type === "fled" || ev.type === "dive") && ev.notional >= 1e6 && ref && Math.abs(ev.price - ref) / ref <= 0.0005)
+    body = `${usd(ev.notional)} of ${ev.side === "bid" ? "bids" : "asks"} pulled at ${fmtPrice(ev.price)}, within 0.05% of price.`;
+  else if (ev.type === "order" && ev.notional >= 500_000 && ev.buckets.length >= 3)
+    body = `Sweep: ${usd(ev.notional)} of aggressive ${ev.taker === "buy" ? "buying" : "selling"} through ${ev.buckets.length} price levels.`;
+  else if (ev.type === "liquidation" && ev.notional >= 1e6)
+    body = `${ev.liquidated === "longs" ? "Long" : "Short"} liquidated: ${usd(ev.notional)} at ${fmtPrice(ev.price)}.`;
+  if (!body) return;
+  lastAlertAt = now;
+  try { new Notification("No Man's Sea · BTCUSDT", { body }); } catch { /* notifications unavailable */ }
+}
+
 export function radioCheck() {
   useBattle.setState({ radio: { id: nextId(), text: RADIO["cap_stations"]![0]!, speaker: "captain", detail: "Radio circuit open · live BTCUSDT battle" } });
   audio.radioCheck();
@@ -151,9 +171,10 @@ function onEvent(ev: BattleEvent) {
       if (target?.tier === "battleship" && ev.notional >= 250_000) orderReadout(ev, "flagship");
       if (ev.notional < 250_000) break;
       const sideName = ev.target === "bid" ? "Buyers'" : "Sellers'";
-      const detail = `${usd(ev.notional)} ${ev.taker} order ${target ? `hit the ${sideName} ${target.tier}` : "splashed between levels"} at ${fmtPrice(ev.price)}`;
+      const detail = `${usd(ev.notional)} aggressive ${ev.taker} ${target ? `hit the ${sideName} ${target.tier}` : "landed between ships"} at ${fmtPrice(ev.price)}`;
       radio(target ? "spot_hit" : "spot_splash", detail);
-      naval(target ? "hit" : "splash", 45, "tbs", callsign(ev.target), detail, [line("Lookout/Spotter", phrase(target ? "spot_hithit" : "spot_over", target ? "Hit! Hit!" : "Over! Down two hundred"))]);
+      // only real outcomes are spoken: a hit is called by voice, a miss stays a subtitle (no invented corrections)
+      if (target) naval("hit", 45, "tbs", callsign(ev.target), detail, [line("Lookout/Spotter", phrase("spot_hithit", "Hit! Hit!"))]);
       break;
     }
     case "order":
@@ -161,8 +182,8 @@ function onEvent(ev: BattleEvent) {
       if (ev.notional >= 1_000_000) callout(`${usd(ev.notional)} ${ev.taker.toUpperCase()} · BROADSIDE`, ev.taker === "buy" ? "buy" : "sell");
       break;
     case "fighter":
-      radio("spot_aircraft", `${ev.formation} aircraft launched by ${usd(ev.notional)} of ${ev.taker} orders across ${ev.buckets.length} price levels`, 30);
-      pushTape("FIGHTER", `${ev.formation}-FIGHTER wave · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows${ev.queuedOrders > 1 ? ` · ${ev.queuedOrders} orders queued` : ""}`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
+      radio("spot_aircraft", `${ev.formation} aircraft: ${usd(ev.notional)} of aggressive ${ev.taker === "buy" ? "buying" : "selling"} across ${ev.buckets.length} price levels`, 30);
+      pushTape("FIGHTER", `${ev.formation}-FIGHTER wave · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows${ev.queuedOrders > 1 ? ` · ${ev.queuedOrders} bursts merged` : ""}`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
       naval("fighter", 75, "phone", callsign(ev.target), `${ev.formation} aircraft · ${usd(ev.notional)}`, [lineOn("phone", "Radar/CIC", phrase("radar_bogeys", "Bogeys inbound, angels two")), lineOn("tbs", "Captain", phrase(aaClip(callsign(ev.target)), `${callsign(ev.target)}, AA batteries, open fire`))]);
       break;
     case "sink":
@@ -208,7 +229,7 @@ function onEvent(ev: BattleEvent) {
       if (side && ev.notional >= 1_000_000) naval("contact-lost", 55, "phone", callsign(side), `${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [line("Sonar", phrase("sonar_diving", "Contact diving, contact lost"))]);
       break;
     case "relocate":
-      if (ev.notional >= 1_000_000) radio("spot_sonar", `${fleet}' ${usd(ev.notional)} order relocated from ${fmtPrice(ev.fromPrice)} to ${fmtPrice(ev.price)}`);
+      if (ev.notional >= 1_000_000) radio("spot_sonar", `${fleet}' ${usd(ev.notional)} of liquidity moved from ${fmtPrice(ev.fromPrice)} to ${fmtPrice(ev.price)}`);
       if (ev.notional >= 1_000_000) naval("contact-resurface", 58, "phone", callsign(ev.side), `${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, [line("Sonar", phrase("sonar_resurfacing_bearing", "Contact resurfacing, bearing"), ...navyPriceParts(ev.price))]);
       if (canNarrateRelocate(Date.now(), lastRelocateTape)) { lastRelocateTape = Date.now(); pushTape("RELOCATE", `${fleet}' ${usd(ev.notional)} surfaced ${fmtPrice(ev.fromPrice)} → ${fmtPrice(ev.price)}`, "sub", ev.notional); }
       break;
@@ -299,7 +320,8 @@ export function useDirector() {
             const shot = selectShot(ev, performance.now(), lastCut, view.shot);
             if (shot && useBattle.getState().presentation === "cinema") { lastCut = shot.at; view.shot = shot; }
             const bookEvent = ["reinforce", "dive", "fled", "relocate", "hidden", "repair"].includes(ev.type);
-            if (!bookEvent || tapeEligible(ev, e.mark, e.bucketSampler.quantile(0.9))) onEvent(ev);
+            if (!bookEvent || tapeEligible(ev, e.ref, e.bucketSampler.quantile(0.9))) onEvent(ev);
+            traderAlert(ev, e.ref);
             const kind = lessonForEvent(ev);
             if (kind && Date.now() - pageStart <= 180_000 && localStorage.getItem(`nms-lesson-${kind}`) !== "1") {
               const text = lessonText(ev);
@@ -395,12 +417,12 @@ export function useDirector() {
         if (!nextTarget || f.away < Math.abs(nextTarget.price - e.ref) / e.ref) nextTarget = { side: f.side, price: f.price, depth };
       }
       useBattle.setState({
-        ladder: { bids: makeLadder(e.book.bids, "bid", e.mark, st.bookGroup), asks: makeLadder(e.book.asks, "ask", e.mark, st.bookGroup) },
+        ladder: { bids: makeLadder(e.book.bids, "bid", e.last || e.mark, st.bookGroup), asks: makeLadder(e.book.asks, "ask", e.last || e.mark, st.bookGroup) },
         bookSync: e.bookCheck.lastAt ? { ok: e.bookCheck.lastOk && e.book.synced, at: e.bookCheck.lastAt } : null,
         recentTrades: e.recentTrades.slice(0, 80),
         hud: {
           mark: e.mark,
-          last: e.mid,
+          last: e.last || e.mid,
           spread: e.spread,
           bestBid: e.bestBid,
           bestAsk: e.bestAsk,
@@ -424,6 +446,13 @@ export function useDirector() {
           flags: { bid: fb, ask: fa },
           nextTarget,
           battle: { id: battle.id, end: battle.end, startMark: battle.startMark },
+          nextFundingTime: e.nextFundingTime,
+          depth05: e.depthWithin(0.005),
+          depth1: e.depthWithin(0.01),
+          cvd1m: e.cvd(now, 60),
+          cvd5m: e.cvd(now, 300),
+          liq1h: e.liquidations1h(now),
+          walls: e.wallStats(now),
         },
       });
       const alerts = useBattle.getState().alertsOn && typeof Notification !== "undefined" && Notification.permission === "granted";

@@ -18,7 +18,7 @@ const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
 };
 const MAX_VOICES = 12;
 /** Voice lines are recorded files in /public/vo. There is deliberately no TTS path. */
-export const VO_FILES: Record<string, string> = { P2: "p2_contact", P3: "p3_fire", P4: "capital", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo", dive: "dive", surface: "surface", flagsunk: "flagsunk", liq: "bombers", radiocheck: "p2_contact", flaghit: "p3_fire", fighter: "p3_fire", start: "cap_stations", warn: "cap_holdline", end: "p7_ceasefire", capital: "capital", cap_commence: "cap_commence", cap_holdline: "cap_holdline", cap_stations: "cap_stations", adm_openfire: "adm_openfire", adm_break: "adm_break", adm_withdraw: "adm_withdraw", spot_hit: "spot_hit", spot_splash: "spot_splash", spot_aircraft: "spot_aircraft", spot_sonar: "spot_sonar", spot_fire: "spot_fire", spot_breaking: "spot_breaking" };
+export const VO_FILES: Record<string, string> = { P3: "p3_fire", P4: "capital", P5: "p5_brace", P6push: "p6_push", P6fall: "p6_fallback", P7: "p7_ceasefire", torpedo: "torpedo", dive: "dive", surface: "surface", flagsunk: "flagsunk", liq: "bombers", radiocheck: "cap_stations", flaghit: "p3_fire", fighter: "p3_fire", start: "cap_stations", warn: "cap_holdline", end: "p7_ceasefire", capital: "capital", cap_commence: "cap_commence", cap_holdline: "cap_holdline", cap_stations: "cap_stations", adm_openfire: "adm_openfire", adm_break: "adm_break", adm_withdraw: "adm_withdraw", spot_hit: "spot_hit", spot_aircraft: "spot_aircraft", spot_sonar: "spot_sonar", spot_fire: "spot_fire", spot_breaking: "spot_breaking" };
 const VO_COOLDOWN = 6;
 const VARIANTS = 6;
 const LAYERS = ["sea", "drone", "drums", "brass", "choir"] as const;
@@ -385,10 +385,10 @@ class AudioEngine {
     this.pending = null;
     const file = VO_FILES[key];
     const character = key.startsWith("cap_") ? "captain" : key.startsWith("adm_") ? "admiral" : "spotter";
-    this.lastVoiceAt = now;
     if (file) {
       const buf = await this.loadVo(`legacy:${file}`);
       if (buf) {
+        this.lastVoiceAt = now;
         this.radioBuffer(buf);
         this.voPlayed.push(key);
         this.voByCharacter[character] = (this.voByCharacter[character] ?? 0) + 1;
@@ -467,6 +467,97 @@ class AudioEngine {
       g.gain.setTargetAtTime(base * 0.5, t, 0.05);
       g.gain.setTargetAtTime(base, t + dur + 0.2, 0.3);
     }
+  }
+
+  // ───────── aircraft: one engine voice per visible plane, alive exactly as long as the plane ─────────
+  aircraftLog: { kind: string; ev: "spawn" | "exit" | "guns" | "bomb"; t: number }[] = [];
+  /** Starts a looping propeller engine for one aircraft. Returns null when audio is off. */
+  aircraftStart(kind: "fighter" | "bomber") {
+    const ctx = this.ctx;
+    const bus = this.buses["air"] ?? this.buses["weapons"];
+    if (!ctx || !this.enabled || !bus) return null;
+    const t = ctx.currentTime;
+    const out = ctx.createGain();
+    out.gain.value = 0.0001;
+    const pan = ctx.createStereoPanner();
+    out.connect(pan).connect(bus);
+    const nodes: OscillatorNode[] = [];
+    // fighter: one radial engine; bomber: four slightly detuned engines (beating drone)
+    const base = kind === "fighter" ? 92 : 58;
+    const engines = kind === "fighter" ? 1 : 4;
+    const lp = this.filt("lowpass", kind === "fighter" ? 1400 : 700, 0.9);
+    const beat = ctx.createGain();
+    beat.gain.value = 0.75;
+    lp.connect(beat).connect(out);
+    for (let i = 0; i < engines; i++) {
+      for (const [mult, type, g] of [[1, "sawtooth", 0.22], [2, "square", 0.06], [0.5, "sine", 0.3]] as const) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = base * mult * (1 + (i - 1.5) * 0.012);
+        const og = ctx.createGain();
+        og.gain.value = g / engines;
+        o.connect(og).connect(lp);
+        o.start(t);
+        nodes.push(o);
+      }
+    }
+    // propeller beat: amplitude modulation at blade-pass rate
+    const am = ctx.createOscillator();
+    am.frequency.value = kind === "fighter" ? 38 : 24;
+    const amg = ctx.createGain();
+    amg.gain.value = 0.25;
+    am.connect(amg).connect(beat.gain);
+    am.start(t);
+    nodes.push(am);
+    // air rush
+    const rush: AudioScheduledSourceNode[] = [];
+    const ns = this.noiseSrc(t, 60, rush);
+    const ng = ctx.createGain();
+    ng.gain.value = kind === "fighter" ? 0.08 : 0.05;
+    ns.connect(this.filt("bandpass", 1800, 0.5)).connect(ng).connect(out);
+    this.aircraftLog.push({ kind, ev: "spawn", t: performance.now() });
+    let stopped = false;
+    return {
+      /** pan -1..1 from screen x, closeness 0..1 (1 = at the camera), pitch from doppler (1 = none), climb 0..1 */
+      update: (panV: number, closeness: number, pitch: number, climb: number) => {
+        if (stopped || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, panV)), now, 0.05);
+        out.gain.setTargetAtTime(0.02 + 0.55 * closeness * closeness, now, 0.08);
+        const f = Math.max(0.7, Math.min(1.4, pitch)) * (1 + climb * 0.18);
+        for (const o of nodes) if (o !== am) o.detune.setTargetAtTime(1200 * Math.log2(f), now, 0.06);
+        lp.frequency.setTargetAtTime((kind === "fighter" ? 900 : 500) + 2200 * closeness, now, 0.1);
+      },
+      /** wing guns: a burst for the visible strafing time */
+      guns: (dur: number, panV: number) => {
+        if (stopped || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const n2: AudioScheduledSourceNode[] = [];
+        const p2 = this.ctx.createStereoPanner();
+        p2.pan.value = Math.max(-1, Math.min(1, panV));
+        p2.connect(bus);
+        for (let k = 0; k * 0.07 < dur; k++) this.chain(this.noiseSrc(now + k * 0.07, 0.04, n2), p2, this.filt("bandpass", 1300 + Math.random() * 500, 0.9), this.env(now + k * 0.07, 0.002, 0.5, 0.05));
+        this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
+      },
+      /** falling-bomb whistle for exactly the bomb's visible fall time */
+      bomb: (fall: number) => {
+        if (stopped || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const n2: AudioScheduledSourceNode[] = [];
+        this.chain(this.osc("sine", 1900, 420, now, fall, n2), bus, this.env(now, 0.05, 0.12, fall));
+        this.aircraftLog.push({ kind, ev: "bomb", t: performance.now() });
+      },
+      stop: () => {
+        if (stopped || !this.ctx) return;
+        stopped = true;
+        const now = this.ctx.currentTime;
+        out.gain.cancelScheduledValues(now);
+        out.gain.setTargetAtTime(0.0001, now, 0.12);
+        for (const o of nodes) o.stop(now + 0.6);
+        for (const r of rush) r.stop(now + 0.6);
+        this.aircraftLog.push({ kind, ev: "exit", t: performance.now() });
+      },
+    };
   }
 
   // ───────── procedural synth kit ─────────

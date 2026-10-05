@@ -36,4 +36,4 @@ export type BattleEvent =
   | { type: "liquidation"; t: number; liquidated: "longs" | "shorts"; price: number; qty: number; notional: number }
   | { type: "phase"; t: number; phase: Phase | "P0"; oneShot: boolean; detail?: "push" | "fall back" };
 
-export type ConvoyState = "none" | "in-buyers" | "in-sellers" | "out";
+export type ConvoyState = "none" | "in" | "out";

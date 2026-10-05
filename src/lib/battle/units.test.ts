@@ -10,10 +10,11 @@ describe("unit config", () => {
     expect(WEAPONS[3]!.rule).toContain(`${Math.round((1 - TRADE_Q.broadside) * 100)}%`);
     expect(AIRCRAFT[0]!.rule).toContain(`$${FIGHTER_MIN_NOTIONAL / 1000}K`);
   });
-  it("every unit has a rendered icon (both colours when sided)", () => {
+  it("every unit has a fallback legend icon", () => {
     for (const u of ALL_UNITS) {
-      const files = u.sided ? [`${u.icon}-bid`, `${u.icon}-ask`] : [u.icon];
-      for (const f of files) expect(existsSync(`public/legend/${f}.png`), f).toBe(true);
+      // the legend shows one sample per unit; the static file is only a loading fallback
+      const ok = existsSync(`public/legend/${u.icon}-bid.png`) || existsSync(`public/legend/${u.icon}.png`);
+      expect(ok, u.icon).toBe(true);
     }
   });
 });

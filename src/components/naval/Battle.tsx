@@ -9,7 +9,7 @@ import { Background } from "./Background";
 import { Effects } from "./Effects";
 import { Fleet } from "./Fleet";
 import { Ocean } from "./Ocean";
-import { DEPTH, ELEVATION, GAP, REAR, startFleetIntro, view } from "./layout";
+import { DEPTH, ELEVATION, GAP, REAR, startFleetIntro, view, xForPrice } from "./layout";
 import { preloadModels } from "./models";
 import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";
@@ -170,12 +170,59 @@ function Projector() {
     screen.repairs = A.repairs.map((r) => p(r)!);
     screen.floaters = A.floaters.map((f) => ({ ...p(f)!, id: f.id, text: f.text, tone: f.tone, age: view.time - f.t0 }));
     screen.strait = p({ x: view.frontX, y: 0, z: 0 });
+    // price ticks along the near edge so any ship can be read against a price
+    const mid = view.mid;
+    const ticks: (typeof screen.ticks)[number][] = [];
+    if (mid > 0) {
+      const raw = (mid * 0.01) / 4;
+      const mag = 10 ** Math.floor(Math.log10(raw));
+      const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((v) => v >= raw) ?? mag * 10;
+      const lo = Math.ceil((mid * 0.989) / step) * step;
+      for (let price = lo; price <= mid * 1.011 && ticks.length < 24; price += step) {
+        if (Math.abs(price - mid) / mid < 0.0004) continue;
+        const pt = p({ x: xForPrice(price >= mid ? "ask" : "bid", price), y: 0, z: view.halfW * 0.98 });
+        if (pt && pt.x > 0 && pt.x < size.width) ticks.push({ ...pt, label: price >= 1000 ? price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : String(price) });
+      }
+    }
+    screen.ticks = ticks;
     const selected = view.selectedBucket ? view.displays.get(view.selectedBucket.side + view.selectedBucket.b) : null;
     screen.selected = selected ? p({ x: selected.x, y: selected.y + selected.s * 0.4, z: selected.z }) : null;
     const lt = view.lessonTarget;
     const ld = lt?.kind === "ship" ? view.displays.get(lt.side + lt.b) : null;
     screen.lesson = lt?.kind === "plane" ? p(view.plane) : ld ? p({ x: ld.x, y: ld.y + ld.s * 0.3, z: ld.z }) : null;
   });
+  return null;
+}
+
+/** Tap/click a ship: picks the nearest projected ship within 40 px and selects its price bucket. */
+function Picker() {
+  const { camera, gl, size } = useThree();
+  useEffect(() => {
+    const el = gl.domElement;
+    let down = { x: 0, y: 0 };
+    const onDown = (ev: PointerEvent) => { down = { x: ev.clientX, y: ev.clientY }; };
+    const onUp = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 6) return; // drag, not a tap
+      const r = el.getBoundingClientRect();
+      const mx = ev.clientX - r.left;
+      const my = ev.clientY - r.top;
+      let best: { side: "bid" | "ask"; b: number } | null = null;
+      let bestD = 40;
+      for (const d of view.displays.values()) {
+        if (!d.ship || d.departing) continue;
+        tmp.set(d.x, d.y + d.s * 0.2, d.z).project(camera);
+        const sx = (tmp.x * 0.5 + 0.5) * size.width;
+        const sy = (-tmp.y * 0.5 + 0.5) * size.height;
+        const dist = Math.hypot(sx - mx, sy - my);
+        if (dist < bestD) { bestD = dist; best = { side: d.side, b: d.b }; }
+      }
+      useBattle.setState({ selectedBucket: best });
+      view.selectedBucket = best;
+    };
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointerup", onUp);
+    return () => { el.removeEventListener("pointerdown", onDown); el.removeEventListener("pointerup", onUp); };
+  }, [camera, gl, size]);
   return null;
 }
 
@@ -235,6 +282,7 @@ export default function Battle() {
             <PerspectiveCamera makeDefault={presentation === "cinema"} fov={36} near={0.1} far={2000} position={[0, 12, 16]} />
             <CameraRig />
             <Projector />
+            <Picker />
             <Suspense fallback={null}>
               <Ocean />
             </Suspense>

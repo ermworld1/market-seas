@@ -22,6 +22,9 @@ interface OpenOrder {
   lastAggId: number;
 }
 
+export const WALL_STAT_MIN = 1_000_000;
+export const WALL_STAT_NEAR = 0.002;
+
 export interface RecentTrade { aggId: number; time: number; price: number; qty: number; notional: number; taker: "buy" | "sell" }
 
 /**
@@ -35,6 +38,8 @@ export class MarketEngine {
   needSnapshot = true;
   width = 0;
   mark = 0;
+  /** last traded price: trades print here, so the front line and hit tests use it */
+  last = 0;
   indexPrice = 0;
   funding = 0;
   nextFundingTime = 0;
@@ -87,8 +92,43 @@ export class MarketEngine {
       this.listeners.delete(fn);
     };
   }
+  /** big walls near price and what happened to them (eaten vs pulled), last 30 min */
+  wallLog: { t: number; side: BookSide; outcome: "eaten" | "pulled" }[] = [];
+  /** liquidations, last hour */
+  liqLog: { t: number; liquidated: "longs" | "shorts"; notional: number }[] = [];
+
+  /** per price-bucket history for the ship info card (last 10 min of pulls) */
+  bucketStats = new Map<string, { filled: number; hits: number; pulls: number[] }>();
+  statFor(side: BookSide, b: number) {
+    const k = side + b;
+    let st = this.bucketStats.get(k);
+    if (!st) {
+      st = { filled: 0, hits: 0, pulls: [] };
+      this.bucketStats.set(k, st);
+      if (this.bucketStats.size > 4000) this.bucketStats.delete(this.bucketStats.keys().next().value!);
+    }
+    return st;
+  }
+
   private emit(e: BattleEvent) {
     this.counts[e.type] = (this.counts[e.type] ?? 0) + 1;
+    if (e.type === "damage") {
+      const st = this.statFor(e.side, e.b);
+      st.filled += e.filled * e.price;
+      st.hits++;
+    } else if (e.type === "dive" || e.type === "fled" || e.type === "pulled" || e.type === "cancel") {
+      const st = this.statFor(e.side, e.b);
+      st.pulls.push(e.t);
+      if (st.pulls.length > 50) st.pulls.shift();
+    }
+    if ((e.type === "sink" || e.type === "dive" || e.type === "fled") && e.notional >= WALL_STAT_MIN && this.ref > 0 && Math.abs(e.price - this.ref) / this.ref <= WALL_STAT_NEAR) {
+      this.wallLog.push({ t: e.t, side: e.side, outcome: e.type === "sink" ? "eaten" : "pulled" });
+      if (this.wallLog.length > 2000) this.wallLog = this.wallLog.filter((w) => e.t - w.t <= 30 * 60_000);
+    }
+    if (e.type === "liquidation") {
+      this.liqLog.push({ t: e.t, liquidated: e.liquidated, notional: e.notional });
+      if (this.liqLog.length > 5000) this.liqLog = this.liqLog.filter((l) => e.t - l.t <= 3_600_000);
+    }
     for (const l of this.listeners) l(e);
     this.events.push(e);
     // never drop fire events; cap only if the scene is not draining (tab hidden)
@@ -112,7 +152,7 @@ export class MarketEngine {
     return b && a ? a - b : 0;
   }
   get ref() {
-    return this.mark || this.mid;
+    return this.last || this.mark || this.mid;
   }
   get ships() {
     return this.trackers;
@@ -207,6 +247,7 @@ export class MarketEngine {
     const price = +d.p;
     const qty = +d.q;
     const notional = price * qty;
+    this.last = price;
     const fills = fillsOf(d.f, d.l);
     this.tradeSampler.push(notional);
     const dir = tradeDirection(d.m);
@@ -337,7 +378,7 @@ export class MarketEngine {
     this.oiChangePct = base ? ((oi - base.oi) / base.oi) * 100 : 0;
   }
   get convoy(): ConvoyState {
-    if (this.oiChangePct > OI_THRESHOLD_PCT) return this.priceChange5m >= 0 ? "in-buyers" : "in-sellers";
+    if (this.oiChangePct > OI_THRESHOLD_PCT) return "in";
     if (this.oiChangePct < -OI_THRESHOLD_PCT) return "out";
     return "none";
   }
@@ -353,6 +394,37 @@ export class MarketEngine {
     }
     return { buy, sell };
   }
+  /** Resting $ within ±pct of the last price, per side (from the synced local book). */
+  depthWithin(pct: number) {
+    const ref = this.ref;
+    let bid = 0;
+    let ask = 0;
+    if (!ref) return { bid, ask };
+    const lo = ref * (1 - pct);
+    const hi = ref * (1 + pct);
+    for (const [p, q] of this.book.bids) if (p >= lo) bid += p * q;
+    for (const [p, q] of this.book.asks) if (p <= hi) ask += p * q;
+    return { bid, ask };
+  }
+  /** Cumulative volume delta (taker buy − taker sell, $) over the last `sec` seconds (max 300). */
+  cvd(now: number, sec: number) {
+    const f = this.flowWindow(now, Math.min(sec, 300));
+    return f.buy - f.sell;
+  }
+  liquidations1h(now: number) {
+    let longs = 0;
+    let shorts = 0;
+    for (const l of this.liqLog) if (now - l.t <= 3_600_000) l.liquidated === "longs" ? (longs += l.notional) : (shorts += l.notional);
+    return { longs, shorts };
+  }
+  /** Walls ≥ $1M within 0.2% of price: how many were eaten vs pulled (30 min) and how many stand now. */
+  wallStats(now: number) {
+    const out = { bid: { eaten: 0, pulled: 0, standing: 0 }, ask: { eaten: 0, pulled: 0, standing: 0 } };
+    for (const w of this.wallLog) if (now - w.t <= 30 * 60_000) out[w.side][w.outcome]++;
+    const ref = this.ref;
+    if (ref) for (const side of ["bid", "ask"] as const) for (const s of this.trackers[side].ships.values()) if (s.notional >= WALL_STAT_MIN && Math.abs(s.price - ref) / ref <= WALL_STAT_NEAR) out[side].standing++;
+    return out;
+  }
   ordersPerMinute(now: number) {
     return countInWindow(this.orderTimes, now, 60_000);
   }
@@ -363,7 +435,7 @@ export class MarketEngine {
   private prune(now: number) {
     if (this.orderTimes.length > 4000) this.orderTimes = this.orderTimes.filter((t) => now - t <= 60_000);
     if (this.ghostTimes.length > 4000) this.ghostTimes = this.ghostTimes.filter((t) => now - t <= 3_600_000);
-    const cut = Math.floor(now / 1000) - 70;
+    const cut = Math.floor(now / 1000) - 310;
     while (this.flow.length && this.flow[0]!.t < cut) this.flow.shift();
   }
 }

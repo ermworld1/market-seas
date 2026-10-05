@@ -39,11 +39,11 @@ function liveRule(u: UnitDef) {
   if (!e) return u.rule;
   const q = e.bucketSampler;
   const tq = e.tradeSampler;
-  if (u.id === "patrol") return `orders under ${money(q.quantile(0.4))} right now`;
+  if (u.id === "patrol") return `buckets under ${money(q.quantile(0.4))} right now`;
   if (u.id === "destroyer") return `${money(q.quantile(0.4))}–${money(q.quantile(0.7))} right now`;
   if (u.id === "frigate") return `${money(q.quantile(0.7))}–${money(q.quantile(0.9))} right now`;
   if (u.id === "cruiser") return `${money(q.quantile(0.9))}–${money(q.quantile(1))} right now`;
-  if (u.id === "battleship") return `largest order on that side right now`;
+  if (u.id === "battleship") return `largest resting bucket on that side right now`;
   if (u.id === "mg") return `trades under ${money(tq.quantile(0.6))} right now`;
   if (u.id === "gun") return `${money(tq.quantile(0.6))}–${money(tq.quantile(0.9))} right now`;
   if (u.id === "torpedo") return `${money(tq.quantile(0.9))}–${money(tq.quantile(0.99))} right now`;
@@ -68,7 +68,7 @@ export function UnitList({ items, compact = false, explainSides = false }: { ite
           </span>
         </li>
       ))}
-      {explainSides && <li className="text-[11px] leading-snug text-muted-foreground">Green-decked ships are buy orders (Buyers), red-decked ships are sell orders (Sellers).</li>}
+      {explainSides && <li className="text-[11px] leading-snug text-muted-foreground">Green-decked ships are resting buy liquidity (Buyers), red-decked ships are resting sell liquidity (Sellers).</li>}
     </ul>
   );
 }
@@ -78,7 +78,7 @@ const H = ({ children }: { children: React.ReactNode }) => <h3 className="mt-3 f
 export function UnitSections({ compact = false }: { compact?: boolean }) {
   return (
     <>
-      <H>Ships (resting orders)</H>
+      <H>Ships (resting liquidity)</H>
       <UnitList items={SHIPS} compact={compact} explainSides />
       <H>Weapons (real trades)</H>
       <UnitList items={WEAPONS} compact={compact} />
@@ -106,21 +106,22 @@ export function HowItWorks() {
         </div>
         <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1 text-xs leading-relaxed text-foreground/90">
           <p>
-            No Man's Sea turns the live Binance BTCUSDT futures market into a naval battle. Nothing is simulated: every ship is a real resting order, every shot a real trade.
+            No Man's Sea turns the live Binance BTCUSDT futures market into a naval battle. Nothing is simulated: every ship is real resting liquidity on the Binance book (many orders at one price bucket), every shot a real trade.
           </p>
           <H>The battle</H>
           <ul className="list-disc space-y-1 pl-4">
-            <li><span className="font-semibold text-bull">Buyers</span> (green, left) are buy orders waiting below the price. <span className="font-semibold text-bear">Sellers</span> (red, right) are sell orders waiting above it.</li>
-            <li>The vertical line of buoys is the live mark price. When price rises the line pushes right into the Sellers; when it falls it pushes left.</li>
-            <li>Left/right = price. Front/back = how long the order has been waiting: new orders arrive from the back and move forward as they stay.</li>
+            <li><span className="font-semibold text-bull">Buyers</span> (green, left) are resting buy liquidity below the price. <span className="font-semibold text-bear">Sellers</span> (red, right) are resting sell liquidity above it.</li>
+            <li>The vertical line of buoys is the last traded price. When price rises the line pushes right into the Sellers; when it falls it pushes left.</li>
+            <li>Left/right = price. Front/back = how long that liquidity has been resting: new liquidity arrives from the back and moves forward as it stays.</li>
             <li>Each battle lasts {RULES_FACTS.battleMinutes} minutes. The side that moved the price its way wins. Sinking the enemy flagship is the big prize.</li>
           </ul>
           <H>Ships, shots, submarines, aircraft</H>
           <ul className="list-disc space-y-1 pl-4">
-            <li>Ships group the book into {RULES_FACTS.bucket} price buckets within ±{RULES_FACTS.range}. Distance from the line = distance from the price; size = order size.</li>
+            <li>Ships group the book into {RULES_FACTS.bucket} price buckets within ±{RULES_FACTS.range}. Distance from the line = distance from the price; size = resting liquidity.</li>
             <li>A trade is a shot from the taker's fleet into the ship at that price. The ship loses what was filled and sinks when fully filled.</li>
-            <li>A big order cancelled before contact dives like a submarine; if similar size reappears elsewhere it surfaces there.</li>
-            <li>Fighters are single very large taker orders. Bombers are real liquidations.</li>
+            <li>Ships are makers (resting liquidity). Gunfire is takers (aggressive trades) launched from the attacking side's fleet.</li>
+            <li>Big liquidity pulled before contact dives like a submarine; if similar size reappears elsewhere it surfaces there.</li>
+            <li>Fighters are bursts of $200K+ aggressive buying or selling within 0.3 s. Bombers are real liquidations, labelled long or short.</li>
           </ul>
           <H>Predictions</H>
           <ul className="list-disc space-y-1 pl-4">

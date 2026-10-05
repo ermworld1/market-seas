@@ -44,6 +44,13 @@ export interface HudSnapshot {
   flags: { bid: FlagSnap | null; ask: FlagSnap | null };
   nextTarget: { side: "bid" | "ask"; price: number; depth: number } | null;
   battle: { id: number; end: number; startMark: number };
+  nextFundingTime: number;
+  depth05: { bid: number; ask: number };
+  depth1: { bid: number; ask: number };
+  cvd1m: number;
+  cvd5m: number;
+  liq1h: { longs: number; shorts: number };
+  walls: Record<"bid" | "ask", { eaten: number; pulled: number; standing: number }>;
 }
 
 export interface Toast {
@@ -134,6 +141,13 @@ export const EMPTY_HUD: HudSnapshot = {
   flags: { bid: null, ask: null },
   nextTarget: null,
   battle: { id: 0, end: 0, startMark: 0 },
+  nextFundingTime: 0,
+  depth05: { bid: 0, ask: 0 },
+  depth1: { bid: 0, ask: 0 },
+  cvd1m: 0,
+  cvd5m: 0,
+  liq1h: { longs: 0, shorts: 0 },
+  walls: { bid: { eaten: 0, pulled: 0, standing: 0 }, ask: { eaten: 0, pulled: 0, standing: 0 } },
 };
 
 export const useBattle = create<BattleStore>(() => ({

@@ -9,7 +9,7 @@ export const BANK = {
   torpedo: 3,
   explosion: 6,
   ricochet: 3,
-  casing: 2,
+  casing: 1,
   aircraft: 3,
   flak: 3,
   siren: 1,

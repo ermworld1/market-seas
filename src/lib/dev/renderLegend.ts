@@ -4,8 +4,8 @@
  */
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { MODELS, makeFleetMaterial, normalizeGeometry } from "@/components/naval/models";
-import { makeFighterGeometry } from "@/components/naval/fighter";
+import { MODELS, makeAircraftMaterial, makeFleetMaterial, normalizeGeometry } from "@/components/naval/models";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { SIDE_HEX, UNIT_PAINT_HEX } from "@/lib/battle/units";
 
 const W = 240;
@@ -18,6 +18,7 @@ export async function renderLegend(): Promise<Record<string, string>> {
   r.setSize(W, H);
   r.toneMapping = THREE.ACESFilmicToneMapping;
   const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
   const geo = async (n: keyof typeof MODELS, kind: "ship" | "air") => normalizeGeometry((await loader.loadAsync(MODELS[n])).scene, kind);
   const shot = (g: THREE.BufferGeometry, mat: THREE.Material, side: Side | "neutral", scale: number, air = false) => {
     const scene = new THREE.Scene();
@@ -50,13 +51,12 @@ export async function renderLegend(): Promise<Record<string, string>> {
   ];
   for (const [id, model, sc] of ships) {
     const g = await geo(model, "ship");
-    const mat = model === "transport" ? new THREE.MeshStandardMaterial({ color: "#68747a", emissive: 0x000000, emissiveIntensity: 0, metalness: 0.3, roughness: 0.72 }) : makeFleetMaterial("neutral", id === "destroyer");
+    const mat = model === "transport" || model === "tanker" ? makeAircraftMaterial() : makeFleetMaterial("neutral", id === "destroyer");
     out[id] = shot(g, mat, "neutral", sc);
   }
-  const air = () => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), emissive: 0x000000, emissiveIntensity: 0, metalness: 0.4, roughness: 0.62, flatShading: true });
+  const air = () => makeAircraftMaterial();
   const bomber = await geo("bomber", "air");
-  const fighter = makeFighterGeometry();
-  fighter.computeBoundingBox();
+  const fighter = await geo("fighter", "air");
   out["bomber"] = shot(bomber, air(), "neutral", 1, true);
   out["fighter"] = shot(fighter, air(), "neutral", 0.9, true);
   r.dispose();

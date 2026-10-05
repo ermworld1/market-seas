@@ -17,15 +17,15 @@ const el = (sel: string) => () => {
 const STEPS: Step[] = [
   {
     title: "The strait = live price",
-    text: "The vertical glowing line in the middle is the live BTC price on Binance Futures. Buy orders wait left; sell orders wait right.",
+    text: "The vertical glowing line in the middle is the live BTC price on Binance Futures. Resting buy liquidity waits left; sell liquidity waits right.",
     rect: () => (screen.strait ? { x: screen.strait.x - 26, y: 0, w: 52, h: window.innerHeight } : null),
   },
   {
-    title: "A real order",
-    text: "This ship is a real resting order. Left/right is its exact price; front/back is how long it has waited. Green decks are Buyers, red decks are Sellers.",
+    title: "Real liquidity",
+    text: "This ship is real resting liquidity on Binance (many orders in one price bucket). Left/right is its price; front/back is how long it has rested. Green decks are Buyers, red decks are Sellers.",
     rect: () => (screen.near ? { x: screen.near.x - 40, y: screen.near.y - 40, w: 80, h: 80 } : null),
   },
-  { title: "Ship size = order size", text: "Bigger ships are bigger orders, ranked against the rest of the book. The largest on each side is the flagship.", rect: el('[data-tour="legend"]') },
+  { title: "Ship size = liquidity", text: "Bigger ships hold more resting liquidity, ranked against the rest of the book. The largest on each side is the flagship.", rect: el('[data-tour="legend"]') },
   { title: "Battle clock and flagships", text: "Each battle lasts 5 minutes. Push the price toward the other fleet and sink its flagship to win.", rect: el('[data-tour="clock"]') },
 ];
 
