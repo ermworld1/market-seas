@@ -24,4 +24,11 @@ describe("data-derived fleet positioning", () => {
     expect(result.get("b")?.x).toBe(5.1);
     expect(Math.abs((result.get("a")?.z ?? 0) - (result.get("b")?.z ?? 0))).toBeGreaterThan(0.5);
   });
+  it("packs a dense same-price row without stacking ships at the lane edge", () => {
+    const ships = Array.from({ length: 12 }, (_, i) => ({ key: `${i}`, x: 4.2, z: -7.8, length: 1.6, beam: 0.45 }));
+    const result = separateStationDepth(ships, 8);
+    const depths = ships.map((s) => result.get(s.key)?.z ?? 0);
+    expect(new Set(depths.map((z) => z.toFixed(2))).size).toBe(ships.length);
+    expect(depths.every((z) => z >= -8 && z <= 8)).toBe(true);
+  });
 });
