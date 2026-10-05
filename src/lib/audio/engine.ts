@@ -529,6 +529,40 @@ class AudioEngine {
     }
   }
 
+  /**
+   * Liquidation impact: the biggest sound in the game, scaled by the real liquidated notional.
+   * Two different explosion recordings, a slowed heavy gun as body, a sub-bass thump, a secondary blast
+   * for $1M+ and a rolling echo. Everything else steps back for a moment so it lands.
+   */
+  liquidationBlast(notional: number, x = 0) {
+    const ctx = this.ctx;
+    const bus = this.buses["air"];
+    if (!ctx || !this.enabled || !bus) return;
+    const t = ctx.currentTime;
+    const g = Math.max(0.8, Math.min(1.8, 0.8 + Math.log10(Math.max(notional, 1) / 50_000) * 0.5));
+    const out = ctx.createGain();
+    out.gain.value = g;
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = Math.max(-1, Math.min(1, x));
+    out.connect(pan).connect(bus);
+    const nodes: AudioScheduledSourceNode[] = [];
+    this.oneShot("explosion", t, out, nodes, 1, 0.9);
+    this.oneShot("explosion", t + 0.05, out, nodes, 0.8, 0.72);
+    this.oneShot("biggun", t + 0.02, out, nodes, 0.7, 0.7);
+    this.boom(t, out, nodes, 52, 1.1, 500, 1.1);
+    if (notional >= 1_000_000) this.oneShot("explosion", t + 0.55, out, nodes, 0.75, 0.8);
+    this.oneShot("explosion", t + 0.4, out, nodes, 0.3, 0.55);
+    this.echo(t, out, nodes, 0.35, 420);
+    // momentary duck of everything else so the blast punches through
+    const m = this.mixBase();
+    for (const [node, base] of [[this.buses["weapons"], m.weapons], [this.buses["amb"], m.amb], [this.music, m.music]] as const) {
+      if (!node) continue;
+      node.gain.cancelScheduledValues(t);
+      node.gain.setTargetAtTime(base * 0.25, t, 0.02);
+      node.gain.setTargetAtTime(base, t + 0.7, 0.4);
+    }
+  }
+
   // ───────── aircraft: one engine voice per visible plane, alive exactly as long as the plane ─────────
   activeAircraft = 0;
   aircraftLog: { kind: string; ev: "spawn" | "exit" | "guns" | "bomb"; t: number }[] = [];

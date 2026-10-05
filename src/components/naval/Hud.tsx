@@ -142,9 +142,7 @@ function Header({ now }: { now: number }) {
           <button onClick={() => { const next = presentation === "cinema" ? "map" : "cinema"; useBattle.setState({ presentation: next }); view.presentation = next; startFleetIntro(); audio.openingAdvance(); savePrefs(); }} aria-label={`Switch to ${presentation === "cinema" ? "map" : "cinema"} view`} className="flex items-center gap-1 rounded bg-secondary px-2 py-1.5 text-[10px] font-semibold uppercase text-foreground hover:bg-accent">
             <Map className="h-4 w-4" /> {presentation}
           </button>
-          <button onClick={async () => { const on = !alertsOn; if (on && "Notification" in window) await Notification.requestPermission(); useBattle.setState({ alertsOn: on }); savePrefs(); }} aria-label={alertsOn ? "Disable alerts" : "Enable alerts"} className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
-            {alertsOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-          </button>
+
           <AutoCamToggle />
           <SoundControl />
         </div>
@@ -639,14 +637,7 @@ export function Hud() {
       {war && <div className="war-vignette absolute inset-0" aria-hidden />}
       <Labels />
       <ShipCard />
-      {/* always-visible help on the battlefield itself, not only in the header */}
-      <button
-        onClick={() => useBattle.setState({ helpOpen: true })}
-        aria-label="How to play"
-        className="pointer-events-auto fixed left-3 top-1/2 z-30 flex -translate-y-1/2 items-center gap-1.5 rounded-full border border-primary/60 bg-background/80 px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-primary shadow-lg backdrop-blur hover:bg-background"
-      >
-        <HelpCircle className="h-4 w-4" /> How to play
-      </button>
+
        <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <Header now={now} />
         <div className="flex items-center justify-between gap-1.5">
