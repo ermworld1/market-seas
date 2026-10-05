@@ -196,7 +196,7 @@ function onEvent(ev: BattleEvent) {
       if (ev.notional >= 1_000_000) callout(`${usd(ev.notional)} ${ev.taker.toUpperCase()} · BROADSIDE`, ev.taker === "buy" ? "buy" : "sell");
       break;
     case "fighter":
-      talk(["s_aircraft", `${cmd(ev.target)}_aa`]);
+      if (ev.notional >= 500_000) talk(["s_aircraft", `${cmd(ev.target)}_aa`]);
       pushTape("FIGHTER", `${ev.formation}-FIGHTER wave · taker ${ev.taker} ${usd(ev.notional)} · ${ev.buckets.length} rows${ev.queuedOrders > 1 ? ` · ${ev.queuedOrders} bursts merged` : ""}`, ev.taker === "buy" ? "buy" : "sell", ev.notional);
       naval("fighter", 75, "phone", callsign(ev.target), `${ev.formation} aircraft · ${usd(ev.notional)}`, [lineOn("phone", "Radar/CIC", phrase("radar_bogeys", "Bogeys inbound, angels two")), lineOn("tbs", "Captain", phrase(aaClip(callsign(ev.target)), `${callsign(ev.target)}, AA batteries, open fire`))]);
       break;

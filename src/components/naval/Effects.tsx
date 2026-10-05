@@ -401,7 +401,7 @@ export function Effects() {
           flash(x, p.alt, z, 1.4, "#ffb347");
           voices.current[i]?.hit?.((CRASH_U - HIT_U) * p.dur);
           // radio at the exact moment of the hit: spotter, then the commander of the fleet that shot it down
-          if ((p.notional ?? 0) >= 100_000) void audio.exchange(["s_shot", `${p.side === "bid" ? "a" : "c"}_fire`], 8);
+          if ((p.notional ?? 0) >= 250_000) void audio.exchange(["s_shot", `${p.side === "bid" ? "a" : "c"}_fire`], 8);
         }
         if (p.hit) {
           const k = Math.min(1, (u - HIT_U) / (CRASH_U - HIT_U));
@@ -456,7 +456,7 @@ export function Effects() {
         // loudness from on-screen distance to the action, not from the camera (the map camera sits far away)
         const close = Math.max(0, 1 - Math.abs(x - view.cameraX) / (view.halfW * 2.2 + REAR));
         vce.update(panX(x - view.frontX, REAR), 0.45 + 0.55 * close, 1 + Math.max(-0.25, Math.min(0.25, vRad / 120)), pull);
-        if (p.kind === "fighter" && !p.doomed && !gunsOn.current[i] && u > 0.1) { gunsOn.current[i] = true; vce.guns(p.dur * 0.75, panX(x - view.frontX, REAR)); }
+        if (p.kind === "fighter" && !p.doomed && !gunsOn.current[i] && u > 0.3) { gunsOn.current[i] = true; vce.guns(p.dur * 0.5, panX(x - view.frontX, REAR)); }
       }
       if (u >= 1) {
         p.on = false;

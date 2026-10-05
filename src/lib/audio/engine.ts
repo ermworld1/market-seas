@@ -24,6 +24,8 @@ const VOICE_VARIANTS: Record<string, string[]> = {
   c_damage: ["c_damage", "c_damage2"], a_damage: ["a_damage", "a_damage2"],
   c_hold: ["c_hold", "c_hold2"], a_hold: ["a_hold", "a_hold2"],
 };
+/** seconds before the same kind of call may be heard again */
+const EXCHANGE_COOLDOWN: Record<string, number> = { s_aircraft: 120, s_shot: 90, s_torpedo: 75, s_hit: 45, s_dive: 90, s_wehit: 60 };
 const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
   mg: "weapons", hit: "weapons", miss: "weapons", gun: "weapons", gun5: "weapons", torpedo: "weapons", broadside: "weapons",
   fighter: "air", flak: "air", liquidation: "air",
@@ -471,8 +473,9 @@ class AudioEngine {
     const now = ctx.currentTime;
     if (now < this.voBusyUntil || now - this.lastVoiceAt < minGap) return false;
     // the same kind of exchange at most once every 45 s, so the radio never loops the same call
-    const type = keys.join("+");
-    if (minGap > 0 && now - (this.lastExchangeType.get(type) ?? -1e9) < 45) return false;
+    // cooldown per kind of call (keyed on the opening line, so "Buyers" and "Sellers" versions share it)
+    const type = keys[0]!;
+    if (minGap > 0 && now - (this.lastExchangeType.get(type) ?? -1e9) < (EXCHANGE_COOLDOWN[type] ?? 45)) return false;
     this.lastExchangeType.set(type, now);
     keys = keys.map((k) => this.pickVariant(k));
     const t0 = performance.now();
@@ -651,6 +654,25 @@ class AudioEngine {
         else src.start(t, Math.random() * propBuf.duration);
         engines.push(src);
       }
+      // Engine roar under the fly-by: looping propeller recording with a doppler sweep (higher while
+      // approaching, lower after passing). Measured: fly-by recordings alone were masked by the guns.
+      const roarBuf = isFlyby ? this.bank("prop")[0] : undefined;
+      if (roarBuf) {
+        const roar = ctx.createBufferSource();
+        roar.buffer = roarBuf;
+        roar.loop = true;
+        const base = kind === "bomber" ? 0.74 : 1.12;
+        roar.playbackRate.setValueAtTime(base * 1.1, t);
+        roar.playbackRate.linearRampToValueAtTime(base * 1.1, t + life * 0.4);
+        roar.playbackRate.linearRampToValueAtTime(base * 0.88, t + life * 0.6);
+        const rg2 = ctx.createGain();
+        rg2.gain.setValueAtTime(0.0001, t);
+        rg2.gain.exponentialRampToValueAtTime(kind === "bomber" ? 4.2 : 2.0, t + life * 0.45);
+        rg2.gain.exponentialRampToValueAtTime(0.25, t + life);
+        roar.connect(rg2).connect(out);
+        roar.start(t, Math.random() * roarBuf.duration);
+        engines.push(roar);
+      }
       if (rushBuf) {
         const rush = ctx.createBufferSource();
         rush.buffer = rushBuf;
@@ -697,7 +719,7 @@ class AudioEngine {
               p2.connect(bus);
               const n3: AudioScheduledSourceNode[] = [];
               // real Browning M2 .50-cal bursts (the wing guns of WWII US fighters); falls back to the ship MG
-              if (!this.oneShot("m2", c.currentTime, p2, n3, lead ? 1.1 : 0.5, 0.95 + Math.random() * 0.1)) this.play("mg", { x: panV, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
+              if (!this.oneShot("m2", c.currentTime, p2, n3, lead ? 0.7 : 0.3, 0.95 + Math.random() * 0.1)) this.play("mg", { x: panV, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
             }, k * 900 + Math.random() * 120);
           }
           this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
@@ -781,7 +803,7 @@ class AudioEngine {
               p2.connect(bus);
               const n3: AudioScheduledSourceNode[] = [];
               // real Browning M2 .50-cal bursts (the wing guns of WWII US fighters); falls back to the ship MG
-              if (!this.oneShot("m2", c.currentTime, p2, n3, lead ? 1.1 : 0.5, 0.95 + Math.random() * 0.1)) this.play("mg", { x: panV, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
+              if (!this.oneShot("m2", c.currentTime, p2, n3, lead ? 0.7 : 0.3, 0.95 + Math.random() * 0.1)) this.play("mg", { x: panV, gain: lead ? 1.25 : 0.55, shots: 6, bus: "air", rate: 1.12 });
             }, k * 900 + Math.random() * 120);
           }
           this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
