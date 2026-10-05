@@ -145,6 +145,7 @@ export function HowItWorks() {
             <li>Picks lock when the window starts and are scored on the server from Binance prices. XP only: no money, no prizes. Sign in from the Ranks tab to appear on the leaderboard.</li>
           </ul>
           <UnitSections />
+          <p className="mt-4 text-[10px] text-muted-foreground">Sound credits: airplane propeller sound by jakobthiesen, loop by AntumDeluge (CC-BY 3.0). Other effects CC0, listed in /sfx/LICENSES.md.</p>
         </div>
         <div className="mt-3 flex justify-end gap-2">
           <button onClick={() => useBattle.setState({ helpOpen: false, tourOpen: true })} className={cn("rounded bg-primary px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wider text-primary-foreground")}>Replay tour</button>

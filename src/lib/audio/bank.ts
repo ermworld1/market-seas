@@ -17,6 +17,7 @@ export const BANK = {
   waves: 1,
   battle: 1,
   radio: 2,
+  prop: 1,
 } as const;
 export type BankFolder = keyof typeof BANK;
 
