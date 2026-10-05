@@ -121,24 +121,26 @@ export function preloadModels() {
   for (const url of Object.values(MODELS)) useGLTF.preload(url);
 }
 
-/** Shared realistic naval paint; side identity comes from physical stripes, deck marks and flags. */
-export function makeFleetMaterial(side: "buyers" | "sellers", trim = false) {
-  const color = new THREE.Color(trim ? "#717b80" : "#465158").convertSRGBToLinear();
+/** Shared matte naval paint with a full deck and upper-hull side band; emissive is always zero. */
+export function makeFleetMaterial(side: "buyers" | "sellers" | "neutral", trim = false) {
+  const color = new THREE.Color(trim ? "#778187" : "#59666d").convertSRGBToLinear();
+  const sideColor = new THREE.Color(side === "buyers" ? "#2F8F57" : side === "sellers" ? "#C0392B" : "#727b80").convertSRGBToLinear();
   const material = new THREE.MeshPhysicalMaterial({
     color,
     emissive: 0x000000,
     emissiveIntensity: 0,
-    metalness: trim ? 0.42 : 0.5,
-    roughness: trim ? 0.62 : 0.74,
-    clearcoat: 0.08,
+    metalness: trim ? 0.3 : 0.34,
+    roughness: trim ? 0.7 : 0.8,
+    clearcoat: 0.03,
     clearcoatRoughness: 0.78,
     flatShading: false,
   });
   material.onBeforeCompile = (shader) => {
+    shader.uniforms["uSidePaint"] = { value: sideColor };
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvHullPos = position;");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vHullPos;\nuniform vec3 uSidePaint;").replace(
       "#include <color_fragment>",
-      `#include <color_fragment>\nfloat below = smoothstep(0.035, -0.055, vHullPos.y);\nfloat upper = smoothstep(0.10, 0.24, vHullPos.y);\nfloat deck = smoothstep(0.055, 0.085, vHullPos.y) * (1.0 - smoothstep(0.18, 0.30, vHullPos.y));\ndiffuseColor.rgb *= mix(1.0, 0.30, below);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.34, 0.38, 0.39), upper * 0.72);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.25, 0.22, 0.17), deck * 0.20);\nfloat panel = sin(vHullPos.x * 94.0) * sin(vHullPos.z * 71.0);\ndiffuseColor.rgb *= 0.97 + panel * 0.025;\nfloat weather = sin(vHullPos.x * 73.0 + sin(vHullPos.z * 51.0)) * sin(vHullPos.y * 117.0);\nfloat rust = smoothstep(0.86, 1.0, weather) * smoothstep(0.18, -0.02, vHullPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.18, 0.075, 0.035), rust * 0.24);`,
+      `#include <color_fragment>\nfloat belowWater = 1.0 - smoothstep(-0.045, 0.005, vHullPos.y);\nfloat upperHull = smoothstep(0.025, 0.065, vHullPos.y) * (1.0 - smoothstep(0.145, 0.19, vHullPos.y));\nfloat mainDeck = smoothstep(0.09, 0.125, vHullPos.y) * (1.0 - smoothstep(0.19, 0.25, vHullPos.y));\nfloat superstructure = smoothstep(0.19, 0.28, vHullPos.y);\nfloat funnelBand = smoothstep(0.30, 0.36, vHullPos.y) * (1.0 - smoothstep(0.40, 0.47, vHullPos.y));\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.055, 0.045), belowWater * 0.94);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uSidePaint, max(upperHull * 0.96, mainDeck));\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.58, 0.62, 0.63), superstructure * 0.88);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uSidePaint, funnelBand * 0.9);\nfloat panel = sin(vHullPos.x * 94.0) * sin(vHullPos.z * 71.0);\ndiffuseColor.rgb *= 0.98 + panel * 0.018;\nfloat weather = sin(vHullPos.x * 73.0 + sin(vHullPos.z * 51.0)) * sin(vHullPos.y * 117.0);\nfloat rust = smoothstep(0.91, 1.0, weather) * smoothstep(0.18, -0.02, vHullPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.18, 0.075, 0.035), rust * 0.16);`,
     );
   };
   material.customProgramCacheKey = () => `naval-weather-${side}-${trim}`;

@@ -29,27 +29,31 @@ export function introArrived(tier: Tier, elapsedMs: number) {
   return introProgress(tier, elapsedMs) >= 0.999;
 }
 
-export interface StationPoint { key: string; x: number; z: number; radius: number }
+export interface StationPoint { key: string; x: number; z: number; length: number; beam: number }
 
-/** Resolve overlap only on the time axis. X is copied exactly and never altered. */
+/** Resolve every projected hull collision only on the time axis. X is never altered. */
 export function separateStationDepth(points: StationPoint[], halfDepth: number) {
-  const byX = new Map<number, StationPoint[]>();
-  for (const point of points) {
-    const key = Math.round(point.x * 10_000);
-    const group = byX.get(key) ?? [];
-    group.push({ ...point });
-    byX.set(key, group);
-  }
   const out = new Map<string, { x: number; z: number }>();
-  for (const group of byX.values()) {
-    group.sort((a, b) => b.z - a.z || a.key.localeCompare(b.key));
-    let previous = Number.POSITIVE_INFINITY;
-    for (const point of group) {
-      const clearance = point.radius * 0.7;
-      const z = Math.max(-halfDepth, Math.min(point.z, previous - clearance));
-      out.set(point.key, { x: point.x, z });
-      previous = z;
+  const placed: Array<StationPoint & { z: number }> = [];
+  const ordered = [...points].sort((a, b) => b.z - a.z || a.x - b.x || a.key.localeCompare(b.key));
+  for (const point of ordered) {
+    let z = Math.max(-halfDepth, Math.min(point.z, halfDepth));
+    for (let pass = 0; pass < points.length; pass++) {
+      let next = z;
+      for (const other of placed) {
+        const xClearance = (point.length + other.length) * 0.52;
+        const zClearance = (point.beam + other.beam) * 0.62;
+        if (Math.abs(point.x - other.x) < xClearance && Math.abs(z - other.z) < zClearance) {
+          next = Math.min(next, other.z - zClearance);
+        }
+      }
+      if (next === z) break;
+      z = next;
     }
+    z = Math.max(-halfDepth, z);
+    const placedPoint = { ...point, z };
+    placed.push(placedPoint);
+    out.set(point.key, { x: point.x, z });
   }
   return out;
 }
