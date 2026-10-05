@@ -21,12 +21,14 @@ export const BANK = {
   spitfire: 3,
   b25: 1,
   m2: 2,
+  shipgun: 7,
 } as const;
 export type BankFolder = keyof typeof BANK;
 
 /** Which recorded folder a one-shot category plays (others stay procedural). */
 export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
-  mg: "mg",
+  // small trades: ship-mounted heavy MG (.50 cal) and 40mm-class autocannon, not rifle-calibre fire
+  mg: "shipgun",
   gun: "gun",
   gun5: "gun",
   broadside: "biggun",
@@ -39,5 +41,5 @@ export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
 };
 
 /** bump when sample files are replaced in place, so browsers do not keep playing the cached old files */
-export const SFX_VERSION = "16";
+export const SFX_VERSION = "18";
 export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => `/sfx/${f}/${i + 1}.mp3?v=${SFX_VERSION}`);

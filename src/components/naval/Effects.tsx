@@ -400,6 +400,8 @@ export function Effects() {
           for (let k = 0; k < 8; k++) pools.smoke.emit({ x: x + (Math.random() - 0.5) * 2, y: p.alt + (Math.random() - 0.5), z: z + (Math.random() - 0.5) * 2, life: 1.6, size: 0.35, grow: 1.6, color: "#2a2a2a", alpha: 0.75 });
           flash(x, p.alt, z, 1.4, "#ffb347");
           voices.current[i]?.hit?.((CRASH_U - HIT_U) * p.dur);
+          // radio at the exact moment of the hit: spotter, then the commander of the fleet that shot it down
+          if ((p.notional ?? 0) >= 100_000) void audio.exchange(["s_hit", `${p.side === "bid" ? "a" : "c"}_fire`], 6);
         }
         if (p.hit) {
           const k = Math.min(1, (u - HIT_U) / (CRASH_U - HIT_U));

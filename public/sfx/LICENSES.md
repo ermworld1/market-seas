@@ -59,6 +59,8 @@ License: https://sonniss.com/gdc-bundle-license/ (no standalone redistribution, 
 | `mg/7–8.mp3` | M1919A4_Browning_Machine_Gun_.30cal_on_turret_300m_in_front_blanks_Triple_shots_x_2.wav |
 | `gun/1–2.mp3` | TAJ - Tank Battle Cannon Fire [XY Stereo]-001.wav |
 | `gun/3.mp3` | warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav |
+| `shipgun/1–5.mp3` | Audiobeast_Medium_Warehouse_Browning_M2_.50_Machine_Gun_03m_RSM191_MS_Raw_002_Burst_x2.wav (bursts cut into ~0.7 s pieces, pitched down 12%) |
+| `shipgun/6–7.mp3` | Automatic Cannon - MK44 - 03 - Single Shot with Report 03.wav (pitched down) |
 | `flak/1–3.mp3` | Automatic Cannon - MK44 - 03 - Single Shot with Report 03.wav (2 and 3 are pitched variants) |
 | `battle/1.mp3` | warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav + TAJ - Tank Battle Machine Guns (7.62 & 50 cal) (middle section), low-passed |
 

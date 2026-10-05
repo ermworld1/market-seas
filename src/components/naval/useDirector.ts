@@ -213,7 +213,7 @@ function onEvent(ev: BattleEvent) {
         talk(["s_flagsunk", `${cmd(ev.side)}_abandon`, `${cmd(other(ev.side))}_push`], 0);
         triggerClip(`${fleet}' flagship sunk`);
         naval("flagship-sunk", 95, "tbs", callsign(ev.side), `${fleet} flagship at ${fmtPrice(ev.price)}`, [lineOn("tbs", "Lookout/Spotter", phrase("spot_goingunder", "She's going under")), lineOn("tbs", "Captain", phrase(abandonClip(callsign(ev.side)), `${callsign(ev.side)}, abandon ship`))]);
-      } else if (ev.tier === "cruiser") talk(["s_hit", `${cmd(other(ev.side))}_fire`]);
+      }
       break;
     case "dive":
     case "fled": {
@@ -261,18 +261,14 @@ function onEvent(ev: BattleEvent) {
       pushTape("AIR STRIKE", `AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, "liq", ev.notional);
       callout(`AIR STRIKE · ${what} LIQUIDATED ${usd(ev.notional)}`, "liq");
       // the liquidated side's aircraft is shot down by the other fleet
-      if (ev.notional >= 100_000) talk(["s_hit", `${cmd(ev.liquidated === "longs" ? "ask" : "bid")}_fire`]);
+      // (radio for liquidations is played by the effects layer at the moment the aircraft is hit)
       naval("liquidation", 85, "tbs", ev.liquidated === "longs" ? "Bull Fleet" : "Bear Fleet", `${what} ${usd(ev.notional)} at ${fmtPrice(ev.price)}`, [line("Lookout/Spotter", phrase("spot_bombers", "Bombers overhead"))]);
       break;
     }
     case "phase":
       audio.setPhase(ev.phase);
-      if (ev.phase === "P6") {
-        // the side gaining ground orders the push; their spotter acknowledges
-        const winner: BookSide = (engineRef.current?.priceChange5m ?? 0) > 0 ? "bid" : "ask";
-        talk(ev.detail === "fall back" ? [`${cmd(other(winner))}_hold`, "s_aye"] : [`${cmd(winner)}_push`, "s_aye"]);
-      } else if (ev.phase === "P5") talk(["s_bombers", "c_brace", "a_brace"], 0);
-      else if (ev.phase === "P3") talk(["s_contact", `${cmd(Math.random() < 0.5 ? "bid" : "ask")}_fire`]);
+      // voice only for things the viewer can see happening right now: no lines for abstract phase changes
+      if (ev.phase === "P5") talk(["s_bombers", "c_brace", "a_brace"], 0);
       if (ev.phase === "P5") naval("cascade", 90, "1mc", undefined, "Liquidation cascade", [lineOn("1mc", "1MC", phrase("mc1_brace", "Brace for impact! Brace for impact!")), lineOn("phone", "Damage Control", phrase("dc_flooding", "Flooding! Counter-flood starboard!"))]);
       if (ev.phase === "P7") naval("battle-end", 88, "tbs", "Bull Fleet", "Battle end", [line("Captain", phrase("bull_cap_ceasefire", "Cease fire. Secure from general quarters"))]);
       if (ev.phase === "P5") triggerClip("Liquidation cascade");
@@ -397,7 +393,7 @@ export function useDirector() {
         useBattle.setState({ round: r });
       }
 
-      if (!warned && battle.end && battle.end - now <= 30_000) { warned = true; talk([`${cmd(Math.random() < 0.5 ? "bid" : "ask")}_push`, "s_aye"], 4); }
+      if (!warned && battle.end && battle.end - now <= 30_000) warned = true;
       // war ambience density from the real trade rate and phase
       const recent = e.recentTrades.filter((t) => now - t.time < 5000).length;
       audio.setIntensity(recent / 40 + (e.phase.current === "P5" ? 0.6 : e.phase.current === "P4" || e.phase.current === "P3" ? 0.25 : 0));
