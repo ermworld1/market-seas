@@ -24,6 +24,7 @@ export type BankFolder = keyof typeof BANK;
 export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
   mg: "mg",
   gun: "gun",
+  gun5: "gun",
   broadside: "biggun",
   torpedo: "torpedo",
   hit: "ricochet",

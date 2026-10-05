@@ -47,6 +47,22 @@ export function DebugPanel() {
         {SFX.map((c) => (
           <button key={c} className="rounded bg-secondary px-1" onClick={() => audio.play(c)}>{c}</button>
         ))}
+        {(["fighter", "bomber"] as const).map((k) => (
+          <button key={`air-${k}`} className="rounded bg-secondary px-1" onClick={() => {
+            // sound check only: sweeps an aircraft voice left to right over its normal lifetime
+            const life = k === "fighter" ? 3.1 : 3.8;
+            const v = audio.aircraftStart(k, life, true);
+            if (!v) return;
+            const t0 = performance.now();
+            const iv = window.setInterval(() => {
+              const u = Math.min(1, (performance.now() - t0) / (life * 1000));
+              v.update(-1 + 2 * u, 1 - Math.abs(u - 0.5) * 2, 1 + (0.5 - u) * 0.15, 0);
+              if (k === "fighter" && u > 0.1 && u < 0.12) v.guns(life * 0.75, -1 + 2 * u);
+              if (k === "bomber" && u > 0.4 && u < 0.42) v.bomb(0.75);
+              if (u >= 1) { window.clearInterval(iv); v.stop(); }
+            }, 50);
+          }}>pass:{k}</button>
+        ))}
       </div>
       <div className="mt-1 flex flex-wrap gap-1" id="debug-shots">
         {(["wide", "trade", "broadside", "fighter", "bomber", "cascade", "flagship"] as const).map((k) => (
