@@ -57,8 +57,8 @@ export async function renderLegend(): Promise<Record<string, string>> {
   const bomber = await geo("bomber", "air");
   const fighter = makeFighterGeometry();
   fighter.computeBoundingBox();
-  out.bomber = shot(bomber, air(), "neutral", 1, true);
-  out.fighter = shot(fighter, air(), "neutral", 0.9, true);
+  out["bomber"] = shot(bomber, air(), "neutral", 1, true);
+  out["fighter"] = shot(fighter, air(), "neutral", 0.9, true);
   r.dispose();
   // effect icons: same colours as the scene's effects
   const c = document.createElement("canvas");
