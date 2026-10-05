@@ -5,10 +5,9 @@ import { engineRef, fx } from "@/lib/market/store";
 import type { BattleEvent, BookSide, Weapon } from "@/lib/market/types";
 import { tracersFor } from "@/lib/market/rules";
 import { audio, panX } from "@/lib/audio/engine";
-import { useModelGeometry } from "./models";
+import { makeAircraftMaterial, useModelGeometry } from "./models";
 import { ParticlePool } from "./particles";
 import { fireStats, GAP, DEPTH, REAR, type Display, sideSign, view, xForPrice, zForBucket } from "./layout";
-import { makeFighterGeometry } from "./fighter";
 import { introArrived, INTRO_MS } from "@/lib/market/positioning";
 
 const MAX_PROJ = 2400;
@@ -90,12 +89,9 @@ export function Effects() {
   );
 
   const bomberGeo = useModelGeometry("bomber");
-  const fighterGeo = useMemo(() => makeFighterGeometry(), []);
+  const fighterGeo = useModelGeometry("fighter");
   // aircraft wear the colour of the side that sends them (the opposite of the side they attack)
-  const airMats = useMemo(() => {
-    const m = () => new THREE.MeshStandardMaterial({ color: new THREE.Color("#4d565b").convertSRGBToLinear(), emissive: 0x000000, emissiveIntensity: 0, metalness: 0.55, roughness: 0.62, flatShading: true });
-    return { bid: m(), ask: m() };
-  }, []);
+  const airMats = useMemo(() => ({ bid: makeAircraftMaterial(), ask: makeAircraftMaterial() }), []);
   const planeMat = airMats.ask;
   const fighterMat = airMats.bid;
   const projMesh = useRef<THREE.InstancedMesh>(null);
@@ -123,6 +119,11 @@ export function Effects() {
     [],
   );
   const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const voices = useRef<(ReturnType<typeof audio.aircraftStart>)[]>([]);
+  const gunsOn = useRef<boolean[]>([]);
+  const bombed = useRef<boolean[]>([]);
+  const prevDist = useRef<number[]>([]);
+  useEffect(() => () => { voices.current.forEach((v) => v?.stop()); }, []);
   const lastPlane = useRef<Plane | null>(null);
   const boom = useRef({ x: 0, z: 0, k: 0 });
   const boomLight = useRef<THREE.PointLight>(null);
@@ -141,9 +142,8 @@ export function Effects() {
       projMat.dispose();
       airMats.bid.dispose();
       airMats.ask.dispose();
-      fighterGeo.dispose();
     };
-  }, [projGeo, projMat, airMats, fighterGeo]);
+  }, [projGeo, projMat, airMats]);
 
   /** Never drops a shot: when the pool is full the oldest projectile is recycled. */
   const spawn = (p: Partial<Proj> & Pick<Proj, "fx" | "fy" | "fz" | "tx" | "ty" | "tz" | "dur" | "weapon">) => {
@@ -312,12 +312,7 @@ export function Effects() {
           launch("fighter", { dur: 3.1 + row * 0.12, ax: rear - sideSign(attacker) * row * 0.8, az: z0 + wing * (0.75 + row * 0.35), bx: targetX, bz: z0 + wing * 0.28, alt: 0.65 + row * 0.12, side: ev.target, formation: i });
         }
         view.fighterWaves++;
-      audio.play("fighter", {
-        x: panX(rear - view.frontX, REAR),
-        xEnd: panX(targetX - view.frontX, REAR),
-        panSeconds: 2.5,
-        gain: 1.15,
-      });
+
       } else if (ev.type === "liquidation") {
         const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
         const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);
@@ -346,6 +341,8 @@ export function Effects() {
       }
       p.t += dt;
       const u = Math.min(1, p.t / p.dur);
+      // engine sound lives exactly as long as this aircraft is visible
+      if (!voices.current[i]) { voices.current[i] = audio.aircraftStart(p.kind); gunsOn.current[i] = false; bombed.current[i] = false; prevDist.current[i] = 0; }
       const pull = p.kind === "fighter" ? Math.max(0, (u - 0.72) / 0.28) : 0;
       const x = p.ax + (p.bx - p.ax) * u;
       const z = p.az + (p.bz - p.az) * u + pull * pull * (p.formation && p.formation % 2 ? -2 : 2);
@@ -362,6 +359,7 @@ export function Effects() {
           const tz = z - 1.2;
           const hit = target && Math.abs(target.z - tz) < 3 ? target : null;
           spawn({ weapon: "bomb", fx: x, fy: p.alt - 0.3, fz: z, tx: hit ? hit.x : tx, ty: hit ? 0.2 * hit.s : 0, tz: hit ? hit.z : tz, dur: 0.75, size: 0.08, len: 0.25, target: hit });
+          if (!bombed.current[i]) { bombed.current[i] = true; voices.current[i]?.bomb(0.75); }
         }
       } else if (p.t >= p.next && u > 0.1 && u < 0.85) {
         p.next = p.t + 0.05;
@@ -369,7 +367,19 @@ export function Effects() {
         if (Math.random() < 0.45) splash(x + sideSign(p.side) * 1.2, z, 0.22);
         if (u < 0.3 || pull > 0) pools.smoke.emit({ x, y: m.position.y, z, life: 1.2, size: 0.05, grow: 1.1, color: "#eef4f5", alpha: 0.42 });
       }
-      if (u >= 1) p.on = false;
+      const vce = voices.current[i];
+      if (vce) {
+        const d = m.position.distanceTo(camPos);
+        const vRad = prevDist.current[i] ? (prevDist.current[i]! - d) / Math.max(dt, 1e-3) : 0;
+        prevDist.current[i] = d;
+        vce.update(panX(x - view.frontX, REAR), Math.max(0, 1 - d / 70), 1 + Math.max(-0.25, Math.min(0.25, vRad / 120)), pull);
+        if (p.kind === "fighter" && !gunsOn.current[i] && u > 0.1) { gunsOn.current[i] = true; vce.guns(p.dur * 0.75, panX(x - view.frontX, REAR)); }
+      }
+      if (u >= 1) {
+        p.on = false;
+        voices.current[i]?.stop();
+        voices.current[i] = null;
+      }
     });
 
     // projectiles
@@ -379,6 +389,7 @@ export function Effects() {
       if (!p.on) continue;
       p.t += dt;
       const u = Math.min(1, p.t / p.dur);
+
       const h = p.arc * 4 * u * (1 - u);
       tmpA.set(p.fx + (p.tx - p.fx) * u, p.fy + (p.ty - p.fy) * u + h, p.fz + (p.tz - p.fz) * u);
       if (p.weapon === "torpedo" && Math.random() < 0.9) pools.smoke.emit({ x: tmpA.x, y: 0.03, z: tmpA.z, life: 1.2, size: 0.2, grow: 2.2, color: "#eef7fa", alpha: 0.7 });

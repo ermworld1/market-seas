@@ -219,7 +219,7 @@ export function Fleet() {
 
       // visible ships: nearest buckets first, up to the cap
       const seen = new Set<string>();
-      updateFront(e.mark || mid);
+      updateFront(e.last || e.mark || mid);
       view.bucketVisual.clear();
       for (const side of SIDES) {
         const qualityCap = view.quality === "low" ? (view.mobile ? 34 : 72) : view.quality === "medium" ? (view.mobile ? 44 : 96) : view.cap;

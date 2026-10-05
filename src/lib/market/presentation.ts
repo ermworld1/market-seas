@@ -76,19 +76,19 @@ const fleetOf = (s: "bid" | "ask") => (s === "bid" ? "Buyers'" : "Sellers'");
 export function lessonText(ev: BattleEvent): string | null {
   switch (ev.type) {
     case "fire":
-      return `A real ${money(ev.notional)} ${ev.taker} order just traded against the ${fleetOf(ev.target)} ship at ${px(ev.price)} — every trade is a shot.`;
+      return `A real ${money(ev.notional)} aggressive ${ev.taker} just traded against the ${fleetOf(ev.target)} ship at ${px(ev.price)}. Every trade is a shot.`;
     case "sink":
-      return `The ${fleetOf(ev.side)} ${money(ev.notional)} order at ${px(ev.price)} was fully traded, so that ship sank and the price line moved.`;
+      return `The ${fleetOf(ev.side)} ${money(ev.notional)} of resting liquidity at ${px(ev.price)} was fully traded, so that ship sank and the price line moved.`;
     case "dive":
-      return `The ${fleetOf(ev.side)} ${money(ev.notional)} order at ${px(ev.price)} was cancelled before trades reached it — the ship dove like a submarine.`;
+      return `${money(ev.notional)} of ${ev.side === "bid" ? "bids" : "asks"} at ${px(ev.price)} was pulled before trades reached it, so the ship dove like a submarine.`;
     case "fled":
-      return `The ${fleetOf(ev.side)} ${money(ev.notional)} order at ${px(ev.price)} was pulled just as price came close — that ship fled.`;
+      return `${money(ev.notional)} of ${ev.side === "bid" ? "bids" : "asks"} at ${px(ev.price)} was pulled just as price came close, so that ship fled.`;
     case "fighter":
-      return `One taker ${ev.taker === "buy" ? "bought" : "sold"} ${money(ev.notional)} in a single order across ${ev.buckets.length} price level${ev.buckets.length === 1 ? "" : "s"} — that is a fighter strafing run.`;
+      return `${money(ev.notional)} of aggressive ${ev.taker === "buy" ? "buying" : "selling"} hit ${ev.buckets.length} price level${ev.buckets.length === 1 ? "" : "s"} within 0.3 s. That is a fighter strafing run.`;
     case "liquidation":
-      return `Binance force-closed ${money(ev.notional)} of ${ev.liquidated} at ${px(ev.price)} — liquidations arrive as bombers.`;
+      return `Binance force-closed ${money(ev.notional)} of ${ev.liquidated} at ${px(ev.price)}. Liquidations arrive as bombers.`;
     case "reinforce":
-      return `Someone added ${money(ev.notional)} of ${ev.side === "bid" ? "buy" : "sell"} orders at ${px(ev.price)} — the ${fleetOf(ev.side)} ship there was reinforced.`;
+      return `${money(ev.notional)} of ${ev.side === "bid" ? "buy" : "sell"} liquidity was added at ${px(ev.price)}, so the ${fleetOf(ev.side)} ship there was reinforced.`;
     default:
       return null;
   }

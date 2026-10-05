@@ -37,7 +37,6 @@ The naval mix layers these recordings with original browser synthesis: 20 mm/.50
 | `ricochet/2.mp3` | metal_hit_03.ogg | [100 CC0 metal and wood SFX (rubberduck)](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | CC0 1.0 |
 | `ricochet/3.mp3` | metal_hit_05.ogg | [100 CC0 metal and wood SFX (rubberduck)](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | CC0 1.0 |
 | `casing/1.mp3` | cartriges.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
-| `casing/2.mp3` | keys_02.ogg | [100 CC0 metal and wood SFX (rubberduck)](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | CC0 1.0 |
 | `aircraft/1.mp3` | airplane.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 | `aircraft/2.mp3` | airplane2.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 | `aircraft/3.mp3` | airplane3.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
@@ -48,6 +47,10 @@ The naval mix layers these recordings with original browser synthesis: 20 mm/.50
 | `horn/1.mp3` | ship1.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 | `horn/2.mp3` | ship2.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 | `waves/1.mp3` | wave_01..04_cc0-18363__jasinski__alkaibeach.flac (crossfaded) | [Beach Ocean Waves (jasinski via Freesound #18363)](https://opengameart.org/content/beach-ocean-waves) | CC0 1.0 |
-| `battle/1.mp3` | fw_loop.ogg | [25 CC0 bang / firework SFX (rubberduck)](https://opengameart.org/content/25-cc0-bang-firework-sfx) | CC0 1.0 |
+| `battle/1.mp3` | 40 s distant naval battle loop mixed from `explosion/1–4`, `gun/4`, `biggun/1–2`, `mg/1–2` above, low-passed with sea echoes | derived from the CC0 files listed in this table | CC0 1.0 |
 | `radio/1.mp3` | dl_ScatterNoise1.mp3 | [Static](https://opengameart.org/content/static) | CC0 1.0 |
 | `radio/2.mp3` | radiomsg1.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
+
+## Still lacking genuine naval recordings
+
+These categories use CC0 recordings that are not naval-specific or are synthesised: `gun/1–3` and `biggun/1–3` (cannon/bang set), `flak/1–3` (bang set), dive-bomber whistle, submarine dive/surface, bomb whistle. To upgrade, drop licensed files into `/public/sfx/<category>/<n>.mp3` and update the count in `src/lib/audio/bank.ts`.

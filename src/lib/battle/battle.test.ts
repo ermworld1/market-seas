@@ -285,11 +285,11 @@ import { lessonText } from "@/lib/market/presentation";
 describe("lesson sentences", () => {
   it("uses the real numbers for every lesson kind", () => {
     const base = { t: 0, side: "ask" as const, b: 1, price: 85320, tier: "cruiser" as const };
-    expect(lessonText({ ...base, type: "sink", notional: 1_800_000 } as never)).toBe("The Sellers' $1.8M order at 85,320 was fully traded, so that ship sank and the price line moved.");
-    expect(lessonText({ ...base, type: "dive", notional: 900_000, lived: 1, neverHit: true } as never)).toContain("$900K order at 85,320 was cancelled");
-    expect(lessonText({ type: "fighter", t: 0, taker: "sell", target: "bid", notional: 640_000, buckets: [1, 2, 3], formation: 3, queuedOrders: 1 })).toContain("sold $640K in a single order across 3 price levels");
+    expect(lessonText({ ...base, type: "sink", notional: 1_800_000 } as never)).toBe("The Sellers' $1.8M of resting liquidity at 85,320 was fully traded, so that ship sank and the price line moved.");
+    expect(lessonText({ ...base, type: "dive", notional: 900_000, lived: 1, neverHit: true } as never)).toContain("$900K of asks at 85,320 was pulled");
+    expect(lessonText({ type: "fighter", t: 0, taker: "sell", target: "bid", notional: 640_000, buckets: [1, 2, 3], formation: 3, queuedOrders: 1 })).toContain("$640K of aggressive selling hit 3 price levels within 0.3 s");
     expect(lessonText({ type: "liquidation", t: 0, liquidated: "longs", price: 85000, qty: 1, notional: 120_000 })).toContain("force-closed $120K of longs at 85,000");
-    expect(lessonText({ ...base, side: "bid", type: "reinforce", qty: 10, notional: 2_100_000, fresh: true } as never)).toContain("added $2.1M of buy orders at 85,320");
+    expect(lessonText({ ...base, side: "bid", type: "reinforce", qty: 10, notional: 2_100_000, fresh: true } as never)).toContain("$2.1M of buy liquidity was added at 85,320");
   });
 });
 
@@ -323,5 +323,39 @@ describe("v7: book verification + director lock", () => {
     expect(g.map((r) => [r.price, r.qty, r.sum])).toEqual([[100, 3, 3], [99, 3, 6]]);
     const asks = makeLadder(new Map([[100.1, 1], [100.9, 2]]), "ask", 100, 1);
     expect(asks.map((r) => r.price)).toEqual([101]);
+  });
+});
+
+describe("trader metrics", () => {
+  it("computes depth within a band, CVD, liquidations and wall stats from real inputs", async () => {
+    const { MarketEngine } = await import("@/lib/market/engine");
+    const e = new MarketEngine();
+    e.book.bids.set(99_900, 2);
+    e.book.bids.set(98_000, 5);
+    e.book.asks.set(100_100, 1);
+    e.book.asks.set(103_000, 9);
+    e.last = 100_000;
+    const d = e.depthWithin(0.005);
+    expect(d.bid).toBeCloseTo(99_900 * 2);
+    expect(d.ask).toBeCloseTo(100_100 * 1);
+    const now = 1_000_000_000;
+    e.flow.push({ t: Math.floor(now / 1000) - 10, buy: 300_000, sell: 100_000 }, { t: Math.floor(now / 1000) - 200, buy: 0, sell: 50_000 });
+    expect(e.cvd(now, 60)).toBe(200_000);
+    expect(e.cvd(now, 300)).toBe(150_000);
+    e.liqLog.push({ t: now - 1000, liquidated: "longs", notional: 2e6 }, { t: now - 4_000_000, liquidated: "shorts", notional: 1e6 });
+    expect(e.liquidations1h(now)).toEqual({ longs: 2e6, shorts: 0 });
+    e.wallLog.push({ t: now - 1000, side: "ask", outcome: "pulled" }, { t: now - 2000, side: "ask", outcome: "eaten" }, { t: now - 40 * 60_000, side: "bid", outcome: "eaten" });
+    const w = e.wallStats(now);
+    expect(w.ask.pulled).toBe(1);
+    expect(w.ask.eaten).toBe(1);
+    expect(w.bid.eaten).toBe(0);
+  });
+  it("uses the last traded price as the reference", async () => {
+    const { MarketEngine } = await import("@/lib/market/engine");
+    const e = new MarketEngine();
+    e.mark = 100_050;
+    e.handleTrade({ a: 1, p: "100000.0", q: "0.5", m: false, T: 1, f: 1, l: 1 }, 1);
+    expect(e.last).toBe(100_000);
+    expect(e.ref).toBe(100_000);
   });
 });

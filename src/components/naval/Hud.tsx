@@ -12,7 +12,7 @@ import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { choose, radioCheck } from "./useDirector";
 import { startFleetIntro, view } from "./layout";
-import { Labels } from "./Labels";
+import { Labels, ShipCard } from "./Labels";
 import { Tour } from "./Tour";
 import { DebugPanel } from "./DebugPanel";
 import { Guard } from "./Guard";
@@ -157,7 +157,8 @@ function Header({ now }: { now: number }) {
           <span className="ml-1 text-muted-foreground">{hud.mark ? fmtPrice(hud.mark) : ""}</span>
         </Stat>
         <Stat label="Funding">
-          <span className={hud.funding > 0 ? "text-bull" : hud.funding < 0 ? "text-bear" : ""}>{hud.mark ? `${(hud.funding * 100).toFixed(4)}%` : "—"}</span>
+          <span title="Funding is paid between longs and shorts every 8h. Positive: longs pay shorts.">{hud.mark ? `${(hud.funding * 100).toFixed(4)}%` : "—"}</span>
+          {hud.mark ? <span className="ml-1 text-[10px] text-muted-foreground">{hud.funding >= 0 ? "longs pay" : "shorts pay"}</span> : null}
         </Stat>
         <Stat label="Open interest" className="hidden md:block">
           {hud.oi ? hud.oi.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 }) : "—"}
@@ -173,7 +174,36 @@ function Header({ now }: { now: number }) {
         <Stat label="Ships on map">{hud.ships.bid + hud.ships.ask}</Stat>
         <Stat label="Ghosts 1h" className="hidden md:block">{hud.ghostsHour}</Stat>
       </div>
+      <TraderStrip />
     </header>
+  );
+}
+
+const ratio = (a: number, b: number) => (a + b > 0 ? `${Math.round((a / (a + b)) * 100)}% / ${Math.round((b / (a + b)) * 100)}%` : "—");
+const signed = (n: number) => `${n >= 0 ? "+" : "−"}${usd(Math.abs(n))}`;
+function countdown(t: number) {
+  const ms = t - Date.now();
+  if (!t || ms <= 0) return "—";
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+/** Compact trader metrics, all computed from the live Binance data (definitions in the tooltips). */
+function TraderStrip() {
+  const h = useBattle(useShallow((s) => ({ spread: s.hud.spread, d05: s.hud.depth05, d1: s.hud.depth1, cvd1: s.hud.cvd1m, cvd5: s.hud.cvd5m, liq: s.hud.liq1h, walls: s.hud.walls, nft: s.hud.nextFundingTime, has: s.hud.hasBook })));
+  if (!h.has) return null;
+  const w = h.walls;
+  return (
+    <div id="trader-strip" className="mt-1.5 grid grid-cols-3 gap-x-3 gap-y-1 border-t border-border/40 pt-1.5 md:grid-cols-7">
+      <Stat label="Spread"><span title="Best ask − best bid on Binance BTCUSDT perp">{h.spread ? `$${h.spread.toFixed(1)}` : "—"}</span></Stat>
+      <Stat label="Depth ±0.5% B/S"><span title="Resting buy vs sell liquidity within 0.5% of the last price, from the synced Binance book">{ratio(h.d05.bid, h.d05.ask)}</span></Stat>
+      <Stat label="Depth ±1% B/S" className="hidden md:block"><span title="Resting buy vs sell liquidity within 1% of the last price">{ratio(h.d1.bid, h.d1.ask)}</span></Stat>
+      <Stat label="CVD 1m / 5m"><span title="Cumulative volume delta: aggressive buys minus aggressive sells, in $"><span className={h.cvd1 >= 0 ? "text-bull" : "text-bear"}>{signed(h.cvd1)}</span> / <span className={h.cvd5 >= 0 ? "text-bull" : "text-bear"}>{signed(h.cvd5)}</span></span></Stat>
+      <Stat label="Liq 1h L / S"><span title="Liquidations received from Binance in the last hour (Binance sends at most 1 per second, so this is a lower bound)"><span className="text-bear">{usd(h.liq.longs)}</span> / <span className="text-bull">{usd(h.liq.shorts)}</span></span></Stat>
+      <Stat label="$1M walls eaten/pulled/now" className="hidden md:block"><span title="Walls of $1M+ within 0.2% of price: eaten by trades / pulled before being filled / standing now. Bid side · ask side.">B {w.bid.eaten}/{w.bid.pulled}/{w.bid.standing} · S {w.ask.eaten}/{w.ask.pulled}/{w.ask.standing}</span></Stat>
+      <Stat label="Next funding" className="hidden md:block">{countdown(h.nft)}</Stat>
+    </div>
   );
 }
 
@@ -287,18 +317,18 @@ function Banners() {
 }
 
 const GUIDE = [
-  "The vertical line in the middle is the live BTC price on Binance Futures. Buy orders wait on the left; sell orders wait on the right.",
-  "Left/right = price. Front/back = how long the order has been waiting: new orders arrive from the back and move forward as they stay. Bigger ship = bigger order.",
-  "Every shot is a real trade. The taker fires; the ship at that price is hit and loses the amount filled. A ship that is fully filled sinks and the front line moves.",
-  "A big order that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
-  "Bombers are liquidations (sampled by Binance: max 1 per second).",
+  "The vertical line in the middle is the last traded BTC price on Binance Futures. Resting buy liquidity waits on the left; sell liquidity on the right.",
+  "Left/right = price. Front/back = how long that liquidity has rested. Bigger ship = more resting liquidity. A ship is many orders in one price bucket, not one order.",
+  "Ships are makers. Every shot is a real taker trade launched from the attacking fleet; the ship at that price loses what was filled. A fully traded ship sinks and the front line moves.",
+  "Big liquidity that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
+  "Bombers are liquidations, labelled Long or Short liquidated (sampled by Binance: max 1 per second).",
   `Each battle lasts ${RULES_FACTS.battleMinutes} minutes. Sink the enemy flagship and push the line to win.`,
 ];
 const DETAILS = [
   `Ships group the full order book into price buckets of ${RULES_FACTS.bucket} of the price, within ±${RULES_FACTS.range}.`,
   `Tiers by rolling percentile of bucket size: ${SHIPS.map((u) => `${u.name} ${u.rule}`).join("; ")}.`,
   `Weapons by trade-size rank: ${WEAPONS.map((u) => `${u.name} ${u.rule}`).join("; ")}. Fighter: ${AIRCRAFT[0]!.rule}.`,
-  "Inferred events (repair, relocate, hidden) are guesses from book changes; Binance does not publish order identities.",
+  "Inferred events (repair, relocate, hidden) are guesses from book changes; Binance does not publish order identities. Fighters aggregate same-side aggressive trades within 0.3 s, which may come from several takers.",
   "Data: Binance USD-M public streams (diff depth 100ms + REST snapshot, aggTrade, forceOrder, markPrice) and open interest polled every 30s.",
   "Longs/shorts in the banner come from open interest change with price direction, never from the order book.",
 ];
@@ -394,7 +424,7 @@ function LegendStrip() {
           <span className="text-muted-foreground">{u.rule.replace("smallest ", "<").replace(" of price buckets", "")}</span>
         </span>
       ))}
-      <span className="shrink-0 text-muted-foreground">Green-decked ships are buy orders (Buyers), red-decked ships are sell orders (Sellers). · Bomber = liquidation · Sub = pulled big order</span>
+      <span className="shrink-0 text-muted-foreground">Green decks = resting buy liquidity (Buyers), red decks = resting sell liquidity (Sellers). · Bomber = liquidation · Sub = pulled big liquidity</span>
     </div>
   );
 }
@@ -600,6 +630,7 @@ export function Hud() {
     <div className="pointer-events-none fixed inset-0 z-10 flex flex-col">
       {war && <div className="war-vignette absolute inset-0" aria-hidden />}
       <Labels />
+      <ShipCard />
        <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <Header now={now} />
         <div className="flex items-center justify-between gap-1.5">

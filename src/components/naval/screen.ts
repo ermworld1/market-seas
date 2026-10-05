@@ -10,5 +10,6 @@ export const screen = {
   selected: null as Pt | null,
   lesson: null as Pt | null,
   repairs: [] as Pt[],
+  ticks: [] as (Pt & { label: string })[],
   floaters: [] as (Pt & { id: number; text: string; tone: string; age: number })[],
 };
