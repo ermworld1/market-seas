@@ -10,6 +10,20 @@ import { chainText, type VoiceChain, type VoiceChannel, type VoicePart } from ".
 export type SfxCat = "mg" | "gun" | "gun5" | "miss" | "torpedo" | "broadside" | "fighter" | "flak" | "dive" | "fled" | "surface" | "sink" | "reinforce" | "liquidation" | "cascade" | "hit" | "klaxon" | "bosun";
 export const SFX: SfxCat[] = ["mg", "gun", "gun5", "miss", "torpedo", "broadside", "fighter", "flak", "dive", "fled", "surface", "sink", "reinforce", "liquidation", "cascade", "hit", "klaxon", "bosun"];
 const PRIORITY: Record<SfxCat, number> = { mg: 1, reinforce: 2, hit: 2, miss: 2, gun: 3, gun5: 5, surface: 4, torpedo: 6, dive: 6, fighter: 7, flak: 5, fled: 7, sink: 7, liquidation: 8, broadside: 8, cascade: 9, klaxon: 9, bosun: 5 };
+/** alternative takes per radio line (different wording), so repeated events do not repeat the same words */
+const VOICE_VARIANTS: Record<string, string[]> = {
+  s_hit: ["s_hit", "s_hit2", "s_hit3"],
+  s_aircraft: ["s_aircraft", "s_aircraft2", "s_aircraft3"],
+  s_torpedo: ["s_torpedo", "s_torpedo2", "s_torpedo3"],
+  s_dive: ["s_dive", "s_dive2"],
+  s_wehit: ["s_wehit", "s_wehit2"],
+  s_shot: ["s_shot1", "s_shot2", "s_shot3"],
+  c_fire: ["c_fire", "c_fire2", "c_fire3"], a_fire: ["a_fire", "a_fire2", "a_fire3"],
+  c_aa: ["c_aa", "c_aa2", "c_aa3"], a_aa: ["a_aa", "a_aa2", "a_aa3"],
+  c_evade: ["c_evade", "c_evade2"], a_evade: ["a_evade", "a_evade2"],
+  c_damage: ["c_damage", "c_damage2"], a_damage: ["a_damage", "a_damage2"],
+  c_hold: ["c_hold", "c_hold2"], a_hold: ["a_hold", "a_hold2"],
+};
 const BUS: Record<SfxCat, "weapons" | "ships" | "air" | "alarms"> = {
   mg: "weapons", hit: "weapons", miss: "weapons", gun: "weapons", gun5: "weapons", torpedo: "weapons", broadside: "weapons",
   fighter: "air", flak: "air", liquidation: "air",
@@ -435,15 +449,32 @@ class AudioEngine {
    */
   /** fetch and decode every radio clip once, so a line can start the instant its event happens */
   preloadVoices() {
-    const keys = ["s_contact","s_hit","s_wehit","s_torpedo","s_aircraft","s_flagsunk","s_dive","s_bombers","s_aye","s_report"];
-    for (const p of ["c", "a"]) for (const k of ["stations","fire","damage","evade","aa","push","abandon","hold","brace","ceasefire"]) keys.push(`${p}_${k}`);
-    for (const k of keys) void this.loadVo(`x:${k}`);
+    const keys = ["s_contact","s_wehit","s_flagsunk","s_dive","s_bombers","s_aye","s_report"];
+    for (const p of ["c", "a"]) for (const k of ["stations","damage","evade","push","abandon","hold","brace","ceasefire"]) keys.push(`${p}_${k}`);
+    for (const pool of Object.values(VOICE_VARIANTS)) keys.push(...pool);
+    for (const k of new Set(keys)) void this.loadVo(`x:${k}`);
   }
-  async exchange(keys: string[], minGap = 10, allowLate = false): Promise<boolean> {
+  private recentClips: string[] = [];
+  private lastExchangeType = new Map<string, number>();
+  /** pick a take of a line that has not been heard recently */
+  private pickVariant(key: string) {
+    const pool = VOICE_VARIANTS[key] ?? [key];
+    const fresh = pool.filter((k) => !this.recentClips.includes(k));
+    const pick = (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))]!;
+    this.recentClips.push(pick);
+    if (this.recentClips.length > 10) this.recentClips.shift();
+    return pick;
+  }
+  async exchange(keys: string[], minGap = 16, allowLate = false): Promise<boolean> {
     const ctx = this.ctx;
     if (!ctx || !this.enabled || ctx.state !== "running" || !keys.length) return false;
     const now = ctx.currentTime;
     if (now < this.voBusyUntil || now - this.lastVoiceAt < minGap) return false;
+    // the same kind of exchange at most once every 45 s, so the radio never loops the same call
+    const type = keys.join("+");
+    if (minGap > 0 && now - (this.lastExchangeType.get(type) ?? -1e9) < 45) return false;
+    this.lastExchangeType.set(type, now);
+    keys = keys.map((k) => this.pickVariant(k));
     const t0 = performance.now();
     const bufs = await Promise.all(keys.map((k) => this.loadVo(`x:${k}`)));
     if (!this.ctx) return false;
@@ -595,15 +626,17 @@ class AudioEngine {
     // moment is lined up with the middle of the plane's pass; bombers use B-25 piston engines looped.
     const spits = this.bank("spitfire");
     const b25 = this.bank("b25")[0];
-    const propBuf = kind === "fighter" ? (spits.length ? spits[Math.floor(Math.random() * spits.length)] : this.bank("prop")[0]) : (b25 ?? this.bank("prop")[0]);
-    const isFlyby = kind === "fighter" && spits.length > 0;
-    const rushBuf = isFlyby ? undefined : this.bank("aircraft")[kind === "bomber" ? 2 : 0];
+    // Both aircraft types use a real fly-by (approach, pass, recede) so they read as aircraft passing overhead.
+    // Bombers play the fly-by slowed to 72% (bigger, slower, deeper) with the B-25 engine drone underneath.
+    const propBuf = spits.length ? spits[Math.floor(Math.random() * spits.length)] : kind === "fighter" ? this.bank("prop")[0] : (b25 ?? this.bank("prop")[0]);
+    const isFlyby = spits.length > 0;
+    const rushBuf = isFlyby ? (kind === "bomber" ? b25 : undefined) : this.bank("aircraft")[kind === "bomber" ? 2 : 0];
     if (propBuf) {
-      const rates = isFlyby ? [1] : kind === "fighter" ? [1.18] : b25 ? [1.22, 1.245] : [0.72, 0.735, 0.75, 0.765];
+      const rates = isFlyby ? [kind === "bomber" ? 0.72 : 1] : kind === "fighter" ? [1.18] : b25 ? [1.22, 1.245] : [0.72, 0.735, 0.75, 0.765];
       const engines: AudioBufferSourceNode[] = [];
       const lp = this.filt("lowpass", 2200, 0.7);
       const level = ctx.createGain();
-      level.gain.value = (lead ? 1 : 0.35) * (isFlyby ? 1.3 : kind === "fighter" ? 1.6 : b25 ? 4.5 : 1.6);
+      level.gain.value = (lead ? 1 : 0.35) * (isFlyby ? (kind === "bomber" ? 3.2 : 1.3) : kind === "fighter" ? 1.6 : b25 ? 4.5 : 1.6);
       lp.connect(level).connect(out);
       for (const r of rates) {
         const src = ctx.createBufferSource();
@@ -614,16 +647,18 @@ class AudioEngine {
         g.gain.value = 1 / Math.sqrt(rates.length);
         src.connect(g).connect(lp);
         // fly-by: start so the recording's peak (its centre) lands at the middle of the on-screen pass
-        if (isFlyby) src.start(t, Math.max(0, propBuf.duration / 2 - life / 2));
+        if (isFlyby) src.start(t, Math.max(0, propBuf.duration / 2 - (life / 2) * r));
         else src.start(t, Math.random() * propBuf.duration);
         engines.push(src);
       }
       if (rushBuf) {
         const rush = ctx.createBufferSource();
         rush.buffer = rushBuf;
-        rush.playbackRate.value = Math.max(0.85, Math.min(1.35, rushBuf.duration / Math.max(life, 0.5)));
+        const drone = isFlyby && kind === "bomber";
+        rush.loop = drone;
+        rush.playbackRate.value = drone ? 1.2 : Math.max(0.85, Math.min(1.35, rushBuf.duration / Math.max(life, 0.5)));
         const rg = ctx.createGain();
-        rg.gain.value = 0.35;
+        rg.gain.value = drone ? 3.5 : 0.35;
         rush.connect(rg).connect(out);
         rush.start(t);
         engines.push(rush);

@@ -401,7 +401,7 @@ export function Effects() {
           flash(x, p.alt, z, 1.4, "#ffb347");
           voices.current[i]?.hit?.((CRASH_U - HIT_U) * p.dur);
           // radio at the exact moment of the hit: spotter, then the commander of the fleet that shot it down
-          if ((p.notional ?? 0) >= 100_000) void audio.exchange(["s_hit", `${p.side === "bid" ? "a" : "c"}_fire`], 6);
+          if ((p.notional ?? 0) >= 100_000) void audio.exchange(["s_shot", `${p.side === "bid" ? "a" : "c"}_fire`], 8);
         }
         if (p.hit) {
           const k = Math.min(1, (u - HIT_U) / (CRASH_U - HIT_U));
