@@ -33,6 +33,8 @@ export interface Display {
   /** tier waiting to be applied (hysteresis) */
   pendingTier?: Tier | undefined;
   pendingSince?: number;
+  /** view.time when this ship's band stopped appearing in the visible book (grace before removal) */
+  missingSince?: number | undefined;
   /** how many price buckets this ship currently holds */
   memberCount?: number;
   /** fixed swell phase per ship */

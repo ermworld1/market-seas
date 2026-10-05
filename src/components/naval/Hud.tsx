@@ -620,7 +620,7 @@ function EnterGate() {
     <div className="pointer-events-auto absolute inset-0 z-40 grid place-items-center bg-background/70 backdrop-blur-sm">
       <div className="hud-panel w-[min(92vw,380px)] p-5 text-center">
         <div className="font-display text-2xl font-bold uppercase tracking-[0.2em] text-primary">No Man's Sea</div>
-        <p className="mt-2 text-sm text-muted-foreground">Every ship is a real resting order on Binance BTC futures. Every shot is a real trade.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Every ship is real resting liquidity on the Binance BTC futures book. Every shot is a real trade.</p>
         <button onClick={() => enter(true)} className="mt-4 w-full rounded bg-primary py-3 font-display text-lg font-bold uppercase tracking-widest text-primary-foreground">Enter battle</button>
         <button onClick={() => enter(false)} className="mt-2 text-xs text-muted-foreground underline">Enter without sound</button>
       </div>
