@@ -665,6 +665,22 @@ class AudioEngine {
           this.chain(this.osc("sine", 1500, 380, now, fall, n2), bus, this.env(now, 0.08, 0.06, fall));
           this.aircraftLog.push({ kind, ev: "bomb", t: performance.now() });
         },
+        /** shot down: AA hit, engine sputters, then a rising dive scream until it hits the water */
+        hit: (fall: number) => {
+          if (stopped || !this.ctx) return;
+          const c = this.ctx;
+          const now = c.currentTime;
+          const n2: AudioScheduledSourceNode[] = [];
+          this.oneShot("flak", now, bus, n2, 1.1, 1);
+          this.oneShot("explosion", now + 0.05, bus, n2, 0.6, 1.3);
+          // sputter: the engine level stutters for a moment
+          for (let q = 0; q < 6; q++) out.gain.setValueAtTime(q % 2 ? 0.25 : 0.9, now + 0.1 + q * 0.09);
+          out.gain.setTargetAtTime(1, now + 0.7, 0.2);
+          // dive scream: falling aircraft howl rising in pitch
+          this.chain(this.osc("sawtooth", 260, 900, now + 0.4, fall, n2), bus, this.filt("bandpass", 900, 2), this.env(now + 0.4, 0.3, 0.12, fall));
+          this.chain(this.noiseSrc(now + 0.4, fall, n2), bus, this.filt("bandpass", 1400, 1.5), this.env(now + 0.4, 0.4, 0.1, fall));
+          this.aircraftLog.push({ kind, ev: "hit" as "bomb", t: performance.now() });
+        },
         stop: () => {
           if (stopped || !this.ctx) return;
           stopped = true;
@@ -732,6 +748,22 @@ class AudioEngine {
           const n2: AudioScheduledSourceNode[] = [];
           this.chain(this.osc("sine", 1500, 380, now, fall, n2), bus, this.env(now, 0.08, 0.06, fall));
           this.aircraftLog.push({ kind, ev: "bomb", t: performance.now() });
+        },
+        /** shot down: AA hit, engine sputters, then a rising dive scream until it hits the water */
+        hit: (fall: number) => {
+          if (stopped || !this.ctx) return;
+          const c = this.ctx;
+          const now = c.currentTime;
+          const n2: AudioScheduledSourceNode[] = [];
+          this.oneShot("flak", now, bus, n2, 1.1, 1);
+          this.oneShot("explosion", now + 0.05, bus, n2, 0.6, 1.3);
+          // sputter: the engine level stutters for a moment
+          for (let q = 0; q < 6; q++) out.gain.setValueAtTime(q % 2 ? 0.25 : 0.9, now + 0.1 + q * 0.09);
+          out.gain.setTargetAtTime(1, now + 0.7, 0.2);
+          // dive scream: falling aircraft howl rising in pitch
+          this.chain(this.osc("sawtooth", 260, 900, now + 0.4, fall, n2), bus, this.filt("bandpass", 900, 2), this.env(now + 0.4, 0.3, 0.12, fall));
+          this.chain(this.noiseSrc(now + 0.4, fall, n2), bus, this.filt("bandpass", 1400, 1.5), this.env(now + 0.4, 0.4, 0.1, fall));
+          this.aircraftLog.push({ kind, ev: "hit" as "bomb", t: performance.now() });
         },
         stop: () => {
           if (stopped || !this.ctx) return;

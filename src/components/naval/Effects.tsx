@@ -36,6 +36,11 @@ interface Plane {
   formation?: number;
   /** real liquidated notional carried by a liquidation bomber (drives the impact blast) */
   notional?: number;
+  /** liquidation: this aircraft belongs to the liquidated side and is shot down */
+  doomed?: boolean;
+  hit?: boolean;
+  crashed?: boolean;
+  spin?: number;
 }
 
 const dummy = new THREE.Object3D();
@@ -294,7 +299,7 @@ export function Effects() {
   const launch = (kind: Plane["kind"], init: Omit<Plane, "on" | "t" | "next" | "kind">) => {
     const p = planes.find((q) => !q.on && q.kind === kind);
     if (!p) return;
-    Object.assign(p, { formation: undefined, notional: undefined, bank: undefined }, init, { on: true, t: 0, next: 0 });
+    Object.assign(p, { formation: undefined, notional: undefined, bank: undefined, doomed: undefined, hit: undefined, crashed: undefined, spin: 0 }, init, { on: true, t: 0, next: 0 });
     const mesh = planeRefs.current[planes.indexOf(p)];
     if (mesh) mesh.material = airMats[p.side === "bid" ? "ask" : "bid"];
     lastPlane.current = p;
@@ -349,7 +354,11 @@ export function Effects() {
         const side: BookSide = ev.liquidated === "longs" ? "bid" : "ask";
         const x = view.frontX + sideSign(side) * (GAP + DEPTH * 0.82);
         const span = view.halfW + 14;
-        launch("bomber", { dur: 3.8, ax: x, az: -span, bx: x, bz: span, alt: 6, side, notional: ev.notional });
+        // A liquidation is a leveraged position destroyed: an aircraft of the liquidated side crosses the
+        // front, is hit by the other fleet's AA, catches fire and crashes into the sea. Bigger = bomber.
+        const own = sideSign(side);
+        const lane = (Math.random() - 0.5) * view.halfW * 1.2;
+        launch(ev.notional >= 100_000 ? "bomber" : "fighter", { dur: 4.4, ax: view.frontX + own * (GAP + DEPTH * 0.9), az: lane - 3, bx: view.frontX - own * (GAP + DEPTH * 0.9), bz: lane + 3, alt: 5.5, side, notional: ev.notional, doomed: true });
         if (engineRef.current?.phase.current === "P5") {
           const cap = view.quality === "low" ? 5 : view.quality === "medium" ? 8 : 12;
           const wave = Math.max(2, Math.min(cap, Math.round(ev.notional / 75_000) + 1)); // scaled by the real liquidation size
@@ -374,14 +383,52 @@ export function Effects() {
       const u = Math.min(1, p.t / p.dur);
       // engine sound lives exactly as long as this aircraft is visible
       if (!voices.current[i]) { voices.current[i] = audio.aircraftStart(p.kind, p.dur, !p.formation); gunsOn.current[i] = false; bombed.current[i] = false; prevDist.current[i] = 0; }
-      const pull = p.kind === "fighter" ? Math.max(0, (u - 0.72) / 0.28) : 0;
+      const pull = p.kind === "fighter" && !p.doomed ? Math.max(0, (u - 0.72) / 0.28) : 0;
       const x = p.ax + (p.bx - p.ax) * u;
       const z = p.az + (p.bz - p.az) * u + pull * pull * (p.formation && p.formation % 2 ? -2 : 2);
       m.visible = true;
+      if (p.doomed) {
+        const HIT_U = 0.32, CRASH_U = 0.72;
+        if (!p.hit && u >= HIT_U) {
+          p.hit = true;
+          // AA from the other fleet: tracers up to the aircraft, flak puffs, flash, engine catches fire
+          const shooters = view.visible[p.side === "bid" ? "ask" : "bid"];
+          for (let k = 0; k < Math.min(6, shooters.length); k++) {
+            const sh = shooters[Math.floor(Math.random() * shooters.length)]!;
+            spawn({ weapon: "cannon", fx: sh.x, fy: 0.4 * sh.s + 0.2, fz: sh.z, tx: x + (Math.random() - 0.5) * 0.6, ty: p.alt, tz: z + (Math.random() - 0.5) * 0.6, dur: 0.35 + Math.random() * 0.2, size: 0.04, len: 0.6, target: null });
+          }
+          for (let k = 0; k < 8; k++) pools.smoke.emit({ x: x + (Math.random() - 0.5) * 2, y: p.alt + (Math.random() - 0.5), z: z + (Math.random() - 0.5) * 2, life: 1.6, size: 0.35, grow: 1.6, color: "#2a2a2a", alpha: 0.75 });
+          flash(x, p.alt, z, 1.4, "#ffb347");
+          voices.current[i]?.hit?.((CRASH_U - HIT_U) * p.dur);
+        }
+        if (p.hit) {
+          const k = Math.min(1, (u - HIT_U) / (CRASH_U - HIT_U));
+          const y = Math.max(0.05, p.alt * (1 - k * k));
+          p.spin = (p.spin ?? 0) + dt * (2 + k * 7);
+          m.position.set(x, y, z);
+          m.rotation.set(0.6 * k, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.spin);
+          // fire and a thick black smoke trail
+          pools.glow.emit({ x, y, z, life: 0.25, size: 0.45 + Math.random() * 0.25, grow: 0.5, color: Math.random() < 0.5 ? "#ff7a1a" : "#ffc04a", alpha: 1 });
+          pools.smoke.emit({ x, y, z, life: 2.4, size: 0.3, grow: 2.4, color: "#1c1c1c", alpha: 0.8 });
+          if (!p.crashed && k >= 1) {
+            p.crashed = true;
+            splash(x, z, 2.2);
+            flash(x, 0.4, z, 2.4, "#ff9a3c");
+            for (let q = 0; q < 14; q++) pools.glow.emit({ x: x + (Math.random() - 0.5) * 1.4, y: 0.1, z: z + (Math.random() - 0.5) * 1.4, life: 1.6 + Math.random(), size: 0.4, grow: 0.8, color: "#ff8a2a", alpha: 0.9 });
+            audio.liquidationBlast(p.notional ?? 0, panX(x - view.frontX, REAR));
+            p.t = p.dur; // done
+          }
+        } else {
+          m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1, z);
+          m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, Math.sin(p.t * 3) * 0.12);
+        }
+      } else
       m.position.set(x, p.alt + Math.sin(p.t * 2) * 0.1 + pull * pull * 4.5, z);
       if (p === lastPlane.current) { const a = planeAnchor.current; a.x = x; a.y = m.position.y; a.z = z; view.plane = a; const L = Math.hypot(p.bx - p.ax, p.bz - p.az) || 1; planeDirV.x = (p.bx - p.ax) / L; planeDirV.z = (p.bz - p.az) / L; view.planeDir = planeDirV; }
-      m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.12 + pull * (p.formation && p.formation % 2 ? -0.8 : 0.8) : 0);
-      if (p.kind === "bomber") {
+      if (!p.doomed) m.rotation.set(0, Math.atan2(-(p.bz - p.az), p.bx - p.ax) + Math.PI, p.kind === "fighter" ? Math.sin(p.t * 3) * 0.12 + pull * (p.formation && p.formation % 2 ? -0.8 : 0.8) : 0);
+      if (p.doomed) {
+        // shot-down aircraft neither bomb nor strafe
+      } else if (p.kind === "bomber") {
         if (Math.abs(z) < view.halfW + 1 && p.t >= p.next) {
           p.next = p.t + 0.2;
           const rear = view.visible[p.side];
@@ -407,7 +454,7 @@ export function Effects() {
         // loudness from on-screen distance to the action, not from the camera (the map camera sits far away)
         const close = Math.max(0, 1 - Math.abs(x - view.cameraX) / (view.halfW * 2.2 + REAR));
         vce.update(panX(x - view.frontX, REAR), 0.45 + 0.55 * close, 1 + Math.max(-0.25, Math.min(0.25, vRad / 120)), pull);
-        if (p.kind === "fighter" && !gunsOn.current[i] && u > 0.1) { gunsOn.current[i] = true; vce.guns(p.dur * 0.75, panX(x - view.frontX, REAR)); }
+        if (p.kind === "fighter" && !p.doomed && !gunsOn.current[i] && u > 0.1) { gunsOn.current[i] = true; vce.guns(p.dur * 0.75, panX(x - view.frontX, REAR)); }
       }
       if (u >= 1) {
         p.on = false;

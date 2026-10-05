@@ -64,6 +64,12 @@ export function DebugPanel() {
             }, 50);
           }}>pass:{k}</button>
         ))}
+        <button className="rounded bg-secondary px-1" onClick={() => {
+          // debug only: replays the shot-down sequence through the normal liquidation path
+          const e = engineRef.current;
+          const px = e?.ref || 85_000;
+          e?.handleForce({ S: "SELL", p: String(px), q: "3", ap: String(px), z: "3" }, Date.now());
+        }}>shotdown</button>
       </div>
       <div className="mt-1 flex flex-wrap gap-1" id="debug-shots">
         {(["wide", "trade", "broadside", "fighter", "bomber", "cascade", "flagship"] as const).map((k) => (
