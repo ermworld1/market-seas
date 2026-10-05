@@ -543,7 +543,87 @@ class AudioEngine {
     const pan = ctx.createStereoPanner();
     out.connect(pan).connect(bus);
     const nodes: OscillatorNode[] = [];
-    // Prefer a real recorded fly-by (approach, pass, recede), stretched to this aircraft's on-screen life.
+    // WWII piston engines: a recorded propeller loop (CC-BY 3.0, jakobthiesen / AntumDeluge) runs for the
+    // aircraft's whole visible life. Fighter = one engine at higher rpm; bomber = four engines, slightly
+    // detuned so they beat like a multi-engine drone. A quiet recorded fly-by adds the air rush.
+    const propBuf = this.bank("prop")[0];
+    const rushBuf = this.bank("aircraft")[kind === "bomber" ? 2 : 0];
+    if (propBuf) {
+      const rates = kind === "fighter" ? [1.18] : [0.72, 0.735, 0.75, 0.765];
+      const engines: AudioBufferSourceNode[] = [];
+      const lp = this.filt("lowpass", 2200, 0.7);
+      const level = ctx.createGain();
+      level.gain.value = (lead ? 1 : 0.35) * (kind === "fighter" ? 1.6 : 1.6);
+      lp.connect(level).connect(out);
+      for (const r of rates) {
+        const src = ctx.createBufferSource();
+        src.buffer = propBuf;
+        src.loop = true;
+        src.playbackRate.value = r;
+        const g = ctx.createGain();
+        g.gain.value = 1 / Math.sqrt(rates.length);
+        src.connect(g).connect(lp);
+        src.start(t, Math.random() * propBuf.duration);
+        engines.push(src);
+      }
+      if (rushBuf) {
+        const rush = ctx.createBufferSource();
+        rush.buffer = rushBuf;
+        rush.playbackRate.value = Math.max(0.85, Math.min(1.35, rushBuf.duration / Math.max(life, 0.5)));
+        const rg = ctx.createGain();
+        rg.gain.value = 0.35;
+        rush.connect(rg).connect(out);
+        rush.start(t);
+        engines.push(rush);
+      }
+      this.activeAircraft++;
+      this.buses["weapons"]?.gain.setTargetAtTime(0.28, t, 0.15);
+      this.buses["amb"]?.gain.setTargetAtTime(0.18, t, 0.2);
+      this.buses["chatter"]?.gain.setTargetAtTime(0.15, t, 0.2);
+      this.music?.gain.setTargetAtTime(0.12, t, 0.2);
+      this.aircraftLog.push({ kind, ev: "spawn", t: performance.now() });
+      let stopped = false;
+      return {
+        update: (panV: number, closeness: number, pitch: number, climb: number) => {
+          if (stopped || !this.ctx) return;
+          const now = this.ctx.currentTime;
+          pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, panV)), now, 0.05);
+          out.gain.setTargetAtTime(0.35 + 0.65 * closeness, now, 0.1);
+          lp.frequency.setTargetAtTime(900 + 2600 * closeness, now, 0.1);
+          // doppler + engine strain when pulling up
+          const k = Math.max(0.88, Math.min(1.14, pitch)) * (1 + climb * 0.12);
+          engines.forEach((e, i) => { if (i < rates.length) e.playbackRate.setTargetAtTime(rates[i]! * k, now, 0.08); });
+        },
+        guns: (dur: number, panV: number) => {
+          if (stopped || !this.ctx) return;
+          this.play("mg", { x: panV, gain: 0.8, shots: Math.round(dur * 10) });
+          this.aircraftLog.push({ kind, ev: "guns", t: performance.now() });
+        },
+        bomb: (fall: number) => {
+          if (stopped || !this.ctx) return;
+          const now = this.ctx.currentTime;
+          const n2: AudioScheduledSourceNode[] = [];
+          this.chain(this.osc("sine", 1500, 380, now, fall, n2), bus, this.env(now, 0.08, 0.06, fall));
+          this.aircraftLog.push({ kind, ev: "bomb", t: performance.now() });
+        },
+        stop: () => {
+          if (stopped || !this.ctx) return;
+          stopped = true;
+          const now = this.ctx.currentTime;
+          out.gain.cancelScheduledValues(now);
+          out.gain.setTargetAtTime(0.0001, now, 0.3);
+          for (const e of engines) { try { e.stop(now + 1.5); } catch { /* ended */ } }
+          this.activeAircraft = Math.max(0, this.activeAircraft - 1);
+          if (!this.activeAircraft) {
+            this.buses["weapons"]?.gain.setTargetAtTime(0.9, now + 0.3, 0.4);
+            this.buses["amb"]?.gain.setTargetAtTime(0.7, now + 0.3, 0.6);
+            this.buses["chatter"]?.gain.setTargetAtTime(0.5, now + 0.3, 0.6);
+            this.music?.gain.setTargetAtTime(0.45, now + 0.3, 0.6);
+          }
+          this.aircraftLog.push({ kind, ev: "exit", t: performance.now() });
+        },
+      };
+    }
     const recs = this.bank("aircraft");
     if (recs.length) {
       const buf = recs[kind === "bomber" ? recs.length - 1 : Math.floor(Math.random() * Math.max(1, recs.length - 1))]!;
@@ -552,17 +632,11 @@ class AudioEngine {
       const baseRate = Math.max(0.85, Math.min(1.35, buf.duration / Math.max(life, 0.5))) * (kind === "bomber" ? 0.78 : 1);
       src.playbackRate.value = baseRate;
       const level = ctx.createGain();
-      level.gain.value = lead ? 3.2 : 0.7; // wingmen sit under the lead plane instead of stacking copies
+      level.gain.value = lead ? 3.2 : 0.7;
       src.connect(level).connect(out);
       src.start(t);
-      // duck the guns while aircraft are overhead so the engines are actually heard
       this.activeAircraft++;
-      // measured in a headless run: guns + battle ambience averaged louder than the fly-by, so planes were masked.
-      // While aircraft are overhead the guns, ambience bed and music step back.
       this.buses["weapons"]?.gain.setTargetAtTime(0.3, t, 0.15);
-      this.buses["amb"]?.gain.setTargetAtTime(0.18, t, 0.2);
-      this.buses["chatter"]?.gain.setTargetAtTime(0.15, t, 0.2);
-      this.music?.gain.setTargetAtTime(0.12, t, 0.2);
       this.aircraftLog.push({ kind, ev: "spawn", t: performance.now() });
       let stopped = false;
       return {

@@ -51,6 +51,12 @@ The naval mix layers these recordings with original browser synthesis: 20 mm/.50
 | `radio/1.mp3` | dl_ScatterNoise1.mp3 | [Static](https://opengameart.org/content/static) | CC0 1.0 |
 | `radio/2.mp3` | radiomsg1.ogg | [War on Water: SNDFX (uploader states originals from Freesound, released CC0)](https://opengameart.org/content/war-on-water-sndfx) | CC0 1.0 |
 
+## Aircraft engine (attribution required)
+
+| File | Original | Source | License |
+|---|---|---|---|
+| `prop/1.mp3` | airplane_prop.flac ("Airplane Prop Loop"), mono, loudness-normalised | [OpenGameArt: Airplane Prop Loop by AntumDeluge](https://opengameart.org/content/airplane-prop-loop), from [jakobthiesen on Freesound #188423](https://freesound.org/s/188423/) | CC-BY 3.0: credit "Airplane prop sound by jakobthiesen, loop by AntumDeluge (CC-BY 3.0)" (shown in How it works) |
+
 ## Still lacking genuine naval recordings
 
 These categories use CC0 recordings that are not naval-specific or are synthesised: `gun/1–3` and `biggun/1–3` (cannon/bang set), `flak/1–3` (bang set), dive-bomber whistle, submarine dive/surface, bomb whistle. To upgrade, drop licensed files into `/public/sfx/<category>/<n>.mp3` and update the count in `src/lib/audio/bank.ts`.
