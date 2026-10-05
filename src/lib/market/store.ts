@@ -113,6 +113,8 @@ interface BattleStore {
   selectedBucket: { side: "bid" | "ask"; b: number } | null;
   lesson: { id: number; kind: string; text: string } | null;
   alertsOn: boolean;
+  /** cinematic automatic camera cuts (off by default: steady camera) */
+  autoCamera: boolean;
 }
 
 export const EMPTY_HUD: HudSnapshot = {
@@ -179,6 +181,7 @@ export const useBattle = create<BattleStore>(() => ({
   ladder: { bids: [], asks: [] },
   recentTrades: [],
   selectedBucket: null,
+  autoCamera: false,
   lesson: null,
   alertsOn: false,
 }));

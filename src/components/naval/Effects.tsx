@@ -259,7 +259,7 @@ export function Effects() {
       spawn({ ...base, weapon: "torpedo", fx: mx, fy: 0.01, fz: mz, tx, ty: 0.01, tz, dur: 0.45, size: 0.05, len: 0.5 });
       audio.play("gun5", pan);
       audio.play("torpedo", { ...pan, gain: 0.55 });
-      audio.torpedoVoice();
+      audio.torpedoVoice(ev.target);
     } else {
       fx.shake = Math.min(0.7, fx.shake + 0.45);
       const s = shooter?.s ?? 1;
