@@ -1,4 +1,4 @@
-import { AIRCRAFT, RULES_FACTS, SHIPS, WEAPONS } from "@/lib/battle/units";
+import { AIRCRAFT, RULES_FACTS, SHIPS, SHIP_GUIDE, WEAPONS } from "@/lib/battle/units";
 import { HowItWorks, UnitIcon, UnitList } from "./Units";
 import { useShallow } from "zustand/react/shallow";
 import { useEffect, useMemo, useState } from "react";
@@ -269,7 +269,7 @@ function BossBar({ side, now }: { side: "bid" | "ask"; now: number }) {
 }
 
 function Banners() {
-  const { hud, callout, radio } = useBattle(useShallow((s) => ({ hud: s.hud, callout: s.callout, radio: s.radio })));
+  const { hud, callout, radio, presentation } = useBattle(useShallow((s) => ({ hud: s.hud, callout: s.callout, radio: s.radio, presentation: s.presentation })));
   const regime = regimeOf(hud.priceChange5m, hud.oiChangePct);
   const [show, setShow] = useState<typeof callout>(null);
   const [rad, setRad] = useState<typeof radio>(null);
@@ -303,7 +303,7 @@ function Banners() {
         </div>
       )}
       {rad && (
-        <div key={rad.id} className="radio-panel" role="status">
+        <div key={rad.id} className={cn("radio-panel", presentation === "map" && "radio-panel-map")} role="status">
           <div className="radio-portrait" aria-hidden><span /></div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2"><span className={cn("radio-name", rad.speaker === "captain" ? "text-bull" : rad.speaker === "admiral" ? "text-bear" : "text-primary")}>{rad.speaker === "captain" ? "CAPTAIN · BUYERS" : rad.speaker === "admiral" ? "ADMIRAL · SELLERS" : "SPOTTER"}</span><span className="radio-wave" aria-hidden>{Array.from({ length: 9 }, (_, i) => <i key={i} />)}</span></div>
@@ -318,7 +318,7 @@ function Banners() {
 
 const GUIDE = [
   "The vertical line in the middle is the last traded BTC price on Binance Futures. Resting buy liquidity waits on the left; sell liquidity on the right.",
-  "Left/right = price. Front/back = how long that liquidity has rested. Bigger ship = more resting liquidity. A ship is many orders in one price bucket, not one order.",
+  "Every ship is real resting liquidity from the live order book. Left/right = price. Front/back = how long that liquidity has rested. Bigger ship = more displayed notional.",
   "Ships are makers. Every shot is a real taker trade launched from the attacking fleet; the ship at that price loses what was filled. A fully traded ship sinks and the front line moves.",
   "Big liquidity that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
   "Bombers are liquidations, labelled Long or Short liquidated (sampled by Binance: max 1 per second).",
@@ -359,7 +359,7 @@ export function HowToRead() {
         </ul>
       )}
       <h3 className="mt-3 font-display text-xs font-semibold uppercase tracking-widest text-primary">Units</h3>
-      <UnitList items={[...SHIPS, ...WEAPONS, ...AIRCRAFT]} compact explainSides />
+      <UnitList items={[SHIP_GUIDE, ...WEAPONS, ...AIRCRAFT]} compact explainSides />
       <p className="mt-2 text-[11px] text-muted-foreground">Every event is in the Guide tab and the "?" panel.</p>
     </section>
   );
@@ -417,14 +417,11 @@ function Ticker() {
 function LegendStrip() {
   return (
     <div className="pointer-events-auto flex items-center gap-3 overflow-x-auto px-1 text-[10px] text-foreground/80" data-tour="legend">
-      {SHIPS.map((u) => (
-        <span key={u.id} className="flex shrink-0 items-center gap-1">
-          <UnitIcon u={u} />
-          <span className="font-semibold">{u.name}</span>
-          <span className="text-muted-foreground">{u.rule.replace("smallest ", "<").replace(" of price buckets", "")}</span>
-        </span>
-      ))}
-      <span className="shrink-0 text-muted-foreground">Green decks = resting buy liquidity (Buyers), red decks = resting sell liquidity (Sellers). · Bomber = liquidation · Sub = pulled big liquidity</span>
+      <span className="flex shrink-0 items-center gap-2">
+        <UnitIcon u={SHIP_GUIDE} />
+        <span><strong className="font-semibold text-foreground">Ship</strong><span className="text-muted-foreground"> · real resting liquidity; bigger = more displayed notional; left/right = price; front/back = waiting time</span></span>
+      </span>
+      <span className="shrink-0 text-muted-foreground">Green deck = Buyers · red deck = Sellers · Bomber = liquidation · Sub = pulled big liquidity</span>
     </div>
   );
 }
@@ -700,7 +697,7 @@ export function Hud() {
         <p className="truncate px-1 text-[9px] leading-tight text-foreground/70 md:text-[10px]">Live Binance Futures public market data · Not financial advice · Not affiliated with Binance</p>
       </div>
       <Ticker />
-      {lesson && <div key={lesson.id} className="lesson-spotlight pointer-events-auto absolute bottom-28 left-1/2 z-30 w-[min(90vw,520px)] -translate-x-1/2 rounded border border-primary bg-background/90 p-3 text-center text-sm"><button className="absolute right-1 top-1 p-1 text-muted-foreground" aria-label="Skip lesson" onClick={() => useBattle.setState({ lesson: null })}><X className="h-4 w-4" /></button>{lesson.text}</div>}
+      {lesson && <div key={lesson.id} className="lesson-spotlight pointer-events-auto absolute left-1/2 top-[48%] z-30 w-[min(90vw,520px)] -translate-x-1/2 -translate-y-1/2 rounded border border-primary bg-background/90 p-3 text-center text-sm"><button className="absolute right-1 top-1 p-1 text-muted-foreground" aria-label="Skip lesson" onClick={() => useBattle.setState({ lesson: null })}><X className="h-4 w-4" /></button>{lesson.text}</div>}
 
       <ResultCard />
       <ClipToast />

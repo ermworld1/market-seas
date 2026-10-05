@@ -72,3 +72,7 @@
 - [x] One transparent shared model sample per unit across legend, Guide, help, and tour copy
 - [x] Verify unobstructed 1440/390 Cinema and transparent live-rendered legend cards in the software-rendered browser
 - [ ] Capture stable per-tier/side close-ups without live director aircraft/effects obscuring the fleet
+
+## v15 HUD clarity
+- [x] Keep radio and prediction panels separate in Map mode
+- [x] Replace incorrect tier-by-tier boat labels with one universal live-data ship explanation
