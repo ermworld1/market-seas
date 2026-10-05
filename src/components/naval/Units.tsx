@@ -17,17 +17,16 @@ function loadLegend() {
 }
 
 /** Generated once at startup by an offscreen renderer using the battle's exact geometry and materials. */
-export function UnitIcon({ u, side }: { u: UnitDef; side?: "bid" | "ask" }) {
-  const key = u.sided ? `${u.icon}-${side ?? "bid"}` : u.icon;
-  const staticSrc = u.sided ? `/legend/${u.icon}-${side ?? "bid"}.png` : `/legend/${u.icon}.png`;
+export function UnitIcon({ u }: { u: UnitDef }) {
+  const key = u.icon;
+  const staticSrc = u.sided ? `/legend/${u.icon}-bid.png` : `/legend/${u.icon}.png`;
   const [src, setSrc] = useState(legendCache[key] ?? staticSrc);
   const [playing, setPlaying] = useState(false);
   useEffect(() => { void loadLegend().then((r) => setSrc(r[key] ?? "")); }, [key]);
   return (
-    <button type="button" aria-label={`Preview ${side === "ask" ? "Sellers" : "Buyers"} ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative h-[60px] w-[120px] shrink-0 overflow-hidden rounded border border-border bg-secondary", playing && "is-playing")}>
-      <img src={src} alt="" width={120} height={60} className="h-full w-full object-cover" />
+    <button type="button" aria-label={`Preview ${u.name}`} onPointerEnter={() => setPlaying(true)} onPointerLeave={() => setPlaying(false)} onClick={() => setPlaying((v) => !v)} className={cn("unit-preview relative h-[55px] w-[110px] shrink-0 overflow-hidden", playing && "is-playing")}>
+      <img src={src} alt="" width={110} height={55} className="h-full w-full object-contain" />
       {playing && <span className={cn("unit-preview-fx", u.id)} aria-hidden />}
-      <span className={cn("absolute bottom-0.5 px-1 text-[8px] font-bold uppercase", side === "ask" ? "right-0.5 text-bear" : "left-0.5 text-bull")}>{side === "ask" ? "Sellers" : "Buyers"}</span>
     </button>
   );
 }
@@ -50,7 +49,7 @@ function liveRule(u: UnitDef) {
   return u.rule;
 }
 
-export function UnitList({ items, both = true, compact = false }: { items: UnitDef[]; both?: boolean; compact?: boolean }) {
+export function UnitList({ items, compact = false, explainSides = false }: { items: UnitDef[]; compact?: boolean; explainSides?: boolean }) {
   const nonce = useBattle((s) => s.nonce);
   const [, refresh] = useState(0);
   useEffect(() => { const id = window.setInterval(() => refresh((v) => v + 1), 2_000); return () => clearInterval(id); }, [nonce]);
@@ -58,16 +57,16 @@ export function UnitList({ items, both = true, compact = false }: { items: UnitD
     <ul className="grid gap-2">
       {items.map((u) => (
         <li key={u.id} className="text-[11px] leading-snug" data-unit={u.id}>
-          <span className="flex max-w-full gap-1 overflow-x-auto">
-            <UnitIcon u={u} side="bid" />
-            {both && u.sided && <UnitIcon u={u} side="ask" />}
-          </span>
-          <span className="mt-1 block min-w-0">
+          <span className="flex min-w-0 items-center gap-2">
+            <UnitIcon u={u} />
+          <span className="block min-w-0">
             <strong className="text-foreground">{u.name}</strong> <span className="text-muted-foreground">· {liveRule(u)}</span>
             {!compact && <span className="block text-foreground/75">{u.text}</span>}
           </span>
+          </span>
         </li>
       ))}
+      {explainSides && <li className="text-[11px] leading-snug text-muted-foreground">Green-decked ships are buy orders (Buyers), red-decked ships are sell orders (Sellers).</li>}
     </ul>
   );
 }
@@ -78,7 +77,7 @@ export function UnitSections({ compact = false }: { compact?: boolean }) {
   return (
     <>
       <H>Ships (resting orders)</H>
-      <UnitList items={SHIPS} compact={compact} />
+      <UnitList items={SHIPS} compact={compact} explainSides />
       <H>Weapons (real trades)</H>
       <UnitList items={WEAPONS} compact={compact} />
       <H>Aircraft</H>

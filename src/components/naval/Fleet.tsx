@@ -239,10 +239,10 @@ export function Fleet() {
           const total = members.reduce((sum, candidate) => sum + candidate.notional, 0);
           return { ship, members, weight: THREE.MathUtils.clamp(Math.sqrt(total / Math.max(ship.notional, 1)), 1, 1.35) };
         });
-        const stationTargets = separateStationDepth(shown.map(({ ship: s, weight }) => ({
+        const stationTargets = separateStationDepth(shown.map(({ ship: s, members, weight }) => ({
           key: side + s.b,
           x: xForPrice(side, s.price),
-          z: zForStation(Math.min(...shown.find((entry) => entry.ship === s)!.members.map((member) => member.bornAt))),
+          z: zForStation(Math.min(...members.map((member) => member.bornAt))),
           length: TIER_SCALE[s.tier] * weight,
           beam: TIER_SCALE[s.tier] * weight * 0.24,
         })), view.halfW * 0.96);
