@@ -128,7 +128,7 @@ export function HowItWorks() {
           <ul className="list-disc space-y-1 pl-4">
             <li><span className="font-semibold text-bull">Buyers</span> (green, left) are resting buy liquidity below the price. <span className="font-semibold text-bear">Sellers</span> (red, right) are resting sell liquidity above it.</li>
             <li>The vertical line of buoys is the last traded price. When price rises the line pushes right into the Sellers; when it falls it pushes left.</li>
-            <li>Left/right = price. Front/back = how long that liquidity has been resting: new liquidity arrives from the back and moves forward as it stays.</li>
+            <li>Left/right = price. Front/back is only the ship's lane in the formation: it is fixed, so ships move left and right with price and never drift forward or back.</li>
             <li>Each battle lasts {RULES_FACTS.battleMinutes} minutes. The side that moved the price its way wins. Sinking the enemy flagship is the big prize.</li>
           </ul>
           <H>Ships, shots, submarines, aircraft</H>

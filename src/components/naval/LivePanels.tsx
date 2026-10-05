@@ -107,7 +107,7 @@ export function TapePanel() {
 }
 
 export function GuidePanel() {
-  return <div className="min-h-0 overflow-auto p-2"><p className="text-xs text-foreground/90">The middle vertical line is the live BTC price. <span className="text-bull">Buyers</span> wait left; <span className="text-bear">Sellers</span> wait right. Left/right = price. Front/back = how long that liquidity has rested: new liquidity arrives from the back and moves forward as it stays.</p><UnitSections /><a className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary" href="https://www.binance.com/en/futures/BTCUSDT" target="_blank" rel="noreferrer">Open BTCUSDT on Binance <ExternalLink className="h-3 w-3" /></a></div>;
+  return <div className="min-h-0 overflow-auto p-2"><p className="text-xs text-foreground/90">The middle vertical line is the live BTC price. <span className="text-bull">Buyers</span> wait left; <span className="text-bear">Sellers</span> wait right. Left/right = price. Front/back is only the ship's fixed lane in the formation; ships move left and right with price.</p><UnitSections /><a className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary" href="https://www.binance.com/en/futures/BTCUSDT" target="_blank" rel="noreferrer">Open BTCUSDT on Binance <ExternalLink className="h-3 w-3" /></a></div>;
 }
 
 /** Raw Binance levels (not ship buckets), grouped like the Binance DOM: bids floor, asks ceil to the step. */
