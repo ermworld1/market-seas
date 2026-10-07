@@ -54,6 +54,18 @@ export function connectFront(
     let attempt = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let watchdog: ReturnType<typeof setTimeout> | undefined;
+    // A socket can stay "open" while nothing arrives (laptop sleep, Wi-Fi/4G switch, half-open TCP):
+    // onclose never fires, the battle freezes and goes silent. Both streams tick at least every
+    // second, so 8 s of nothing means the line is dead and we redial.
+    let lastMsgAt = 0;
+    const stall = setInterval(() => {
+      if (!ws || !live[idx] || Date.now() - lastMsgAt < 8_000) return;
+      const dead = ws;
+      dead.onmessage = null;
+      dead.onclose = null;
+      try { dead.close(); } catch { /* already gone */ }
+      dropped();
+    }, 2_000);
     live[idx] = false;
     failed[idx] = false;
     const open = () => {
@@ -73,6 +85,7 @@ export function connectFront(
         }
       }, 10_000);
       ws.onmessage = (ev) => {
+        lastMsgAt = Date.now();
         if (!live[idx]) {
           live[idx] = true;
           failed[idx] = false;
@@ -81,21 +94,24 @@ export function connectFront(
         }
         handle(ev.data as string);
       };
-      ws.onclose = () => {
-        clearTimeout(watchdog);
-        if (disposed) return;
-        if (!live[idx] || attempt >= 2) failed[idx] = true;
-        live[idx] = false;
-        attempt++;
-        if (idx === 0) engine.needSnapshot = true;
-        report();
-        retry = setTimeout(open, Math.min(30_000, 1000 * 2 ** Math.min(attempt, 5)));
-      };
+      ws.onclose = dropped;
     };
+    function dropped() {
+      clearTimeout(watchdog);
+      clearTimeout(retry);
+      if (disposed) return;
+      if (!live[idx] || attempt >= 2) failed[idx] = true;
+      live[idx] = false;
+      attempt++;
+      if (idx === 0) engine.needSnapshot = true;
+      report();
+      retry = setTimeout(open, Math.min(30_000, 1000 * 2 ** Math.min(attempt, 5)));
+    }
     open();
     return () => {
       clearTimeout(retry);
       clearTimeout(watchdog);
+      clearInterval(stall);
       if (ws) {
         ws.onclose = null;
         ws.onmessage = null;

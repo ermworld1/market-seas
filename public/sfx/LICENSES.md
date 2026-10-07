@@ -61,6 +61,7 @@ License: https://sonniss.com/gdc-bundle-license/ (no standalone redistribution, 
 | `biggun/1–3.mp3` | Main battery, layered: TAJ - Tank Battle Cannon Fire [XY Stereo]-001.wav (pitched down ~40%) + Planet_Explosion_Low-04.wav + sally77_cannons___dry.wav + warfare_t1b_cannon_firing_forest_distant_MKH8060_2.wav (delayed echo), synthetic sub-bass and reverb tail |
 | `hullhit/1–4.mp3` | Bluezone_BC0251_heavy_metal_impact_large_tank_01_03 / metal_plate_medium / steel_barrel_01, Bluezone_BC0236_metal_debris_055 (pitched down) |
 | `bullethit/1–3.mp3` | Guns & Explosions Album - Bullet Impacts - Multiple 1.wav (three sections) |
+| `spray/1–3.mp3` | Water,Splashes,Bath Tub,Roomy,Dunk,Slow,Hard,x3.wav (short sections, pitched up, high-passed) |
 | `splash/1–3.mp3` | Water,Splashes,Bath Tub,Roomy,Dunk,Slow,Hard,x3.wav (pitched down) + Bluezone_BC0252_isolated_lake_wave_01_01.wav |
 | `hull/1.mp3` | Boat,Bow Wash,Ferry,Midship,Whine,Deep,Slosh.wav |
 | `engine/1.mp3` | tugboat_t24_onbrd_idle_steady_deck_propeller_MKH8040.wav (low-passed) |
