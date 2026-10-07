@@ -149,12 +149,39 @@ class AudioEngine {
       this.startMusic();
       this.startAmbience();
     }
+    this.startWatchdog();
     // iOS needs a silent buffer started inside the gesture
     const s = this.ctx.createBufferSource();
     s.buffer = this.ctx.createBuffer(1, 1, 22050);
     s.connect(this.ctx.destination);
     s.start();
     await this.ctx.resume();
+  }
+  private watchdog: ReturnType<typeof setInterval> | null = null;
+  lastAircraftSpawnAt = 0;
+  /**
+   * Keeps sound alive: browsers suspend or "interrupt" the audio context (tab switch, phone call,
+   * Bluetooth change, OS audio focus). Resume as soon as allowed, and on the next tap/key if the
+   * browser insists on a gesture. Also clears a stuck aircraft duck so guns never stay muted.
+   */
+  private startWatchdog() {
+    if (this.watchdog || typeof window === "undefined") return;
+    const kick = () => { const c = this.ctx; if (c && this.enabled && c.state !== "running" && c.state !== "closed") void c.resume().catch(() => {}); };
+    for (const ev of ["pointerdown", "keydown", "touchstart"]) window.addEventListener(ev, kick, { passive: true });
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") kick(); });
+    this.watchdog = setInterval(() => {
+      kick();
+      const c = this.ctx;
+      if (c && this.activeAircraft > 0 && performance.now() - this.lastAircraftSpawnAt > 15_000) {
+        this.activeAircraft = 0;
+        const m = this.mixBase();
+        const t = c.currentTime;
+        this.buses["weapons"]?.gain.setTargetAtTime(m.weapons, t, 0.3);
+        this.buses["amb"]?.gain.setTargetAtTime(m.amb, t, 0.5);
+        this.buses["chatter"]?.gain.setTargetAtTime(0.5, t, 0.5);
+        this.music?.gain.setTargetAtTime(m.music, t, 0.5);
+      }
+    }, 2000);
   }
   get state() {
     return this.ctx?.state ?? "none";
@@ -618,13 +645,13 @@ class AudioEngine {
   }
 
   /** One impact sound per volley (not per tracer): recorded hull strike / bullet strike, or a shell splash. */
-  impact(kind: "hull" | "bullets" | "splash", x: number, gain = 1) {
+  impact(kind: "hull" | "bullets" | "splash" | "spray", x: number, gain = 1) {
     const ctx = this.ctx;
     if (!ctx || !this.enabled) return;
     const pan = ctx.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, x));
     pan.connect(this.buses["weapons"]!);
     const n: AudioScheduledSourceNode[] = [];
-    const folder = kind === "hull" ? "hullhit" : kind === "bullets" ? "bullethit" : "splash";
+    const folder = kind === "hull" ? "hullhit" : kind === "bullets" ? "bullethit" : kind === "spray" ? "spray" : "splash";
     this.oneShot(folder as BankFolder, ctx.currentTime, pan, n, gain, 0.92 + Math.random() * 0.16);
     this.byCat[folder] = (this.byCat[folder] ?? 0) + 1;
   }
@@ -755,6 +782,7 @@ class AudioEngine {
         engines.push(rush);
       }
       this.activeAircraft++;
+      this.lastAircraftSpawnAt = performance.now();
       this.buses["weapons"]?.gain.setTargetAtTime(0.28, t, 0.15);
       this.buses["amb"]?.gain.setTargetAtTime(0.18, t, 0.2);
       this.buses["chatter"]?.gain.setTargetAtTime(0.15, t, 0.2);
@@ -846,6 +874,7 @@ class AudioEngine {
       src.connect(level).connect(out);
       src.start(t);
       this.activeAircraft++;
+      this.lastAircraftSpawnAt = performance.now();
       this.buses["weapons"]?.gain.setTargetAtTime(0.3, t, 0.15);
       this.aircraftLog.push({ kind, ev: "spawn", t: performance.now() });
       let stopped = false;
@@ -1264,8 +1293,13 @@ class AudioEngine {
     hg.gain.value = 0.012;
     this.chain(hiss, this.buses["chatter"]!, this.filt("bandpass", 2600, 0.6), hg);
     this.ambience.active = true;
-    let nextChatter = ctx.currentTime + 2;
-    this.ambTimer = setInterval(() => {
+    this.nextChatterAt = ctx.currentTime + 2;
+    this.ambTimer = setInterval(() => { try { this.ambTick(); } catch { /* keep the loop alive */ } }, 200);
+  }
+  private nextChatterAt = 0;
+  private ambTick() {
+    const amb = this.buses["amb"]!;
+    {
       const c = this.ctx;
       if (!c || !this.enabled || c.state !== "running") return;
       const t = c.currentTime + 0.05;
@@ -1299,9 +1333,9 @@ class AudioEngine {
         if (!this.oneShot("horn", t, hf, n, 0.3)) for (const m of [1, 1.5]) this.chain(this.osc("sawtooth", f * m, f * m * 0.99, t, 2.2, n), amb, this.filt("lowpass", 380), this.env(t, 0.25, 0.07, 2.2));
       }
       // radio chatter: short filtered murmurs and beeps
-      if (t >= nextChatter && t >= this.voBusyUntil) {
+      if (t >= this.nextChatterAt && t >= this.voBusyUntil) {
         this.ambience.chatter++;
-        nextChatter = t + 3 + Math.random() * 5;
+        this.nextChatterAt = t + 3 + Math.random() * 5;
         const ch = this.buses["chatter"]!;
         if (Math.random() < 0.3 && this.oneShot("radio", t, ch, n, 0.18)) { /* recorded static/beeps */ }
         else if (Math.random() < 0.35) this.chain(this.osc("sine", 1000 + Math.random() * 400, 1000, t, 0.08, n), ch, this.env(t, 0.003, 0.05, 0.08));
@@ -1319,7 +1353,7 @@ class AudioEngine {
       const pd = this.pending;
       if (pd && t - pd.at > 6) this.pending = null;
       else if (pd && t >= this.voBusyUntil && t - this.lastVoiceAt >= VO_COOLDOWN) { this.pending = null; void this.voice(pd.key, pd.text); }
-    }, 200);
+    }
   }
   /** Air-raid siren loop for the whole cascade. */
   private setSiren(on: boolean) {

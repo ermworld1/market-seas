@@ -59,6 +59,7 @@ const pendingShots = { buy: 0, sell: 0 };
 const salvoNotional = { buy: 0, sell: 0 };
 const lastBig = { buy: 0, sell: 0 };
 const lastImpact = { buy: 0, sell: 0 };
+const lastSpray = { buy: 0, sell: 0 };
 const lastBroadside = { t: 0 };
 const lastSalvo = { buy: 0, sell: 0 };
 const mat4 = new THREE.Matrix4();
@@ -254,9 +255,14 @@ export function Effects() {
       const pz = panX(tx - view.frontX, REAR);
       if (ti - lastImpact[ev.taker] >= 140) {
         lastImpact[ev.taker] = ti;
-        const kind = target ? (ev.notional >= 50_000 ? "hull" : "bullets") : "splash";
-        const g = Math.min(1.1, 0.4 + Math.log10(Math.max(ev.notional, 1_000) / 1_000) * 0.25);
-        window.setTimeout(() => audio.impact(kind, pz, g), 140);
+        // Small fills land as water spouts walking up to the hull (what small-calibre fire looks and
+        // sounds like at range); only real size gets the heavy steel strike.
+        const kind = target ? (ev.notional >= 50_000 ? "hull" : "spray") : "splash";
+        // spouts are texture, not news: at most ~2 per second per side so they never turn into a tub
+        const skip = kind === "spray" && ti - lastSpray[ev.taker] < 450;
+        if (kind === "spray" && !skip) lastSpray[ev.taker] = ti;
+        const g = Math.min(1.1, 0.4 + Math.log10(Math.max(ev.notional, 1_000) / 1_000) * 0.25) * (kind === "spray" ? 0.75 : 1);
+        if (!skip) window.setTimeout(() => audio.impact(kind, pz, g), 140);
       }
     }
     // near miss: trade printed in a bucket with no ship → splash where it landed

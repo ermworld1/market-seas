@@ -24,6 +24,7 @@ export const BANK = {
   shipgun: 7,
   hullhit: 4,
   bullethit: 3,
+  spray: 3,
   splash: 3,
   hull: 1,
   engine: 1,
@@ -47,5 +48,5 @@ export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
 };
 
 /** bump when sample files are replaced in place, so browsers do not keep playing the cached old files */
-export const SFX_VERSION = "20";
+export const SFX_VERSION = "21";
 export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => `/sfx/${f}/${i + 1}.mp3?v=${SFX_VERSION}`);
