@@ -9,6 +9,8 @@ export const screen = {
   strait: null as Pt | null,
   selected: null as Pt | null,
   lesson: null as Pt | null,
+  /** a large, clearly visible ship for the tour to point at (only while the tour is open) */
+  showcase: null as (Pt & { r: number }) | null,
   /** cursor position (canvas px) while the pointer is over the Map battlefield */
   ask: null as Pt | null,
   repairs: [] as Pt[],

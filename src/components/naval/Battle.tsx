@@ -193,6 +193,22 @@ function Projector() {
     screen.ticks = ticks;
     const selected = view.selectedBucket ? displayFor(view.selectedBucket.side, view.selectedBucket.b) : null;
     screen.selected = selected ? p({ x: selected.x, y: selected.y + selected.s * 0.4, z: selected.z }) : null;
+    // tour step 2: the biggest ship that is clearly on screen (not behind the HUD, not on the horizon)
+    if (useBattle.getState().tourOpen) {
+      let best: { x: number; y: number; r: number } | null = null;
+      let bestS = 0;
+      for (const d of view.displays.values()) {
+        if (!d.ship || d.departing || d.s <= bestS) continue;
+        const c = p({ x: d.x, y: d.y + d.s * 0.15, z: d.z });
+        const e = p({ x: d.x + d.s * 0.9, y: d.y + d.s * 0.15, z: d.z });
+        if (!c || !e) continue;
+        const r = Math.abs(e.x - c.x);
+        if (r < 14 || c.y < size.height * 0.3 || c.y > size.height - 120 || c.x < 40 || c.x > size.width - 40) continue;
+        best = { x: c.x, y: c.y, r };
+        bestS = d.s;
+      }
+      screen.showcase = best;
+    } else screen.showcase = null;
     const lt = view.lessonTarget;
     const ld = lt?.kind === "ship" ? displayFor(lt.side, lt.b) : null;
     screen.lesson = lt?.kind === "plane" ? p(view.plane) : ld ? p({ x: ld.x, y: ld.y + ld.s * 0.3, z: ld.z }) : null;

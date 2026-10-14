@@ -1,5 +1,5 @@
-import { AIRCRAFT, RULES_FACTS, SHIPS, WEAPONS } from "@/lib/battle/units";
-import { HowItWorks, UnitIcon, UnitList, shortRange } from "./Units";
+import { AIRCRAFT, SHIPS } from "@/lib/battle/units";
+import { HowItWorks, UnitIcon, shortRange } from "./Units";
 import { useShallow } from "zustand/react/shallow";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, Crosshair, Download, HelpCircle, Map, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
@@ -14,6 +14,7 @@ import { choose, radioCheck } from "./useDirector";
 import { startFleetIntro, view } from "./layout";
 import { Labels, ShipCard } from "./Labels";
 import { AskMap } from "./AskMap";
+import { AskPanel } from "./AskPanel";
 import { Tour } from "./Tour";
 import { DebugPanel } from "./DebugPanel";
 import { Guard } from "./Guard";
@@ -137,11 +138,11 @@ function Header({ now }: { now: number }) {
               <span className="text-bull">Buyers {scoreboard?.buyers ?? 0}</span> – <span className="text-bear">{scoreboard?.sellers ?? 0} Sellers</span>
             </div>
           </div>
-          <button onClick={() => useBattle.setState({ helpOpen: true })} aria-label="How it works" className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
+          <button onClick={() => useBattle.setState({ tourOpen: true, helpOpen: false })} aria-label="Show the tour" title="Tour: how to read the battle" className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
             <HelpCircle className="h-4 w-4" />
           </button>
           <button onClick={() => { const next = presentation === "cinema" ? "map" : "cinema"; useBattle.setState({ presentation: next }); view.presentation = next; startFleetIntro(); audio.openingAdvance(); savePrefs(); }} aria-label={`Switch to ${presentation === "cinema" ? "map" : "cinema"} view`} className="flex items-center gap-1 rounded bg-secondary px-2 py-1.5 text-[10px] font-semibold uppercase text-foreground hover:bg-accent">
-            <Map className="h-4 w-4" /> {presentation}
+            <Map className="h-4 w-4" /> <span className="hidden sm:inline">{presentation}</span>
           </button>
 
           <AutoCamToggle />
@@ -196,7 +197,7 @@ function AutoCamToggle() {
   const presentation = useBattle((st) => st.presentation);
   if (presentation !== "cinema") return null;
   return (
-    <button onClick={() => { useBattle.setState({ autoCamera: !on }); if (on) view.shot = null; }} aria-pressed={on} aria-label="Toggle automatic camera" className={cn("rounded px-2 py-1.5 text-[10px] font-semibold uppercase", on ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
+    <button onClick={() => { useBattle.setState({ autoCamera: !on }); if (on) view.shot = null; }} aria-pressed={on} aria-label="Toggle automatic camera" className={cn("hidden rounded px-2 py-1.5 text-[10px] font-semibold uppercase sm:block", on ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
       Auto camera {on ? "on" : "off"}
     </button>
   );
@@ -219,12 +220,12 @@ function TraderStrip() {
   );
 }
 
-const DATA_TABS = [["read", "How to read"], ["book", "Book"], ["trades", "Trades"], ["tape", "Tape"], ["guide", "Guide"], ["rankings", "Ranks"]] as const;
+const DATA_TABS = [["read", "Ask the map"], ["book", "Book"], ["trades", "Trades"], ["tape", "Tape"], ["guide", "Guide"], ["rankings", "Ranks"]] as const;
 function DataPanels() {
   const tab = useBattle((s) => s.panelTab);
   return <Tabs value={tab} onValueChange={(v) => useBattle.setState({ panelTab: v as typeof tab })} className="hud-panel flex h-full min-h-0 flex-col p-1.5">
     <TabsList className="grid h-8 shrink-0 grid-cols-[1.7fr_repeat(5,1fr)] rounded bg-secondary/70 p-0.5">{DATA_TABS.map(([id, label]) => <TabsTrigger key={id} value={id} className="px-1 text-[10px] uppercase">{label}</TabsTrigger>)}</TabsList>
-    <TabsContent value="read" className="min-h-0 flex-1 overflow-hidden"><HowToRead /></TabsContent>
+    <TabsContent value="read" className="min-h-0 flex-1 overflow-hidden"><AskPanel /></TabsContent>
     <TabsContent value="book" className="min-h-0 flex-1 overflow-hidden"><OrderBookPanel /></TabsContent>
     <TabsContent value="trades" className="min-h-0 flex-1 overflow-hidden"><RecentTradesPanel /></TabsContent>
     <TabsContent value="tape" className="min-h-0 flex-1 overflow-hidden"><TapePanel /></TabsContent>
@@ -319,55 +320,6 @@ function Banners() {
   );
 }
 
-const GUIDE = [
-  "The vertical line in the middle is the last traded BTC price on Binance Futures. Resting buy liquidity waits on the left; sell liquidity on the right.",
-  "Left/right = price. Front/back = how long that liquidity has been resting: the older it is, the further back its ship sits. Bigger ship = more resting liquidity. A ship is many orders in one price bucket, not one order.",
-  "Ships are makers. Every shot is a real taker trade launched from the attacking fleet; the ship at that price loses what was filled. A fully traded ship sinks and the front line moves.",
-  "Big liquidity that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
-  "Bombers are liquidations, labelled Long or Short liquidated (sampled by Binance: max 1 per second).",
-  `Each battle lasts ${RULES_FACTS.battleMinutes} minutes. Sink the enemy flagship and push the line to win.`,
-];
-const DETAILS = [
-  `Ships group the full order book into price buckets of ${RULES_FACTS.bucket} of the price, within ±${RULES_FACTS.range}.`,
-  `Tiers by rolling percentile of bucket size: ${SHIPS.map((u) => `${u.name} ${u.rule}`).join("; ")}.`,
-  `Weapons by trade-size rank: ${WEAPONS.map((u) => `${u.name} ${u.rule}`).join("; ")}. Fighter: ${AIRCRAFT[0]!.rule}.`,
-  "Inferred events (repair, relocate, hidden) are guesses from book changes; Binance does not publish order identities. Fighters aggregate same-side aggressive trades within 0.3 s, which may come from several takers.",
-  "Data: Binance USD-M public streams (diff depth 100ms + REST snapshot, aggTrade, forceOrder, markPrice) and open interest polled every 30s.",
-  "Longs/shorts in the banner come from open interest change with price direction, never from the order book.",
-];
-
-export function HowToRead() {
-  const [more, setMore] = useState(false);
-  useEffect(() => setMore(localStorage.getItem("nms-more") === "1"), []);
-  return (
-    <section id="how-to-read" className="h-full min-h-0 overflow-auto p-2">
-      <h2 className="font-display text-sm font-semibold uppercase tracking-widest text-primary">How to read it</h2>
-      <ul className="mt-1.5 space-y-1.5 text-xs leading-snug text-foreground/90">
-        {GUIDE.map((g) => <li key={g}>{g}</li>)}
-      </ul>
-      <button
-        className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-primary"
-        onClick={() => {
-          setMore((v) => {
-            localStorage.setItem("nms-more", v ? "0" : "1");
-            return !v;
-          });
-        }}
-      >
-        {more ? "Fewer details −" : "More details +"}
-      </button>
-      {more && (
-        <ul className="mt-1.5 space-y-1 text-[11px] leading-snug text-muted-foreground">
-          {DETAILS.map((g) => <li key={g}>{g}</li>)}
-        </ul>
-      )}
-      <h3 className="mt-3 font-display text-xs font-semibold uppercase tracking-widest text-primary">Units</h3>
-      <UnitList items={[...SHIPS, ...WEAPONS, ...AIRCRAFT]} compact explainSides />
-      <p className="mt-2 text-[11px] text-muted-foreground">Every event is in the Guide tab and the "?" panel.</p>
-    </section>
-  );
-}
-
 const SUBS = new Set(["GHOST", "FLED", "RELOCATE", "HIDDEN"]);
 function tapeFilter(f: string) {
   return (l: TapeLine) => (f === "all" ? true : f === "1m" ? l.notional >= 1e6 : f === "subs" ? SUBS.has(l.kind) : l.kind === "AIR STRIKE");
@@ -404,7 +356,7 @@ function Ticker() {
   const tape = useBattle((s) => s.tape);
   const items = tape.slice(0, 14);
   return (
-    <div className="pointer-events-auto flex items-center gap-2 overflow-hidden border-t border-border/60 bg-background/80 px-2 py-1">
+    <div className="pointer-events-auto flex items-center gap-2 overflow-hidden border-t border-border/60 bg-background/80 px-2 py-1" data-tour="tape">
       <span className="shrink-0 rounded bg-danger px-1.5 text-[10px] font-bold uppercase text-primary-foreground">Live tape</span>
       <div className="ticker-track min-w-0 flex-1 overflow-hidden whitespace-nowrap font-mono text-[11px]">
         <div className="ticker-inner inline-block">
@@ -644,8 +596,8 @@ export function Hud() {
         <Header now={now} />
         <div className="flex items-center justify-between gap-1.5">
           {presentation === "map" && <Filters />}
-          {presentation === "map" && <span className="ask-hint hidden lg:inline">Ask the map: hover the sea</span>}
-          <button id="how-to-read-chip" onClick={() => { useBattle.setState({ panelTab: "read" }); setDrawer(true); }} className="pointer-events-auto ml-auto rounded border border-primary/60 bg-background/80 px-2 py-1 text-[11px] font-semibold uppercase text-primary lg:hidden">How to read</button>
+          {presentation === "map" && <span className="ask-hint hidden lg:inline">Hover the sea for details</span>}
+          <button id="how-to-read-chip" onClick={() => { useBattle.setState({ panelTab: "read" }); setDrawer(true); }} className="pointer-events-auto ml-auto rounded border border-primary/60 bg-background/80 px-2 py-1 text-[11px] font-semibold uppercase text-primary lg:hidden">Ask the map</button>
           <button onClick={() => setDrawer((v) => !v)} className="pointer-events-auto rounded bg-secondary px-2 py-1 text-[11px] font-semibold uppercase lg:hidden">
             {drawer ? "Close data" : "Live data"}
           </button>

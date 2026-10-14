@@ -295,7 +295,9 @@
 @media (max-width:767px) { .radio-panel { top:150px; width:min(330px,calc(100vw - 16px)); } .radio-detail { max-width:250px; } }
 .ticker-inner { animation: ticker 40s linear infinite; padding-left: 100%; }
 @keyframes ticker { to { transform: translateX(-100%); } }
-.tour-spot { box-shadow: 0 0 0 9999px oklch(0.08 0.02 230 / 0.72); outline: 2px solid var(--primary); pointer-events: none; transition: all 0.2s; }
+.tour-spot { border-radius: 10px; border: 2px solid var(--primary); background: color-mix(in oklab, var(--primary) 6%, transparent); box-shadow: 0 0 0 9999px oklch(0.08 0.02 230 / 0.62); pointer-events: none; transition: left .2s, top .2s, width .2s, height .2s; }
+.tour-card { padding: 18px 18px 16px; border-radius: 12px; background: oklch(0.15 0.012 75 / 0.97); border: 1.5px solid var(--primary); box-shadow: 0 18px 50px oklch(0 0 0 / 0.55); transition: left .2s, top .2s; }
+@media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; } }
 .cinema-grade { z-index: 4; background: radial-gradient(ellipse at center, transparent 52%, oklch(0.04 0.02 35 / 0.5) 100%); mix-blend-mode: soft-light; }
 .cinema-grade::after { content: ""; position: absolute; inset: 0; opacity: .12; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E"); }
 .letterbox { z-index: 5; border-top: clamp(18px, 4vh, 48px) solid var(--background); border-bottom: clamp(18px, 4vh, 48px) solid var(--background); }

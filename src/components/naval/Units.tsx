@@ -58,8 +58,18 @@ export function shortRange(id: string): string {
   if (id === "fighter") return "$200K+ burst";
   if (id === "bomber") return "liquidation";
   if (id === "battleship") return "largest wall";
+  const tq = e?.tradeSampler;
+  if (tq && (id === "mg" || id === "gun" || id === "torpedo" || id === "broadside")) {
+    const g = tq.quantile(0.6), t = tq.quantile(0.9), b = tq.quantile(0.99);
+    if (!(g > 0)) return "";
+    if (id === "mg") return `under ${money(g)}`;
+    if (id === "gun") return `${money(g)} to ${money(t)}`;
+    if (id === "torpedo") return `${money(t)} to ${money(b)}`;
+    return `${money(b)}+`;
+  }
   if (!q) return "";
   const a = q.quantile(0.4), b = q.quantile(0.7), c = q.quantile(0.9);
+  if (!(a > 0)) return "";
   if (id === "patrol") return `under ${money(a)}`;
   if (id === "destroyer") return `${money(a)} to ${money(b)}`;
   if (id === "frigate") return `${money(b)} to ${money(c)}`;

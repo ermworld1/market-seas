@@ -1,5 +1,5 @@
 /** Device-local analytics events (feed the /stats page). Never leave the device. */
-export type AnalyticsName = "page_view" | "tour_done" | "sound_on" | "first_kill_seen" | "battle_watched_to_end" | "prediction_made" | "session_end";
+export type AnalyticsName = "page_view" | "tour_done" | "sound_on" | "first_kill_seen" | "battle_watched_to_end" | "prediction_made" | "session_end" | "ask_map";
 export interface AnalyticsEvent {
   n: AnalyticsName;
   t: number;
