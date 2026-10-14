@@ -9,6 +9,8 @@ export const screen = {
   strait: null as Pt | null,
   selected: null as Pt | null,
   lesson: null as Pt | null,
+  /** cursor position (canvas px) while the pointer is over the Map battlefield */
+  ask: null as Pt | null,
   repairs: [] as Pt[],
   ticks: [] as (Pt & { label: string })[],
   floaters: [] as (Pt & { id: number; text: string; tone: string; age: number })[],
