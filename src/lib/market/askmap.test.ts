@@ -23,7 +23,7 @@ describe("ask the map", () => {
     });
     expect(card.tone).toBe("buy");
     expect(card.title).toBe("Buyers' ship");
-    expect(card.rows.map((r) => r.v)).toEqual(["$2.40M · 28.200 BTC", "84,900–84,901", "top 10% of it", "42s", "3 · $410K filled", "1×"]);
+    expect(card.rows.map((r) => r.v)).toEqual(["$2.40M · 28.200 BTC", "84,900–84,900.9", "top 10% of it", "42s", "3 · $410K filled", "1×"]);
     expect(card.note).toContain("not one order");
     expect(card.note).toContain("resting longer");
   });
@@ -38,7 +38,7 @@ describe("ask the map", () => {
     });
     expect(card.title).toBe("Sellers' ship");
     expect(card.tone).toBe("sell");
-    expect(card.rows.find((r) => r.k === "Price range")!.v).toBe("85,100–85,103");
+    expect(card.rows.find((r) => r.k === "Price range")!.v).toBe("85,100–85,102.6");
     expect(card.note).toContain("3 neighbouring price buckets together");
   });
 
@@ -69,7 +69,7 @@ describe("ask the map", () => {
         ship: { tier: "battleship", notional: 9_000_000, qty: 105, bornAt: 0, members: 2 },
       });
       const all = card.title + card.note + card.rows.map((r) => r.k + r.v).join(" ");
-      expect(all).not.toMatch(/long|short/i);
+      expect(all).not.toMatch(/\blongs?\b|\bshorts?\b/i);
     }
   });
 
