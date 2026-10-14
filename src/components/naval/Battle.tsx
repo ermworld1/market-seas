@@ -9,7 +9,7 @@ import { Background } from "./Background";
 import { Effects } from "./Effects";
 import { Fleet } from "./Fleet";
 import { Ocean } from "./Ocean";
-import { displayFor, DEPTH, ELEVATION, GAP, REAR, startFleetIntro, view, xForPrice } from "./layout";
+import { displayFor, DEPTH, ELEVATION, GAP, REAR, priceAtX, startFleetIntro, view, xForPrice, type Display } from "./layout";
 import { preloadModels } from "./models";
 import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";
@@ -21,6 +21,10 @@ import { CinemaPost } from "./CinemaPost";
 
 const lookAt = new THREE.Vector3();
 const tmp = new THREE.Vector3();
+const waterPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const waterHit = new THREE.Vector3();
 
 /** Adaptive quality: steps down after 30 slow frames, back up after 180 fast frames. */
 function sampleQuality(raw: number, f: { slow: number; fast: number }) {
