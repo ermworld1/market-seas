@@ -218,7 +218,7 @@ const TOPICS: Topic[] = [
       join(
         "Bombers are real Binance liquidations. A long liquidation is a forced sell, so it bombs the Buyers' side; a short liquidation is a forced buy and bombs the Sellers'. Binance sends at most one liquidation per second, so totals are a lower bound.",
         has(l.liq1h.longs + l.liq1h.shorts) &&
-          `Last hour: longs ${usd(l.liq1h.longs)}, shorts ${usd(l.liq1h.shorts)}.`,
+          `Last hour: ${[has(l.liq1h.longs) ? `longs ${usd(l.liq1h.longs)}` : "no longs", has(l.liq1h.shorts) ? `shorts ${usd(l.liq1h.shorts)}` : "no shorts"].join(", ")} liquidated.`,
       ),
   },
   {

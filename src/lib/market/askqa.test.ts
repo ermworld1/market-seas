@@ -55,7 +55,10 @@ describe("ask the map questions", () => {
 
   it("fills answers with the live numbers on screen", () => {
     expect(ask("where is the flagship").text).toContain("$6.20M at 84,300");
-    expect(ask("liquidations last hour").text).toContain("longs $2.40M, shorts $610K");
+    expect(ask("liquidations last hour").text).toContain("longs $2.40M, shorts $610K liquidated");
+    expect(
+      answerQuestion("bombers", { ...live, liq1h: { longs: 0, shorts: 4_100 } }).text,
+    ).toContain("no longs, shorts $4.1K liquidated");
     expect(ask("funding?").text).toContain("0.0100% (longs pay shorts), next payment in 1h 35m");
     expect(ask("spoofing walls pulled").text).toContain("Sellers 1 eaten, 7 pulled");
     expect(ask("what is the price line").text).toContain("84,512");
