@@ -9,7 +9,7 @@ import { Background } from "./Background";
 import { Effects } from "./Effects";
 import { Fleet } from "./Fleet";
 import { Ocean } from "./Ocean";
-import { displayFor, DEPTH, ELEVATION, GAP, REAR, startFleetIntro, view, xForPrice } from "./layout";
+import { displayFor, DEPTH, ELEVATION, GAP, REAR, priceAtX, startFleetIntro, view, xForPrice, type Display } from "./layout";
 import { preloadModels } from "./models";
 import { Hud } from "./Hud";
 import { useDirector } from "./useDirector";
@@ -21,6 +21,10 @@ import { CinemaPost } from "./CinemaPost";
 
 const lookAt = new THREE.Vector3();
 const tmp = new THREE.Vector3();
+const waterPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const waterHit = new THREE.Vector3();
 
 /** Adaptive quality: steps down after 30 slow frames, back up after 180 fast frames. */
 function sampleQuality(raw: number, f: { slow: number; fast: number }) {
@@ -196,34 +200,71 @@ function Projector() {
   return null;
 }
 
-/** Tap/click a ship: picks the nearest projected ship within 40 px and selects its price bucket. */
+/** Click (or tap) a ship to pin its card. On desktop Map mode, moving the pointer also "asks the map" what is under it. */
 function Picker() {
   const { camera, gl, size } = useThree();
   useEffect(() => {
     const el = gl.domElement;
     let down = { x: 0, y: 0 };
-    const onDown = (ev: PointerEvent) => { down = { x: ev.clientX, y: ev.clientY }; };
-    const onUp = (ev: PointerEvent) => {
-      if (Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 6) return; // drag, not a tap
+    const local = (ev: PointerEvent) => {
       const r = el.getBoundingClientRect();
-      const mx = ev.clientX - r.left;
-      const my = ev.clientY - r.top;
-      let best: { side: "bid" | "ask"; b: number } | null = null;
-      let bestD = 40;
+      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+    };
+    /** nearest visible ship to a canvas point, within maxPx */
+    const nearest = (mx: number, my: number, maxPx: number) => {
+      let best: Display | null = null;
+      let bestD = maxPx;
       for (const d of view.displays.values()) {
         if (!d.ship || d.departing) continue;
         tmp.set(d.x, d.y + d.s * 0.2, d.z).project(camera);
         const sx = (tmp.x * 0.5 + 0.5) * size.width;
         const sy = (-tmp.y * 0.5 + 0.5) * size.height;
         const dist = Math.hypot(sx - mx, sy - my);
-        if (dist < bestD) { bestD = dist; best = { side: d.side, b: d.b }; }
+        if (dist < bestD) { bestD = dist; best = d; }
       }
+      return best;
+    };
+    const clearAsk = () => { view.ask = null; screen.ask = null; };
+    const onDown = (ev: PointerEvent) => { down = { x: ev.clientX, y: ev.clientY }; };
+    const onUp = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 6) return; // drag, not a tap
+      const { x: mx, y: my } = local(ev);
+      const d = nearest(mx, my, 40);
+      const best = d ? { side: d.side, b: d.b } : null;
       useBattle.setState({ selectedBucket: best });
       view.selectedBucket = best;
     };
+    let lastAsk = 0;
+    const onMove = (ev: PointerEvent) => {
+      const t = performance.now();
+      if (t - lastAsk < 45) return; // hover is polled ~20x a second, not per event
+      lastAsk = t;
+      if (view.presentation !== "map" || ev.pointerType === "touch") return clearAsk();
+      const { x: mx, y: my } = local(ev);
+      const d = nearest(mx, my, 26);
+      if (d) {
+        view.ask = { kind: "ship", side: d.side, price: d.price, b: d.b };
+        screen.ask = { x: mx, y: my };
+        return;
+      }
+      ndc.set((mx / size.width) * 2 - 1, -(my / size.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      if (!ray.ray.intersectPlane(waterPlane, waterHit)) return clearAsk();
+      const w = priceAtX(waterHit.x);
+      view.ask = { kind: w.kind, side: w.side, price: w.price };
+      screen.ask = { x: mx, y: my };
+    };
     el.addEventListener("pointerdown", onDown);
     el.addEventListener("pointerup", onUp);
-    return () => { el.removeEventListener("pointerdown", onDown); el.removeEventListener("pointerup", onUp); };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", clearAsk);
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", clearAsk);
+      clearAsk();
+    };
   }, [camera, gl, size]);
   return null;
 }

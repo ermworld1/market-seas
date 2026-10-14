@@ -216,6 +216,45 @@
 .floater[data-tone="sell"] { color: var(--bear); }
 .floater[data-tone="sub"] { color: var(--sub); }
 .floater[data-tone="ok"] { color: var(--ok); }
+/* "Ask the map" hover card: the same matte HUD language, no glow, no bloom. */
+.ask-card {
+  width: 252px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--hud);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-hud);
+  backdrop-filter: blur(10px) saturate(1.2);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.ask-card[data-tone="buy"] { border-color: color-mix(in oklab, var(--bull) 55%, var(--border)); }
+.ask-card[data-tone="sell"] { border-color: color-mix(in oklab, var(--bear) 55%, var(--border)); }
+.ask-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  color: var(--foreground);
+}
+.ask-card[data-tone="buy"] .ask-title { color: var(--bull); }
+.ask-card[data-tone="sell"] .ask-title { color: var(--bear); }
+.ask-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 3px; }
+.ask-k { color: var(--muted-foreground); }
+.ask-v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.ask-note { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); color: var(--muted-foreground); }
+.ask-hint {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px dashed color-mix(in oklab, var(--primary) 55%, transparent);
+  color: var(--primary);
+  background: oklch(0.18 0.03 230 / 0.7);
+}
 .regime-banner {
   font-family: var(--font-display, inherit); font-weight: 800; letter-spacing: 0.22em; font-size: 12px;
   padding: 2px 10px; border-radius: 3px; background: oklch(0.18 0.03 230 / 0.8); color: var(--primary);

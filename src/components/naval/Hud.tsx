@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { choose, radioCheck } from "./useDirector";
 import { startFleetIntro, view } from "./layout";
 import { Labels, ShipCard } from "./Labels";
+import { AskMap } from "./AskMap";
 import { Tour } from "./Tour";
 import { DebugPanel } from "./DebugPanel";
 import { Guard } from "./Guard";
@@ -320,7 +321,7 @@ function Banners() {
 
 const GUIDE = [
   "The vertical line in the middle is the last traded BTC price on Binance Futures. Resting buy liquidity waits on the left; sell liquidity on the right.",
-  "Left/right = price. Front/back is just a fixed lane in the formation. Bigger ship = more resting liquidity. A ship is many orders in one price bucket, not one order.",
+  "Left/right = price. Front/back = how long that liquidity has been resting: the older it is, the further back its ship sits. Bigger ship = more resting liquidity. A ship is many orders in one price bucket, not one order.",
   "Ships are makers. Every shot is a real taker trade launched from the attacking fleet; the ship at that price loses what was filled. A fully traded ship sinks and the front line moves.",
   "Big liquidity that disappears before anyone trades into it dives as a submarine. If it pops up at another price, the submarine surfaces there. If more trades hit a price than was showing, a hidden submarine was there (possible iceberg).",
   "Bombers are liquidations, labelled Long or Short liquidated (sampled by Binance: max 1 per second).",
@@ -636,12 +637,14 @@ export function Hud() {
     <div className="pointer-events-none fixed inset-0 z-10 flex flex-col">
       {war && <div className="war-vignette absolute inset-0" aria-hidden />}
       <Labels />
+      <AskMap />
       <ShipCard />
 
        <div className="relative z-10 flex flex-col gap-1.5 p-1.5 md:p-2 lg:pr-[352px]">
         <Header now={now} />
         <div className="flex items-center justify-between gap-1.5">
           {presentation === "map" && <Filters />}
+          {presentation === "map" && <span className="ask-hint hidden lg:inline">Ask the map: hover the sea</span>}
           <button id="how-to-read-chip" onClick={() => { useBattle.setState({ panelTab: "read" }); setDrawer(true); }} className="pointer-events-auto ml-auto rounded border border-primary/60 bg-background/80 px-2 py-1 text-[11px] font-semibold uppercase text-primary lg:hidden">How to read</button>
           <button onClick={() => setDrawer((v) => !v)} className="pointer-events-auto rounded bg-secondary px-2 py-1 text-[11px] font-semibold uppercase lg:hidden">
             {drawer ? "Close data" : "Live data"}

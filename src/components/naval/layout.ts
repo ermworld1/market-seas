@@ -1,3 +1,4 @@
+import type { AskKind } from "@/lib/market/askmap";
 import type { BattleEvent, BookSide, Tier } from "@/lib/market/types";
 import type { Tracked } from "@/lib/battle/orderRules";
 import type { ParticlePool } from "./particles";
@@ -77,6 +78,8 @@ export const view = {
   shot: null as ShotRequest | null,
   quality: "high" as QualityTier,
   selectedBucket: null as null | { side: BookSide; b: number },
+  /** what the pointer is over in Map mode; read by the DOM ask-card (never re-renders React) */
+  ask: null as null | { kind: AskKind; side: BookSide; price: number; b?: number | undefined },
   /** what the current first-time lesson points at */
   lessonTarget: null as null | { kind: "ship"; side: BookSide; b: number } | { kind: "plane" },
   /** world position of the most recently launched aircraft (written by Effects) */
@@ -122,6 +125,21 @@ export const sideSign = (s: BookSide) => (s === "ask" ? 1 : -1);
 export function xForPrice(side: BookSide, price: number) {
   const d = Math.abs(price - view.mid) / Math.max(view.mid * 0.01, 1e-9);
   return view.frontX + sideSign(side) * (GAP + 0.35 + Math.min(1.08, d) * DEPTH);
+}
+
+/**
+ * Inverse of xForPrice: the price sitting under a world X on the water.
+ * Inside the no-man's sea there is no side — that is the price line itself.
+ */
+export function priceAtX(x: number): { kind: AskKind; side: BookSide; price: number } {
+  const mid = view.mid;
+  const off = x - view.frontX;
+  const side: BookSide = off >= 0 ? "ask" : "bid";
+  if (!mid) return { kind: "line", side, price: 0 };
+  const d = (Math.abs(off) - GAP - 0.35) / DEPTH;
+  if (d < 0) return { kind: "line", side, price: mid };
+  const frac = Math.min(1.08, d) * 0.01;
+  return { kind: "water", side, price: side === "ask" ? mid * (1 + frac) : mid * (1 - frac) };
 }
 
 /** Order age is the sole source of fore/aft placement. */
