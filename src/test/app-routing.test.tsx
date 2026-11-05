@@ -1,4 +1,4 @@
-import { rootRouteId } from "@tanstack/react-router";
+import { createMemoryHistory, rootRouteId } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
 import { getRouter } from "@/router";
@@ -8,14 +8,14 @@ import { getRouter } from "@/router";
 describe("App routing", () => {
   it.each(["/sea/", "/sea/stats", "/sea/reset-password", "/sea/api/public/settle"])("matches %s beneath /sea", (path) => {
     const router = getRouter();
-
-    const matches = router.matchRoutes(path);
+    router.update({ history: createMemoryHistory({ initialEntries: [path] }) });
+    const matches = router.matchRoutes(router.latestLocation.pathname);
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
   it("prefixes internal navigation without losing symbol parameters", () => {
     const location = getRouter().buildLocation({ to: "/", search: { symbol: "BTCUSDT" } });
-    expect(location.pathname).toBe("/sea/");
+    expect(location.publicHref).toBe('/sea/?symbol=BTCUSDT');
     expect(location.search).toEqual({ symbol: "BTCUSDT" });
   });
 });
