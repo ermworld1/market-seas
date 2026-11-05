@@ -573,10 +573,12 @@ function Toast() {
 
 function FirstVisitHint() {
   const [open, setOpen] = useState(false);
+  const firstVisit = useRef<boolean | null>(null);
   useEffect(() => {
-    let show = true;
-    try { show = claimFirstVisitHint(window.localStorage); } catch { /* storage unavailable */ }
-    if (!show) return;
+    if (firstVisit.current === null) {
+      try { firstVisit.current = claimFirstVisitHint(window.localStorage); } catch { firstVisit.current = true; }
+    }
+    if (!firstVisit.current) return;
     setOpen(true);
     const timer = setTimeout(() => setOpen(false), HINT_DURATION_MS);
     return () => clearTimeout(timer);
