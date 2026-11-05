@@ -3,11 +3,9 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 export default defineConfig({
-  base: "/sea/",
-  // Vitest resets Vite's BASE_URL to / for its module runner.
-  define: { "import.meta.env.BASE_URL": JSON.stringify("/sea/") },
   plugins: [react()],
   test: {
+    env: { BASE_URL: "/sea/" },
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
