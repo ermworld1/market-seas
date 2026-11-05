@@ -4,6 +4,8 @@ import path from "node:path";
 
 export default defineConfig({
   base: "/sea/",
+  // Vitest resets Vite's BASE_URL to / for its module runner.
+  define: { "import.meta.env.BASE_URL": JSON.stringify("/sea/") },
   plugins: [react()],
   test: {
     environment: "jsdom",
