@@ -8,7 +8,7 @@ import { getRouter } from "@/router";
 describe("App routing", () => {
   it.each(["/sea/", "/sea/stats", "/sea/reset-password", "/sea/api/public/settle"])("matches %s beneath /sea", (path) => {
     const router = getRouter();
-    router.update({ history: createMemoryHistory({ initialEntries: [path] }) });
+    router.update({ context: router.options.context, history: createMemoryHistory({ initialEntries: [path] }) });
     const matches = router.matchRoutes(router.latestLocation.pathname);
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
