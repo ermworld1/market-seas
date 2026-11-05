@@ -13,7 +13,7 @@ describe("unit config", () => {
   it("every unit has a fallback legend icon", () => {
     for (const u of ALL_UNITS) {
       // the legend shows one sample per unit; the static file is only a loading fallback
-      const ok = existsSync(`public/legend/${u.icon}-bid.png`) || existsSync(`public/legend/${u.icon}.png`);
+      const ok = existsSync(`public/sea/legend/${u.icon}-bid.png`) || existsSync(`public/sea/legend/${u.icon}.png`);
       expect(ok, u.icon).toBe(true);
     }
   });
