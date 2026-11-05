@@ -11,7 +11,7 @@
 
 # Architecture rules
 
-- Derive app public URLs and runtime router basepath from Vite BASE_URL via app-path; leave TanStack route IDs and gateway links unprefixed, and publish Nitro static assets under the same mount to preserve proxy request paths.
+- Derive app URLs/router basepath from Vite BASE_URL via app-path; keep route IDs/gateway links unprefixed, public files in public/sea, and place client output under the host static root's sea directory using Vite configuration, never overriding Nitro preset hooks.
 
 - Market logic lives in `src/lib/market/` (pure engine, rules, predictions) with no React/three imports — keeps event detection unit-testable.
 - Only `binance.ts` touches sockets/fetch; it feeds `MarketEngine`, which emits `BattleEvent`s — the scene never parses raw Binance payloads.
