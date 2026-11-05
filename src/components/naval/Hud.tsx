@@ -164,21 +164,21 @@ function Header({ now }: { now: number }) {
         <Button asChild variant="link" className="h-auto p-0 text-[11px] text-primary"><a href="/">← donotdie</a></Button>
         <Button asChild variant="link" className="h-auto p-0 text-[11px] text-primary"><a href="/land">Land · Hyperliquid →</a></Button>
       </nav>
-      <div className="flex items-center gap-2 md:gap-4">
-        <div className="flex min-w-0 shrink items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 md:gap-x-4">
+        <div className="flex min-w-0 items-center gap-2">
           <h1 className="whitespace-nowrap font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>
           <span className={cn("hud-num flex items-center gap-1 text-[11px]", latTone)} title="Milliseconds since the last market message">
             <span className={cn("inline-block h-2 w-2 rounded-full", status === "live" ? "live-dot bg-ok" : "bg-muted-foreground")} />
             {status === "live" ? <>LIVE<span className="hidden md:inline"> · data {lat}ms</span></> : status === "connecting" ? "connecting" : "offline"}
           </span>
-          {hud.partial && <span className="rounded bg-warn/20 px-1 text-[10px] font-semibold uppercase text-warn">partial book</span>}
+          {hud.partial && <span className="whitespace-nowrap rounded bg-warn/20 px-1 text-[10px] font-semibold uppercase text-warn" title="Using the depth20 fallback until the full Binance book syncs">partial<span className="hidden sm:inline"> book</span></span>}
         </div>
-        <div className="hidden min-w-0 flex-1 md:block">
+        <div className="hidden min-w-0 flex-1 2xl:block">
           <TugOfWar />
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2" data-tour="clock">
           <div className="text-right">
-            <div className="hud-label">Battle ends in</div>
+            <div className="hud-label whitespace-nowrap">Battle ends in</div>
             <div className="hud-num text-sm font-semibold text-foreground">{left > 0 ? mmss(left) : "—"}</div>
           </div>
           <div className="hidden text-right sm:block">
@@ -198,10 +198,10 @@ function Header({ now }: { now: number }) {
           <SoundControl />
         </div>
       </div>
-      <div className="mt-2 md:hidden">
+      <div className="mt-2 2xl:hidden">
         <TugOfWar />
       </div>
-      <div className={cn("mt-1.5 grid grid-cols-4 gap-x-3 gap-y-1 md:grid-cols-9", presentation === "cinema" && "hidden")}>
+      <div className={cn("mt-1.5 grid grid-cols-4 gap-x-3 gap-y-1 xl:grid-cols-8", presentation === "cinema" && "hidden")}>
         <Stat label="Last">
           {hud.last ? fmtPrice(hud.last) : "—"}
           {/* mark on its own small line so neither number is cut off */}
@@ -257,13 +257,13 @@ function TraderStrip() {
   if (!h.has) return null;
   const w = h.walls;
   return (
-    <div id="trader-strip" className="mt-1.5 grid grid-cols-3 gap-x-3 gap-y-1 border-t border-border/40 pt-1.5 md:grid-cols-7">
+    <div id="trader-strip" className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-border/40 pt-1.5 md:grid-cols-4 xl:grid-cols-9">
       <Stat label="Spread"><span title="Best ask − best bid on Binance BTCUSDT perp">{h.spread ? `$${h.spread.toFixed(1)}` : "—"}</span></Stat>
       <Stat label="Depth ±0.5% B/S"><span title="Resting buy vs sell liquidity within 0.5% of the last price, from the synced Binance book">{ratio(h.d05.bid, h.d05.ask)}</span></Stat>
       <Stat label="Depth ±1% B/S" className="hidden md:block"><span title="Resting buy vs sell liquidity within 1% of the last price">{ratio(h.d1.bid, h.d1.ask)}</span></Stat>
-      <Stat label="CVD 1m / 5m"><span title="Cumulative volume delta: aggressive buys minus aggressive sells, in $"><span className={h.cvd1 >= 0 ? "text-bull" : "text-bear"}>{signed(h.cvd1)}</span> / <span className={h.cvd5 >= 0 ? "text-bull" : "text-bear"}>{signed(h.cvd5)}</span></span></Stat>
+      <Stat label="CVD 1m / 5m" className="xl:col-span-2"><span title="Cumulative volume delta: aggressive buys minus aggressive sells, in $"><span className={h.cvd1 >= 0 ? "text-bull" : "text-bear"}>{signed(h.cvd1)}</span> / <span className={h.cvd5 >= 0 ? "text-bull" : "text-bear"}>{signed(h.cvd5)}</span></span></Stat>
       <Stat label="Liq 1h L / S"><span title="Liquidations received from Binance in the last hour (Binance sends at most 1 per second, so this is a lower bound)"><span className="text-bear">{usd(h.liq.longs)}</span> / <span className="text-bull">{usd(h.liq.shorts)}</span></span></Stat>
-      <Stat label="$1M walls eaten/pulled/now" className="hidden md:block"><span title="Walls of $1M+ within 0.2% of price: eaten by trades / pulled before being filled / standing now. Bid side · ask side.">B {w.bid.eaten}/{w.bid.pulled}/{w.bid.standing} · S {w.ask.eaten}/{w.ask.pulled}/{w.ask.standing}</span></Stat>
+      <Stat label="$1M walls eaten/pulled/now" className="hidden md:col-span-2 md:block"><span title="Walls of $1M+ within 0.2% of price: eaten by trades / pulled before being filled / standing now. Bid side · ask side.">B {w.bid.eaten}/{w.bid.pulled}/{w.bid.standing} · S {w.ask.eaten}/{w.ask.pulled}/{w.ask.standing}</span></Stat>
       <Stat label="Next funding" className="hidden md:block">{countdown(h.nft)}</Stat>
     </div>
   );
