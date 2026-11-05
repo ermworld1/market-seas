@@ -1,6 +1,7 @@
 # Roadmap
 
 ## /sea deployment
+- [ ] Remove the Nitro hook, preserve Singapore region, and reproduce/inspect the real Vercel production output.
 - [x] Configure shared base path, asset/auth URLs, and bare-root 302 redirect.
 - [x] Add gold donotdie and Land gateway links.
 - [x] Verify locally: /sea pages, all 261 public media files, 73 decoded audio samples, live Binance frames, prefixed server functions/API, desktop/phone, and 87 tests. Music uses procedural fallback (manifest has no stems).
