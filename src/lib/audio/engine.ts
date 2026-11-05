@@ -1,4 +1,5 @@
 import type { Phase } from "@/lib/battle/phase";
+import { appPath } from "@/lib/app-path";
 import { SFX_VERSION, BANK, CAT_FOLDER, bankUrls, type BankFolder } from "./bank";
 import { chainText, type VoiceChain, type VoiceChannel, type VoicePart } from "./navalVoice";
 
@@ -202,14 +203,14 @@ class AudioEngine {
     // music stems are optional: only layers listed in /music/manifest.json are fetched (no 404 noise)
     let stems: string[] = [];
     try {
-      const m = await fetch("/music/manifest.json");
+      const m = await fetch(appPath("music/manifest.json"));
       if (m.ok) stems = ((await m.json()) as { layers?: string[] }).layers ?? [];
     } catch {
       stems = [];
     }
     await Promise.all([
       ...(Object.keys(BANK) as BankFolder[]).flatMap((f) => bankUrls(f).map((u, i) => load(`${f}/${i + 1}`, u))),
-      ...LAYERS.filter((l) => stems.includes(l)).map((l) => load("music:" + l, `/music/${l}.mp3`)),
+      ...LAYERS.filter((l) => stems.includes(l)).map((l) => load("music:" + l, appPath(`music/${l}.mp3`))),
     ]);
     // swap procedural layers for stems when present
     for (const l of LAYERS) {
@@ -578,7 +579,7 @@ class AudioEngine {
           const legacy = file.startsWith("legacy:");
           const x = file.startsWith("x:");
           const name = legacy ? file.slice(7) : x ? file.slice(2) : file;
-          const r = await fetch((legacy ? `/vo/${name}.wav` : x ? `/vo/x/${name}.mp3` : `/vo/naval/${name}.mp3`) + `?v=${SFX_VERSION}`);
+          const r = await fetch(appPath((legacy ? `vo/${name}.wav` : x ? `vo/x/${name}.mp3` : `vo/naval/${name}.mp3`) + `?v=${SFX_VERSION}`));
           if (r.ok && !(r.headers.get("content-type") ?? "").includes("html")) return await this.ctx!.decodeAudioData(await r.arrayBuffer());
         } catch { /* slot empty */ }
         return null;

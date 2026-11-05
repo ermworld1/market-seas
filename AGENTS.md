@@ -11,6 +11,8 @@
 
 # Architecture rules
 
+- Derive app public URLs and runtime router basepath from Vite BASE_URL via app-path; leave TanStack route IDs and gateway links unprefixed, and publish Nitro static assets under the same mount to preserve proxy request paths.
+
 - Market logic lives in `src/lib/market/` (pure engine, rules, predictions) with no React/three imports — keeps event detection unit-testable.
 - Only `binance.ts` touches sockets/fetch; it feeds `MarketEngine`, which emits `BattleEvent`s — the scene never parses raw Binance payloads.
 - Binance USD-M streams are split: depth on `/public/stream`, trades/mark/liquidations on `/market/stream` — the legacy `/stream` URL only delivers depth.

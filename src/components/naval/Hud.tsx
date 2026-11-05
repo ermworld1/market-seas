@@ -21,6 +21,7 @@ import { Guard } from "./Guard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GuidePanel, OrderBookPanel, RecentTradesPanel, TapePanel } from "./LivePanels";
 import { CommunityPanel } from "./CommunityPanel";
+import { Button } from "@/components/ui/button";
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(0);
@@ -115,6 +116,10 @@ function Header({ now }: { now: number }) {
   const left = hud.battle.end && now ? hud.battle.end - now : 0;
   return (
     <header className="hud-panel pointer-events-auto p-2 md:p-2.5" data-tour="header">
+      <nav aria-label="donotdie gateway" className="mb-1 flex items-center justify-between gap-2 text-[11px] text-primary">
+        <Button asChild variant="link" className="h-auto p-0 text-[11px] text-primary"><a href="/">← donotdie</a></Button>
+        <Button asChild variant="link" className="h-auto p-0 text-[11px] text-primary"><a href="/land">Land · Hyperliquid →</a></Button>
+      </nav>
       <div className="flex items-center gap-2 md:gap-4">
         <div className="flex min-w-0 shrink items-center gap-2">
           <h1 className="whitespace-nowrap font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>

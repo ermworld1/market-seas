@@ -7,6 +7,7 @@ import { Water } from "three/examples/jsm/objects/Water.js";
 import { engineRef } from "@/lib/market/store";
 import { seaState } from "@/lib/market/rules";
 import { view } from "./layout";
+import { appPath } from "@/lib/app-path";
 
 const SUN_ELEV = 48;
 const SUN_AZ = 115;
@@ -60,7 +61,7 @@ const sku = (s: Sky) => s.material.uniforms as unknown as SkyU;
 
 export function Ocean() {
   const { scene, gl } = useThree();
-  const normals = useLoader(THREE.TextureLoader, "/textures/waternormals.jpg");
+  const normals = useLoader(THREE.TextureLoader, appPath("textures/waternormals.jpg"));
   const sun = useMemo(() => {
     const phi = THREE.MathUtils.degToRad(90 - SUN_ELEV);
     const theta = THREE.MathUtils.degToRad(SUN_AZ);

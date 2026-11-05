@@ -1,4 +1,5 @@
 import { useGLTF } from "@react-three/drei";
+import { appPath } from "@/lib/app-path";
 import { useMemo } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -9,14 +10,14 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
  * "high" is the near LOD, "low" (`_lod1`) the far LOD, both pre-simplified offline.
  */
 export const MODELS = {
-  patrol: "/models/patrol.glb",
-  frigate: "/models/frigate.glb",
-  cruiser: "/models/cruiser.glb",
-  battleship: "/models/battleship.glb",
-  tanker: "/models/tanker.glb",
-  bomber: "/models/bomber.glb",
-  fighter: "/models/fighter.glb",
-  transport: "/models/transport.glb",
+  patrol: appPath("models/patrol.glb"),
+  frigate: appPath("models/frigate.glb"),
+  cruiser: appPath("models/cruiser.glb"),
+  battleship: appPath("models/battleship.glb"),
+  tanker: appPath("models/tanker.glb"),
+  bomber: appPath("models/bomber.glb"),
+  fighter: appPath("models/fighter.glb"),
+  transport: appPath("models/transport.glb"),
 } as const;
 export type ModelName = keyof typeof MODELS;
 const lodUrl = (name: ModelName, detail: "high" | "low") => (detail === "high" ? MODELS[name] : MODELS[name].replace(".glb", "_lod1.glb"));
