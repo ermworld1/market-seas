@@ -1,5 +1,10 @@
 # Roadmap
 
+## /sea deployment
+- [ ] Configure shared base path, asset/auth URLs, and bare-root 302 redirect.
+- [ ] Add gold donotdie and Land gateway links.
+- [ ] Verify sub-path pages, models, audio, legends, live data, tests and build.
+
 - [x] v1: live battle, fleets, effects, HUD, predictions, GLB models.
 - [x] v2 Phase A: BTC only, Buyers/Sellers, ortho camera, label fix, full book sync, buckets, tiers, order-change rules + tests.
 - [x] v2 Phase B: fill-count tracers, sweeps, fighters, phase machine, 5-min battles, boss HP, tug-of-war, regime banner, callouts, new predictions.
