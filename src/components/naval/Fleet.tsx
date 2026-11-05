@@ -431,7 +431,8 @@ export function Fleet() {
           dummy.updateMatrix();
           const fs = (0.2 + d.s * 0.38) * (d.tier === "battleship" ? 1.35 : 1) * (1 - d.fade);
           dummy.position.set(d.x, d.y + 0.39 * d.s + 0.12, d.z);
-          dummy.rotation.set(0, d.side === "bid" ? 0 : Math.PI, Math.sin(view.time * 5 + d.b) * 0.16);
+          // same yaw as the hull: the cloth (+X from the pole) then streams aft, away from the bow
+          dummy.rotation.set(0, d.side === "bid" ? Math.PI : 0, Math.sin(view.time * 5 + d.b) * 0.16);
           dummy.scale.setScalar(Math.max(0.001, fs));
           dummy.updateMatrix();
           fm.setMatrixAt(hn, dummy.matrix);
