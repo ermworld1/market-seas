@@ -1,5 +1,9 @@
 # Roadmap
 
+## Direct battle entry
+- [x] Remove intro gate; add shared gesture-activated sound preference and first-visit hint without auto-tour.
+- [x] Verify direct entry, sound toggle/persistence, first pointer/key activation, running audio context, hint timeout and desktop/phone screenshots; 95 tests, isolated type validation and actual Vercel-preset production build passed (sin1 and sea static output retained). Physical-device audibility and deployed gateway remain unverified.
+
 ## /sea deployment
 - [x] Removed the Nitro hook; isolated VERCEL=1/NITRO_PRESET=vercel production build succeeded. Confirmed sea/assets, sea/models, sea/sfx, sea/legend, sea/icon.svg; filesystem-first routing then /__server; nodejs22.x function in sin1.
 - [x] Configure shared base path, asset/auth URLs, and bare-root 302 redirect.
