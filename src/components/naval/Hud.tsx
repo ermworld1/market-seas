@@ -1,13 +1,14 @@
 import { AIRCRAFT, SHIPS } from "@/lib/battle/units";
 import { HowItWorks, UnitIcon, shortRange } from "./Units";
 import { useShallow } from "zustand/react/shallow";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellOff, Crosshair, Download, HelpCircle, Map, RotateCw, Share2, Volume2, VolumeX, X } from "lucide-react";
 import { savePrefs, useBattle, type TapeLine } from "@/lib/market/store";
 import { fmtPrice, questionText, usd, type Round } from "@/lib/market/predictions";
 import { PHASE_NAME, intensityOf } from "@/lib/battle/phase";
 import { regimeOf } from "@/lib/market/rules";
 import { audio } from "@/lib/audio/engine";
+import { armSoundGesture, claimFirstVisitHint, HINT_DURATION_MS, saveSoundPreference, soundPreferred } from "@/lib/audio/preferences";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { choose, radioCheck } from "./useDirector";
@@ -69,24 +70,51 @@ function TugOfWar() {
 
 function SoundControl() {
   const { soundOn, volume } = useBattle(useShallow((s) => ({ soundOn: s.soundOn, volume: s.volume })));
-  const toggle = async () => {
+  const [armed, setArmed] = useState(false);
+  const request = useRef(0);
+  const changeSound = async (on: boolean) => {
+    const id = ++request.current;
+    setArmed(false);
+    useBattle.setState({ soundOn: on });
+    try { saveSoundPreference(window.localStorage, on); } catch { /* storage unavailable */ }
+    if (!on) {
+      audio.setEnabled(false);
+      return;
+    }
     try {
       await audio.unlock();
-      const on = !soundOn;
-      audio.setVolume(volume);
-      audio.setEnabled(on);
-      if (on) radioCheck();
-      useBattle.setState({ soundOn: on });
-      if (on) track("sound_on");
+      if (request.current !== id) return;
+      audio.setVolume(useBattle.getState().volume);
+      audio.setEnabled(true);
+      radioCheck();
+      track("sound_on");
     } catch (err) {
+      if (request.current === id) useBattle.setState({ soundOn: false });
       console.error("[audio]", err);
     }
   };
+  useEffect(() => {
+    audio.setEnabled(false);
+    useBattle.setState({ soundOn: false });
+    try { setArmed(soundPreferred(window.localStorage)); } catch { setArmed(false); }
+    return () => { ++request.current; audio.setEnabled(false); };
+  }, []);
+  useEffect(() => {
+    if (!armed) return;
+    return armSoundGesture(window, (event) => {
+      // The toggle itself owns its click; don't enable then immediately mute it.
+      const onToggle = event.target instanceof Element && event.target.closest("[data-sound-toggle]");
+      const toggleKey = event instanceof KeyboardEvent && (event.key === "Enter" || event.key === " ");
+      if (onToggle && (event.type === "pointerdown" || toggleKey)) return;
+      void changeSound(true);
+    });
+  }, [armed]);
   return (
-    <div className="flex items-center gap-1.5">
-      <button onClick={toggle} aria-label={soundOn ? "Mute sound" : "Turn sound on"} className="rounded bg-secondary p-1.5 text-foreground hover:bg-accent">
-        {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-      </button>
+    <div className="relative flex items-center gap-1.5">
+      <Button data-sound-toggle variant="outline" size="icon" onClick={() => void changeSound(!useBattle.getState().soundOn)} aria-label={soundOn ? "Turn sound off" : "Turn sound on"} aria-pressed={soundOn} title={soundOn ? "Turn sound off" : "Turn sound on"} className={cn("h-8 w-8 shrink-0 border-primary/60", soundOn ? "bg-primary/15 text-primary hover:bg-primary/25 hover:text-primary" : "bg-secondary text-foreground")}>
+        {soundOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+      </Button>
+      {armed && <span role="status" className="absolute right-0 top-full mt-1 whitespace-nowrap rounded-full border border-primary/40 bg-background/95 px-2 py-1 text-[10px] text-primary">Tap anywhere for sound</span>}
       {soundOn && (
         <input
           type="range"
@@ -543,44 +571,21 @@ function Toast() {
   );
 }
 
-function EnterGate() {
+function FirstVisitHint() {
   const [open, setOpen] = useState(false);
-  useEffect(() => setOpen(localStorage.getItem("nms-entered") !== "1"), []);
-  // unlock the audio context on the very first tap anywhere (phones need a gesture)
   useEffect(() => {
-    const once = () => {
-      void audio.unlock().catch((err) => console.error("[audio]", err));
-      window.removeEventListener("pointerdown", once, true);
-    };
-    window.addEventListener("pointerdown", once, true);
-    return () => window.removeEventListener("pointerdown", once, true);
+    let show = true;
+    try { show = claimFirstVisitHint(window.localStorage); } catch { /* storage unavailable */ }
+    if (!show) return;
+    setOpen(true);
+    const timer = setTimeout(() => setOpen(false), HINT_DURATION_MS);
+    return () => clearTimeout(timer);
   }, []);
   if (!open) return null;
-  const enter = async (sound: boolean) => {
-    localStorage.setItem("nms-entered", "1");
-    setOpen(false);
-    if (sound) {
-      try {
-        await audio.unlock();
-        audio.setVolume(useBattle.getState().volume);
-        audio.setEnabled(true);
-        radioCheck();
-        useBattle.setState({ soundOn: true });
-        track("sound_on");
-      } catch (err) {
-        console.error("[audio]", err);
-      }
-    }
-    useBattle.setState({ tourOpen: localStorage.getItem("nms-tour-done") !== "1" });
-  };
   return (
-    <div className="pointer-events-auto absolute inset-0 z-40 grid place-items-center bg-background/70 backdrop-blur-sm">
-      <div className="hud-panel w-[min(92vw,380px)] p-5 text-center">
-        <div className="font-display text-2xl font-bold uppercase tracking-[0.2em] text-primary">No Man's Sea</div>
-        <p className="mt-2 text-sm text-muted-foreground">Every ship is real resting liquidity on the Binance BTC futures book. Every shot is a real trade.</p>
-        <button onClick={() => enter(true)} className="mt-4 w-full rounded bg-primary py-3 font-display text-lg font-bold uppercase tracking-widest text-primary-foreground">Enter battle</button>
-        <button onClick={() => enter(false)} className="mt-2 text-xs text-muted-foreground underline">Enter without sound</button>
-      </div>
+    <div role="status" className="pointer-events-auto absolute bottom-24 left-2 right-2 z-20 flex items-start gap-2 rounded border border-border bg-background/90 px-3 py-2 text-[11px] text-muted-foreground md:left-4 md:right-auto md:max-w-lg">
+      <p>Every ship is real resting liquidity on the Binance BTC futures book. Every shot is a real trade.</p>
+      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" aria-label="Dismiss battle hint" onClick={() => setOpen(false)}><X className="h-3 w-3" /></Button>
     </div>
   );
 }
@@ -674,7 +679,7 @@ export function Hud() {
       <Toast />
       <Guard name="tour"><Tour /></Guard>
       <Guard name="help"><HowItWorks /></Guard>
-      <Guard name="enter"><EnterGate /></Guard>
+      <Guard name="first-visit-hint"><FirstVisitHint /></Guard>
       <Guard name="debug"><DebugPanel /></Guard>
     </div>
   );

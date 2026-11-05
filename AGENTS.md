@@ -11,6 +11,8 @@
 
 # Architecture rules
 
+- SoundControl owns gesture activation and shared sound persistence; preference helpers are browser-independent and called only in effects/handlers, so audio stays gesture-safe and storage failures cannot block entry.
+
 - Derive app URLs/router basepath from Vite BASE_URL via app-path; keep route IDs/gateway links unprefixed, public files in public/sea, and place client output under the host static root's sea directory using Vite configuration, never overriding Nitro preset hooks.
 
 - Market logic lives in `src/lib/market/` (pure engine, rules, predictions) with no React/three imports — keeps event detection unit-testable.
