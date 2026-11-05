@@ -1,6 +1,8 @@
 export const SOUND_KEY = "donotdie:sound";
 export const HINT_KEY = "nms:hint-seen";
 export const HINT_DURATION_MS = 8000;
+export const NUDGE_KEY = "nms:sound-nudged";
+export const NUDGE_DURATION_MS = 6000;
 
 type PreferenceStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -43,4 +45,16 @@ export function armSoundGesture(target: EventTarget, activate: (event: Event) =>
   target.addEventListener("pointerdown", first, true);
   target.addEventListener("keydown", first, true);
   return remove;
+}
+
+/** First-time visitors only (no saved sound choice): claim the one-time "tap for sound" nudge. */
+export function claimSoundNudge(storage: PreferenceStorage): boolean {
+  try {
+    if (storage.getItem(SOUND_KEY) !== null) return false;
+    if (storage.getItem(NUDGE_KEY) === "1") return false;
+    storage.setItem(NUDGE_KEY, "1");
+    return true;
+  } catch {
+    return false;
+  }
 }

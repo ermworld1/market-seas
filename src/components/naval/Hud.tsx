@@ -8,7 +8,7 @@ import { fmtPrice, questionText, usd, type Round } from "@/lib/market/prediction
 import { PHASE_NAME, intensityOf } from "@/lib/battle/phase";
 import { regimeOf } from "@/lib/market/rules";
 import { audio } from "@/lib/audio/engine";
-import { armSoundGesture, claimFirstVisitHint, HINT_DURATION_MS, saveSoundPreference, soundPreferred } from "@/lib/audio/preferences";
+import { armSoundGesture, claimFirstVisitHint, claimSoundNudge, HINT_DURATION_MS, NUDGE_DURATION_MS, saveSoundPreference, soundPreferred } from "@/lib/audio/preferences";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { choose, radioCheck } from "./useDirector";
@@ -71,10 +71,14 @@ function TugOfWar() {
 function SoundControl() {
   const { soundOn, volume } = useBattle(useShallow((s) => ({ soundOn: s.soundOn, volume: s.volume })));
   const [armed, setArmed] = useState(false);
+  const [nudge, setNudge] = useState(false);
+  const callout = useBattle((s) => s.callout);
+  const nudged = useRef(false);
   const request = useRef(0);
   const changeSound = async (on: boolean) => {
     const id = ++request.current;
     setArmed(false);
+    setNudge(false);
     useBattle.setState({ soundOn: on });
     try { saveSoundPreference(window.localStorage, on); } catch { /* storage unavailable */ }
     if (!on) {
@@ -99,6 +103,17 @@ function SoundControl() {
     try { setArmed(soundPreferred(window.localStorage)); } catch { setArmed(false); }
     return () => { ++request.current; audio.setEnabled(false); };
   }, []);
+  // First real action on screen is when sound matters most: nudge first-time visitors once.
+  useEffect(() => {
+    if (!callout || nudged.current || useBattle.getState().soundOn) return;
+    nudged.current = true;
+    let claim = false;
+    try { claim = claimSoundNudge(window.localStorage); } catch { claim = false; }
+    if (!claim) return;
+    setNudge(true);
+    const t = setTimeout(() => setNudge(false), NUDGE_DURATION_MS);
+    return () => clearTimeout(t);
+  }, [callout]);
   useEffect(() => {
     if (!armed) return;
     return armSoundGesture(window, (event) => {
@@ -115,6 +130,7 @@ function SoundControl() {
         {soundOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
       </Button>
       {armed && <span role="status" className="absolute right-0 top-full mt-1 whitespace-nowrap rounded-full border border-primary/40 bg-background/95 px-2 py-1 text-[10px] text-primary">Tap anywhere for sound</span>}
+      {nudge && !armed && !soundOn && <button type="button" onClick={() => void changeSound(true)} className="sound-nudge pointer-events-auto absolute right-0 top-full mt-1 whitespace-nowrap rounded-full border border-primary bg-background/95 px-2.5 py-1 text-[11px] font-semibold text-primary">🔊 Tap for sound</button>}
       {soundOn && (
         <input
           type="range"

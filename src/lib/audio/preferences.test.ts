@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { armSoundGesture, claimFirstVisitHint, HINT_DURATION_MS, saveSoundPreference, soundPreferred } from "./preferences";
+import { armSoundGesture, claimFirstVisitHint, claimSoundNudge, HINT_DURATION_MS, saveSoundPreference, soundPreferred } from "./preferences";
 
 function storage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -63,5 +63,21 @@ describe("first-visit hint", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("first-action sound nudge", () => {
+  it("fires once for a visitor who never chose sound", () => {
+    const s = storage();
+    expect(claimSoundNudge(s)).toBe(true);
+    expect(claimSoundNudge(s)).toBe(false);
+  });
+  it("never fires once a sound choice exists", () => {
+    expect(claimSoundNudge(storage({ "donotdie:sound": "0" }))).toBe(false);
+    expect(claimSoundNudge(storage({ "donotdie:sound": "1" }))).toBe(false);
+  });
+  it("stays quiet when storage throws", () => {
+    const broken = { getItem: () => { throw new Error("denied"); }, setItem: () => { throw new Error("denied"); } };
+    expect(claimSoundNudge(broken)).toBe(false);
   });
 });

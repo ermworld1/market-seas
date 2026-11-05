@@ -307,3 +307,8 @@
 .lesson-ring { box-shadow: 0 0 0 9999px color-mix(in oklab, var(--background) 45%, transparent), 0 0 24px var(--primary); animation: lesson-pulse 1s ease-out infinite; }
 
 .bn-book { background: var(--bn-bg); color: var(--bn-text); }
+
+/* one-time "tap for sound" nudge on the first big action */
+@keyframes sound-nudge-pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+.sound-nudge { animation: sound-nudge-pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .sound-nudge { animation: none; } }
