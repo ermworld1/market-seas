@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GuidePanel, OrderBookPanel, RecentTradesPanel, TapePanel } from "./LivePanels";
 import { CommunityPanel } from "./CommunityPanel";
 import { Button } from "@/components/ui/button";
+import { appPath } from "@/lib/app-path";
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(0);
@@ -166,6 +167,7 @@ function Header({ now }: { now: number }) {
       </nav>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 md:gap-x-4">
         <div className="flex min-w-0 items-center gap-2">
+          <img src={appPath("icon.svg")} alt="" aria-hidden="true" width={28} height={28} className="h-6 w-6 shrink-0 rounded-md md:h-7 md:w-7" />
           <h1 className="whitespace-nowrap font-display text-sm font-bold uppercase leading-none tracking-[0.1em] text-primary md:text-lg md:tracking-[0.16em]">No Man's Sea</h1>
           <span className={cn("hud-num flex items-center gap-1 text-[11px]", latTone)} title="Milliseconds since the last market message">
             <span className={cn("inline-block h-2 w-2 rounded-full", status === "live" ? "live-dot bg-ok" : "bg-muted-foreground")} />
