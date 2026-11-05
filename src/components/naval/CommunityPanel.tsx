@@ -4,6 +4,7 @@ import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 import { getLeaderboards, getMyHistory, getMyProfile, saveProfile, settleMine } from "@/lib/market/community.functions";
 import { Button } from "@/components/ui/button";
+import { appPath } from "@/lib/app-path";
 
 type Board = { leaders: { nickname: string; side: string; xp: number; accuracy: number; best_streak: number }[]; sides: { side: string; accuracy: number; settled: number }[] };
 type Hist = { rows: { id: string; round_kind: string; choice: string; outcome: string | null; correct: boolean | null; xp_awarded: number; settled_at: string | null }[]; streak: number };
@@ -13,8 +14,8 @@ function EmailAuth() {
   const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [msg, setMsg] = useState("");
   const go = async () => {
     setMsg("");
-    if (mode === "reset") { const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` }); setMsg(error ? error.message : "Check your inbox for a reset link."); return; }
-    const { error } = mode === "up" ? await supabase.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } }) : await supabase.auth.signInWithPassword({ email, password: pw });
+    if (mode === "reset") { const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}${appPath("reset-password")}` }); setMsg(error ? error.message : "Check your inbox for a reset link."); return; }
+    const { error } = mode === "up" ? await supabase.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin + appPath() } }) : await supabase.auth.signInWithPassword({ email, password: pw });
     setMsg(error ? error.message : mode === "up" ? "Check your inbox to confirm your email." : "");
   };
   return <div className="space-y-1">
@@ -46,7 +47,7 @@ export function CommunityPanel() {
   const myRank = savedNick ? (board?.leaders.findIndex((r) => r.nickname === savedNick) ?? -1) : -1;
   const sideLine = (s: string) => { const r = board?.sides.find((x) => x.side === s); return r ? `${Number(r.accuracy)}%` : "—"; };
   return <div className="min-h-0 space-y-3 overflow-auto p-2 text-xs">
-    {!user ? <div className="space-y-2"><Button className="w-full" onClick={() => void lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin })}>Join with Google</Button><EmailAuth /></div>
+    {!user ? <div className="space-y-2"><Button className="w-full" onClick={() => void lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin + appPath() })}>Join with Google</Button><EmailAuth /></div>
       : <div className="grid grid-cols-[1fr_auto] gap-2"><input aria-label="Nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Nickname" className="rounded border border-input bg-background px-2" /><select aria-label="Side" value={side} onChange={(e) => setSide(e.target.value === "sellers" ? "sellers" : "buyers")} className="rounded border border-input bg-background px-2"><option value="buyers">Buyers</option><option value="sellers">Sellers</option></select><Button className="col-span-2" onClick={() => void saveFn({ data: { nickname, side } }).then(() => { setSavedNick(nickname); setSaveMsg("Saved"); }).catch(() => setSaveMsg("Nickname taken or invalid"))}>Save profile</Button>{saveMsg && <span className="col-span-2 text-muted-foreground">{saveMsg}</span>}<button className="col-span-2 text-left text-muted-foreground" onClick={() => void supabase.auth.signOut()}>Sign out</button></div>}
     <p className="font-mono">Buyers fans {sideLine("buyers")} · Sellers fans {sideLine("sellers")} {period === "season" ? "this season" : period === "week" ? "this week" : "today"}</p>
     {user && <p className="font-mono">Streak {hist?.streak ?? 0} · Rank {myRank >= 0 ? `#${myRank + 1}` : "unranked"}</p>}

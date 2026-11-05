@@ -5,6 +5,7 @@ import path from "node:path";
 export default defineConfig({
   plugins: [react()],
   test: {
+    env: { BASE_URL: "/sea/" },
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],

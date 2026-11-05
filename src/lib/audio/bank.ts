@@ -2,6 +2,8 @@
  * Recorded sample bank: /public/sfx/<folder>/<n>.mp3 (CC0, see /public/sfx/LICENSES.md).
  * Counts must match the files on disk; a missing file just falls back to the procedural synth.
  */
+import { appPath } from "@/lib/app-path";
+
 export const BANK = {
   mg: 8,
   gun: 4,
@@ -49,4 +51,4 @@ export const CAT_FOLDER: Partial<Record<string, BankFolder>> = {
 
 /** bump when sample files are replaced in place, so browsers do not keep playing the cached old files */
 export const SFX_VERSION = "21";
-export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => `/sfx/${f}/${i + 1}.mp3?v=${SFX_VERSION}`);
+export const bankUrls = (f: BankFolder) => Array.from({ length: BANK[f] }, (_, i) => appPath(`sfx/${f}/${i + 1}.mp3?v=${SFX_VERSION}`));

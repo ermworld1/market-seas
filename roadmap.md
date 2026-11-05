@@ -1,5 +1,11 @@
 # Roadmap
 
+## /sea deployment
+- [x] Configure shared base path, asset/auth URLs, and bare-root 302 redirect.
+- [x] Add gold donotdie and Land gateway links.
+- [x] Verify locally: /sea pages, all 261 public media files, 73 decoded audio samples, live Binance frames, prefixed server functions/API, desktop/phone, and 87 tests. Music uses procedural fallback (manifest has no stems).
+- [ ] Verify the deployed Vercel/proxy and auth-provider return allowlists after deployment (external deployment not available here).
+
 - [x] v1: live battle, fleets, effects, HUD, predictions, GLB models.
 - [x] v2 Phase A: BTC only, Buyers/Sellers, ortho camera, label fix, full book sync, buckets, tiers, order-change rules + tests.
 - [x] v2 Phase B: fill-count tracers, sweeps, fighters, phase machine, 5-min battles, boss HP, tug-of-war, regime banner, callouts, new predictions.

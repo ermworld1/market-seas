@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AIRCRAFT, EVENTS, RULES_FACTS, SCENERY, SHIPS, WEAPONS, type UnitDef } from "@/lib/battle/units";
 import { engineRef, useBattle } from "@/lib/market/store";
 import { cn } from "@/lib/utils";
+import { appPath } from "@/lib/app-path";
 
 let legendPromise: Promise<Record<string, string>> | null = null;
 const legendCache: Record<string, string> = {};
@@ -21,7 +22,7 @@ export function UnitIcon({ u, small = false }: { u: UnitDef; small?: boolean }) 
   const key = u.icon;
   // Existing side render is only a loading fallback; the offscreen neutral
   // render replaces it as soon as the exact live geometry is ready.
-  const staticSrc = `/legend/${u.icon}-bid.png`;
+  const staticSrc = appPath(`legend/${u.icon}-bid.png`);
   const [src, setSrc] = useState(legendCache[key] ?? staticSrc);
   const [playing, setPlaying] = useState(false);
   useEffect(() => { void loadLegend().then((r) => setSrc(r[key] ?? "")); }, [key]);

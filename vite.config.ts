@@ -9,11 +9,22 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 type NitroOption = Exclude<NonNullable<Parameters<typeof defineConfig>[0]>["nitro"], undefined | boolean>;
 
 export default defineConfig({
+  vite: { base: "/sea/" },
   // Vercel only (ignored by the Lovable/Cloudflare build): run server functions in Singapore.
   // Binance blocks US IPs (HTTP 451), and the prediction settlement reads Binance REST server-side.
   // (typed loosely: the Lovable config's nitro type only lists its own Cloudflare keys)
-  nitro: { vercel: { functions: { regions: ["sin1"] } } } as unknown as NitroOption,
+  nitro: {
+    vercel: { functions: { regions: ["sin1"] } },
+    // Keep the server mounted at / (for the root redirect), but physically
+    // publish static files under /sea on both Vercel and Cloudflare.
+    hooks: {
+      "build:before": (nitro: { options: { publicAssets: { baseURL?: string }[] } }) => {
+        for (const asset of nitro.options.publicAssets) asset.baseURL = "/sea";
+      },
+    },
+  } as unknown as NitroOption,
   tanstackStart: {
+    router: { basepath: "/sea" },
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
